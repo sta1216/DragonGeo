@@ -53,6 +53,12 @@ TEST_CASE("non-uniform scaling scales each axis independently",
     const Transform3 t = scaling_3d(Vector3{2.0, 3.0, 4.0});
 
     CHECK(apply(t, Vector3{1.0, 1.0, 1.0}) == Vector3{2.0, 3.0, 4.0});
+
+    // (1,1,1) 是全对称输入：「写对角线」与「写第一列」得到的矩阵在它上面
+    // 给出相同结果，单靠这一行分不开两者。换成各分量互不相等的输入，第一列
+    // 写入会算成 (2*1, 2*2, 2*5) 之类的错误值。
+    CHECK(apply(t, Vector3{1.0, 2.0, 5.0}) == Vector3{2.0, 6.0, 20.0});
+    CHECK(t * Vector3{1.0, 2.0, 5.0} == Vector3{2.0, 6.0, 20.0});
 }
 
 TEST_CASE("rotation about z by 90 degrees", "[linear][transform3]") {

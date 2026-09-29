@@ -90,6 +90,22 @@ TEST_CASE("scaling a unit vector yields a plain Vector3",
     CHECK(2.0 * *u == Vector3{0.0, 0.0, 2.0});
 }
 
+TEST_CASE("sums and differences of unit vectors are plain Vector3",
+          "[linear][unitvector3]") {
+    const auto x = normalize(Vector3{1.0, 0.0, 0.0});
+    const auto z = normalize(Vector3{0.0, 0.0, 1.0});
+    REQUIRE(x.has_value());
+    REQUIRE(z.has_value());
+
+    // 规范 §4.4 点名了 u + u 与 u - u：和与差一般都不是单位向量，返回类型
+    // 必须如实反映这一点，否则不变量会被静默破坏。
+    STATIC_REQUIRE(std::is_same_v<decltype(*x + *z), Vector3>);
+    STATIC_REQUIRE(std::is_same_v<decltype(*x - *z), Vector3>);
+
+    CHECK(*x + *z == Vector3{1.0, 0.0, 1.0});
+    CHECK(*x - *z == Vector3{1.0, 0.0, -1.0});
+}
+
 TEST_CASE("dot of two unit vectors is the cosine of the angle",
           "[linear][unitvector3]") {
     const auto a = normalize(Vector3{1.0, 0.0, 0.0});
