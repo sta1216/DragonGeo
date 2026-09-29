@@ -177,3 +177,38 @@ TEST_CASE("normalize scales a non-unit quaternion", "[linear][quaternion]") {
     CHECK(general->y == Approx(3.0 / std::sqrt(30.0)));
     CHECK(general->z == Approx(4.0 / std::sqrt(30.0)));
 }
+
+TEST_CASE("quaternion product composes rotations in the documented order",
+          "[linear][quaternion]") {
+    // 全库只有一处调用 operator*（half * half），而那是自乘积、操作数又是 z 轴
+    // 四元数（x = y = 0）：于是 x/y 输出分量与 w 行的 x/y 项始终在对零做运算，
+    // 组合顺序也无从区分（自乘积对顺序不敏感）。这里乘两个不同的四元数，
+    // 两个操作数的四个分量都非零，乘积也不可交换。
+    const UnitVector3 x_axis = UnitVector3::from_normalized_unchecked(Vector3{1.0, 0.0, 0.0});
+    const UnitVector3 y_axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 1.0, 0.0});
+
+    const Quaternion a = from_axis_angle(x_axis, half_pi);   // 绕 x 轴 90°
+    const Quaternion b = from_axis_angle(y_axis, half_pi);   // 绕 y 轴 90°
+
+    // 手算：a = (√2/2, √2/2, 0, 0)，b = (√2/2, 0, √2/2, 0)
+    const Quaternion ab = a * b;
+    CHECK(ab.w == Approx(0.5));
+    CHECK(ab.x == Approx(0.5));
+    CHECK(ab.y == Approx(0.5));
+    CHECK(ab.z == Approx(0.5));
+
+    // 交换相乘后 z 分量变号 —— 顺序确实有区别，且这个区别被钉住
+    const Quaternion ba = b * a;
+    CHECK(ba.w == Approx(0.5));
+    CHECK(ba.x == Approx(0.5));
+    CHECK(ba.y == Approx(0.5));
+    CHECK(ba.z == Approx(-0.5));
+
+    // 且必须与逐次旋转一致：a * b 表示先施加 b 再施加 a
+    const Vector3 v{1.0, 2.0, 3.0};
+    const Vector3 composed = rotate(ab, v);
+    const Vector3 sequential = rotate(a, rotate(b, v));
+    CHECK(composed.x == Approx(sequential.x));
+    CHECK(composed.y == Approx(sequential.y));
+    CHECK(composed.z == Approx(sequential.z));
+}
