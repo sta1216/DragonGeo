@@ -994,6 +994,17 @@ TEST_CASE("Vector2T is usable with float", "[linear][vector2]") {
     CHECK(v.length() == 5.0f);
     CHECK(v.x == 3.0f);
 }
+
+TEST_CASE("length of a vector containing infinity is infinity, not NaN",
+          "[linear][vector2][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    // 缩放写法若不特判，inf / inf 会算出 NaN 并污染整条计算链 ——
+    // 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
+    CHECK(Vector2{infinity, 1.0}.length() == infinity);
+    CHECK(Vector2{1.0, infinity}.length() == infinity);
+    CHECK(Vector2{infinity, infinity}.length() == infinity);
+}
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
@@ -1047,6 +1058,12 @@ struct Vector2T {
         const Scalar scale = abs_x > abs_y ? abs_x : abs_y;
         if (scale == Scalar{0}) {
             return Scalar{0};
+        }
+        if (!core::is_finite(scale)) {
+            // 含 ±inf（或全为 NaN）分量时，下面的 inf / inf 会算出 NaN 并污染
+            // 结果 —— 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
+            // 此时真实长度本就是 ±inf，直接返回它。
+            return scale;
         }
         const Scalar scaled_x = x / scale;
         const Scalar scaled_y = y / scale;
@@ -1174,6 +1191,7 @@ git commit -m "feat(linear): add Vector2T with overflow-safe length"
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <GeoCore/linear/Vector3.hpp>
 
@@ -1241,12 +1259,24 @@ TEST_CASE("Vector3T is usable with float", "[linear][vector3]") {
     const Vector3f v{1.0f, 2.0f, 2.0f};
     CHECK(v.length() == 3.0f);
 }
+
+TEST_CASE("length of a vector containing infinity is infinity, not NaN",
+          "[linear][vector3][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    // 同 Vector2T：缩放写法若不特判，inf / inf 会算出 NaN。
+    CHECK(Vector3{infinity, 1.0, 1.0}.length() == infinity);
+    CHECK(Vector3{1.0, infinity, 1.0}.length() == infinity);
+    CHECK(Vector3{infinity, infinity, infinity}.length() == infinity);
+}
 ```
 
 创建 `tests/linear/vector4_test.cpp`：
 
 ```cpp
 #include <catch2/catch_test_macros.hpp>
+
+#include <limits>
 
 #include <GeoCore/linear/Vector4.hpp>
 
@@ -1277,6 +1307,16 @@ TEST_CASE("default-constructed Vector4 is zero", "[linear][vector4]") {
     const Vector4 v{};
     CHECK(v.w == 0.0);
     CHECK(v.length() == 0.0);
+}
+
+TEST_CASE("length of a vector containing infinity is infinity, not NaN",
+          "[linear][vector4][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    // 同 Vector2T：缩放写法若不特判，inf / inf 会算出 NaN。
+    CHECK(Vector4{infinity, 1.0, 1.0, 1.0}.length() == infinity);
+    CHECK(Vector4{1.0, 1.0, 1.0, infinity}.length() == infinity);
+    CHECK(Vector4{infinity, infinity, infinity, infinity}.length() == infinity);
 }
 ```
 
@@ -1325,6 +1365,11 @@ struct Vector3T {
                                            : (abs_y > abs_z ? abs_y : abs_z);
         if (scale == Scalar{0}) {
             return Scalar{0};
+        }
+        if (!core::is_finite(scale)) {
+            // 同 Vector2T::length：含 ±inf（或全为 NaN）分量时，inf / inf 会
+            // 算出 NaN；真实长度本就是 ±inf，直接返回它。
+            return scale;
         }
         const Scalar scaled_x = x / scale;
         const Scalar scaled_y = y / scale;
@@ -1441,6 +1486,11 @@ struct Vector4T {
 
         if (scale == Scalar{0}) {
             return Scalar{0};
+        }
+        if (!core::is_finite(scale)) {
+            // 同 Vector2T::length：含 ±inf（或全为 NaN）分量时，inf / inf 会
+            // 算出 NaN；真实长度本就是 ±inf，直接返回它。
+            return scale;
         }
         const Scalar scaled_x = x / scale;
         const Scalar scaled_y = y / scale;
