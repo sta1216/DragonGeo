@@ -1196,6 +1196,14 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
     CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
 
+    // **这一条是「结果侧必须用全函数谓词」的活例，不能省。**
+    // 中间结果 {NaN, NaN} 不是空的（`!(NaN <= NaN)` 虽为真，但那是全函数谓词
+    // 才判得出 —— 用 `min > max` 会判成非空），所以必须靠结果侧那句全函数谓词
+    // 才落得回 `empty()`。缺了它，把结果侧写成 `min > max` 会全绿通过，
+    // 而 `expanded` 会开始交出 `{NaN, NaN}` —— `is_empty()` 为真、`== empty()`
+    // 为假，正是本项目禁止的「第二个空表示」。
+    CHECK(Interval{1.0, 5.0}.expanded(nan) == Interval::empty());
+
     // `{+inf, +inf}` **不是**空区间（它含 +inf 一个点），但它的长度是
     // `inf - inf` = NaN。这是「非空却没有有限长度」的哨兵值，与 center 同类，
     // 文档写明并在此钉住 —— 不要让一个看似成功的长度悄悄是 NaN。
@@ -1253,7 +1261,9 @@ TEST_CASE("the consumers agree with the total empty predicate",
 
 - `contains` 用**闭区间**（`value >= min && value <= max`），不引入容差 —— 区间包含是精确谓词，带容差的包含会让「这个点是否在区间内」随上下文变化。
 - `is_empty()` 实现为 **`!(min <= max)`**，**不是** `min > max`。差别只在非有限值上，但正好是要命的地方：`min > max` 对 `{NaN, NaN}` 返回 **false**，也就是**谎称自己是一个正常的非空区间**；而 `!(min <= max)` 对 NaN、对倒置、对规范空三种情形都返回真。**空判定必须是全函数** —— 任何区间要么空、要么满足 `min <= max`，不允许存在「两个都不是」的第三种状态。`empty()` 是 `{+inf, -inf}`，`unbounded()` 是 `{-inf, +inf}`。
-  **为什么这一条特别重要**：`expanded` 与 `clipped` 都是靠 `result.is_empty() ? empty() : result` 做规范化的。于是「`is_empty` 对 NaN 说谎」会让 `Interval::empty().expanded(+inf)` 返回 `{NaN, NaN}`（因为 `+inf - (+inf)` 是 NaN）—— 既不是 `empty()`、也不是倒置，而 `is_empty()` 还报 false，正好撞在本项目「绝不交出一个看似成功却含 NaN 的结果」那条原则上。把谓词改全之后，这一格自动落回 `empty()`，无需在 `expanded` 里加特判。
+  **为什么这一条特别重要**：`expanded` 与 `clipped` 都是靠 `result.is_empty() ? empty() : result` 做规范化的。于是「`is_empty` 对 NaN 说谎」会让中间结果算出的 `{NaN, NaN}`（`+inf - (+inf)`）既不是 `empty()`、也不是倒置，而 `is_empty()` 还报 false —— 正好撞在本项目「绝不交出一个看似成功却含 NaN 的结果」那条原则上。
+
+  **注意别拿 `empty().expanded(+inf)` 当这一格的例子** —— 那个例子是**死的**：输入侧的早退（`if (is_empty()) return empty();`）会先接住它，结果侧根本不会执行。实测：把三个头文件的 `is_empty()` 都退回 `min > max`，`empty().expanded(+inf)` 在三个类型上**仍返回规范空**。**活的例子是 `Interval{1,5}.expanded(NaN)`** —— 中间结果 `{NaN, NaN}` 非空，必须靠结果侧那句**全函数**谓词才落得回 `empty()`；用 `min > max` 就会交出 `{NaN, NaN}`。
 - **谓词改全之后，三个消费者必须跟着改 —— 否则谓词只是装饰。** `{NaN, NaN}` 不含任何点，`is_empty()` 说它空是**对的**；但 `merged` / `intersects` / `clipped` 仍按「非空」处理它，于是同一对参数换方向会给出不同答案（实测：`{1,5}.intersects({NaN,NaN})` 为真、反方向为假；`{NaN,NaN}.merged({1,5})` 给自己、反方向给 `{1,5}`；`{1,5}.clipped({NaN,NaN})` 返回整个 `{1,5}`）。所以三者各补一道显式的空判定：
 
   ```cpp
@@ -1507,7 +1517,9 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 部分倒置也算空。
     CHECK(Box3{Point3{5.0, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}}.is_empty());
 
-    // 空盒被 +inf 膨胀：`+inf - (+inf)` 是 NaN。谓词改全之后自动落回 empty()。
+    // 空盒被 +inf 膨胀：输入侧早退直接接住，返回 empty()。
+    // （**不要**拿这一格当「结果侧全函数谓词」的例子 —— 它走不到结果侧。
+    //  那一格的活例是 `{有限盒}.expanded(NaN)`，见下面相关用例。）
     CHECK(Box3::empty().expanded(infinity) == Box3::empty());
 
     // 有限盒被 +inf 膨胀得到整个空间，**不是**空盒。
