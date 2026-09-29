@@ -604,12 +604,66 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector3>);
     CHECK(b - a == Vector3{3.0, 4.0, 5.0});
 
-    // 点 + 点不存在 —— 下面这行若能编译，说明类型约束失效
-    // STATIC_REQUIRE(!requires(Point3 p, Point3 q) { p + q; });
+    // 点 + 点不存在 —— 这是本任务的核心不变量（Review Focus 第 1 条）：
+    // 写错了不会报错，只会静默给出错误语义。必须真的断言，不能只注释掉。
+    //
+    // 用普通 static_assert 而非 Catch2 的 STATIC_REQUIRE：后者要把表达式分解成
+    // 左右操作数，而 requires-expression 没有可分解的运算符，且 STATIC_REQUIRE
+    // 的宏展开路径上含有逗号与花括号。块作用域的 static_assert 无这些问题。
+    static_assert(!requires(Point3 p, Point3 q) { p + q; },
+                  "Point + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));
+}
+```
+
+创建 `tests/linear/point2_test.cpp`。二维的结构与三维平行，**同一条不变量也必须在这里断言一次** —— 别因为"3D 测过了"就省掉，两个头文件是独立写的，一个写错另一个不会知道：
+
+```cpp
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <type_traits>
+
+#include <GeoCore/linear/Point2.hpp>
+
+using Catch::Approx;
+using GeoCore::linear::Point2;
+using GeoCore::linear::Vector2;
+
+TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
+    const Point2 p{1.0, 2.0};
+
+    CHECK(p[0] == 1.0);
+    CHECK(p[1] == 2.0);
+
+    const std::array<double, 2> arr = p.to_array();
+    CHECK(arr[1] == 2.0);
+}
+
+TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
+          "[linear][point2]") {
+    const Point2 a{1.0, 2.0};
+    const Point2 b{4.0, 6.0};
+    const Vector2 v{10.0, 20.0};
+
+    STATIC_REQUIRE(std::is_same_v<decltype(a + v), Point2>);
+    CHECK(a + v == Point2{11.0, 22.0});
+
+    STATIC_REQUIRE(std::is_same_v<decltype(a - v), Point2>);
+    CHECK(a - v == Point2{-9.0, -18.0});
+
+    STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector2>);
+    CHECK(b - a == Vector2{3.0, 4.0});
+
+    static_assert(!requires(Point2 p, Point2 q) { p + q; },
+                  "Point + Point must not be well-formed");
+}
+
+TEST_CASE("Point2 distance_to", "[linear][point2]") {
+    CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
 }
 ```
 
@@ -619,7 +673,7 @@ TEST_CASE("Point3 distance_to", "[linear][point3]") {
 cmake --build --preset windows-vs-debug
 ```
 
-Expected: 找不到 `GeoCore/linear/Point3.hpp`。
+Expected: 找不到 `GeoCore/linear/Point2.hpp` 与 `Point3.hpp`。
 
 - [ ] **Step 3: 实现**
 
@@ -664,7 +718,15 @@ template <typename Scalar>
 /// 两点之差是位移向量，不是点。
 template <typename Scalar>
 [[nodiscard]] constexpr Vector3T<Scalar> operator-(Point3T<Scalar> a, Point3T<Scalar> b) noexcept;
+
+/// 逐分量比较。与 Vector 的约定一致：`operator!=` 由 C++20 自动生成，不手写。
+template <typename Scalar>
+[[nodiscard]] constexpr bool operator==(Point3T<Scalar> a, Point3T<Scalar> b) noexcept;
 ```
+
+`Point2T` 的三个运算符与 `operator==` 照写一遍（把 `3` 换成 `2`、`z` 去掉）。
+
+**关于 `Point + Point`**：代码块里刻意没有它，`static_assert` 会守住这一点。**也不要顺手加 `Vector + Point`** —— spec §5.0 的运算符清单里没有它（只有 `Point + Vector` 与 `Point - Point`），计划不擅自扩 API。若你实现时觉得它显然应该存在，那是**设计问题不是实现问题**，请在报告里提出来，别默默加上。
 
 在 `GeoCore.hpp` 的 `Vector2/3/4` 之后追加两个 include。
 
