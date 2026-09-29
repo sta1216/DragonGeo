@@ -1293,14 +1293,16 @@ git commit -m "feat(linear): add Coordinate2T and Coordinate3T"
 - Produces:
   - `struct OrientedBox3T { Coordinate3T<Scalar> frame; Vector3T<Scalar> half_extent; }`，别名 `OrientedBox3` / `OrientedBox3f`
   - `Point3T center() const`（即 `frame.origin()`）
-  - `bool contains(Point3T, Tolerance = {}) const`（`to_local` 后逐轴比较）
-  - `Point3T corner(int index) const` —— 8 个角
+  - `bool contains(Point3T, Tolerance = {}) const` —— 先把点 `to_local`，再逐轴比较 `|local.i| <= half_extent.i`，**闭区间**（边界算在内），容差加在比较的右侧
+  - `Point3T corner(int index) const` —— 8 个角，索引约定与 `Box3T::corner` **完全一致**（bit0/bit1/bit2 依次选 x/y/z）
   - **`Box3T to_axis_aligned() const`** —— 紧致地包住旋转后的盒子
-  - `OrientedBox3T expanded(Scalar) const`
+  - `OrientedBox3T expanded(Scalar) const` —— **逐分量把半轴夹到非负**：`max(0, half_extent.i + amount)`。负的半轴不是「有向盒」的合法状态，放它过去会让 `to_axis_aligned()` 给出一个倒置的、悄悄错的盒子
+  - `bool operator==(OrientedBox3T, OrientedBox3T) noexcept`（自由函数；`!=` 由 C++20 生成）
+  - `OrientedBox2T` 同构，`corner` 有 4 个，二维的 `from_axes` 取两轴
 
 - [ ] **Step 1: 写失败测试**
 
-关键用例 —— **旋转后的紧包围盒必须真的变大**：
+创建 `tests/linear/oriented_box3_test.cpp`（需要 `<cmath>` 取 `std::sqrt`、`<catch2/catch_approx.hpp>` + `using Catch::Approx;`，并照其它测试放一个匿名命名空间的 `z_axis`）。
 
 ```cpp
 TEST_CASE("rotating a box grows its axis-aligned bounding box",
@@ -1318,24 +1320,99 @@ TEST_CASE("rotating a box grows its axis-aligned bounding box",
     CHECK(aabb.max.x == Approx(1.0));
 
     // 绕 z 转 45° 后，x/y 方向的紧包围盒必须扩展到 √2
-    const auto rotated_frame = Coordinate3::from_z_axis(
-        Point3{0.0, 0.0, 0.0},
-        UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}));
-    const OrientedBox3 rotated{
-        Coordinate3::from_axes(
-            Point3{0.0, 0.0, 0.0},
-            UnitVector3::from_normalized_unchecked(Vector3{0.7071067811865476, 0.7071067811865476, 0.0}),
-            UnitVector3::from_normalized_unchecked(Vector3{-0.7071067811865476, 0.7071067811865476, 0.0}),
-            UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}))
-            .value(),
-        Vector3{1.0, 1.0, 1.0}};
+    const auto x45 = Vector3{1.0, 1.0, 0.0}.normalized();
+    const auto y45 = Vector3{-1.0, 1.0, 0.0}.normalized();
+    REQUIRE(x45.has_value());
+    REQUIRE(y45.has_value());
+
+    const auto rotated_frame = Coordinate3::from_axes(
+        Point3{0.0, 0.0, 0.0}, *x45, *y45, z_axis);
+    REQUIRE(rotated_frame.has_value());
+
+    const OrientedBox3 rotated{*rotated_frame, Vector3{1.0, 1.0, 1.0}};
     const Box3 rotated_aabb = rotated.to_axis_aligned();
 
-    CHECK(rotated_aabb.max.x == Approx(1.4142135623730951).margin(1e-12));
+    CHECK(rotated_aabb.max.x == Approx(std::sqrt(2.0)).margin(1e-12));
+    CHECK(rotated_aabb.min.x == Approx(-std::sqrt(2.0)).margin(1e-12));
     CHECK(rotated_aabb.max.x > aabb.max.x);   // 真的变大了
     CHECK(rotated_aabb.max.z == Approx(1.0)); // z 方向不变
 }
+
+TEST_CASE("a non-cubic oriented box pins every axis separately",
+          "[linear][orientedbox3]") {
+    // 上面的用例是立方体 —— 半轴三个分量相等，于是任何把 x/y/z 弄混、
+    // 或把 corner 的索引位弄反的实现都看不出来。半轴取 (1,2,3) 之后，
+    // 每个轴各自可辨。
+    const auto frame = Coordinate3::from_z_axis(
+        Point3{0.0, 0.0, 0.0},
+        UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}));
+    REQUIRE(frame.has_value());
+
+    const OrientedBox3 box{*frame, Vector3{1.0, 2.0, 3.0}};
+    const Box3 aabb = box.to_axis_aligned();
+
+    CHECK(aabb.min == Point3{-1.0, -2.0, -3.0});
+    CHECK(aabb.max == Point3{1.0, 2.0, 3.0});
+
+    // corner 的 bit0/bit1/bit2 依次选 x/y/z，置位取 max。
+    CHECK(box.corner(0) == Point3{-1.0, -2.0, -3.0});
+    CHECK(box.corner(1) == Point3{1.0, -2.0, -3.0});
+    CHECK(box.corner(2) == Point3{-1.0, 2.0, -3.0});
+    CHECK(box.corner(4) == Point3{-1.0, -2.0, 3.0});
+    CHECK(box.corner(7) == Point3{1.0, 2.0, 3.0});
+
+    CHECK(box.center() == Point3{0.0, 0.0, 0.0});
+}
+
+TEST_CASE("oriented box containment follows the frame", "[linear][orientedbox3]") {
+    const auto x45 = Vector3{1.0, 1.0, 0.0}.normalized();
+    const auto y45 = Vector3{-1.0, 1.0, 0.0}.normalized();
+    REQUIRE(x45.has_value());
+    REQUIRE(y45.has_value());
+
+    const auto frame = Coordinate3::from_axes(Point3{1.0, 1.0, 0.0}, *x45, *y45, z_axis);
+    REQUIRE(frame.has_value());
+
+    const OrientedBox3 box{*frame, Vector3{1.0, 1.0, 1.0}};
+
+    CHECK(box.contains(Point3{1.0, 1.0, 0.0}));          // 中心
+    CHECK(box.contains(Point3{1.0, 1.0, 1.0}));          // 局部 z 的面上
+    CHECK_FALSE(box.contains(Point3{1.0, 1.0, 1.5}));
+
+    // 角落方向：局部 (1,1,1) 在世界里是 rotated_frame 作用后的点。
+    // 先确认「局部 (2,0,0)」这个明显在外面的点被拒绝，再确认边界点被接受。
+    CHECK_FALSE(box.contains(Point3{1.0 + 2.0 * x45->x(), 1.0 + 2.0 * x45->y(), 0.0}));
+
+    // expanded 之后同一个点应当被接受。
+    CHECK(box.expanded(1.5).contains(
+        Point3{1.0 + 2.0 * x45->x(), 1.0 + 2.0 * x45->y(), 0.0}));
+}
+
+TEST_CASE("expanded never produces a negative half extent",
+          "[linear][orientedbox3]") {
+    const auto frame = Coordinate3::from_z_axis(
+        Point3{0.0, 0.0, 0.0},
+        UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}));
+    REQUIRE(frame.has_value());
+
+    const OrientedBox3 box{*frame, Vector3{1.0, 2.0, 3.0}};
+
+    CHECK(box.expanded(1.0).half_extent == Vector3{2.0, 3.0, 4.0});
+    CHECK(box.expanded(-0.5).half_extent == Vector3{0.5, 1.5, 2.5});
+
+    // 收缩过头：逐分量夹到 0，而不是留下负的半轴 —— 负半轴会让
+    // to_axis_aligned() 给出一个倒置的、悄悄错的盒子。
+    CHECK(box.expanded(-10.0).half_extent == Vector3{0.0, 0.0, 0.0});
+
+    // 三维都为 0 时，紧包围盒退化成一个点（即中心），不是空盒。
+    const Box3 degenerate = box.expanded(-10.0).to_axis_aligned();
+    CHECK_FALSE(degenerate.is_empty());
+    CHECK(degenerate.min == Point3{0.0, 0.0, 0.0});
+    CHECK(degenerate.max == Point3{0.0, 0.0, 0.0});
+}
 ```
+
+创建 `tests/linear/oriented_box2_test.cpp`。二维**不共享**三维的测试文件，上面四类用例按二维各写一份（`OrientedBox2`/`Box2`/`Point2`/`Vector2`，`corner` 只有 4 个，`from_axes` 两轴，绕 z 旋转改为绕原点旋转 45°）。**非立方体那一份尤其不能省** —— 它是唯一能暴露轴位互换的用例。
 
 - [ ] **Step 2: 实现**
 
@@ -1344,9 +1421,12 @@ TEST_CASE("rotating a box grows its axis-aligned bounding box",
 ```cpp
 /// 紧致的轴对齐包围盒。
 ///
-/// 取八个角的 min/max，而不是「中心 ± 半轴长度之和」—— 后者把盒子当成球
-/// 来处理，在旋转下系统地过松（绕 z 转 45° 的立方体，正确结果是 √2 倍，
-/// 而用半轴之和会得到 2 倍）。
+/// 取八个角在世界坐标下的实际 min/max。两种常见替代写法都是错的，
+/// 且**错的方向相反**，测试对两者都要有检出能力：
+///   - 用「包围球半径」（半轴长度之和，这里 = √3 ≈ 1.732）：旋转后过松；
+///   - 只把中心变换过去、半轴沿用局部值（这里 = 1）：**过紧** —— 盒子
+///     框不住自己的角点，是更危险的那种错。
+/// 绕 z 转 45° 的边长 2 立方体，正确结果是 √2 ≈ 1.41421356。
 template <typename Scalar>
 [[nodiscard]] Box3T<Scalar> OrientedBox3T<Scalar>::to_axis_aligned() const noexcept {
     Box3T<Scalar> result = Box3T<Scalar>::empty();
@@ -1364,6 +1444,8 @@ template <typename Scalar>
 ```
 
 （起点用 `Box3T::empty()`，其 `min = +inf` / `max = -inf` 使首轮比较自然成立。）
+
+`corner(int index)` 先在**局部**坐标里取角（`min = -half_extent`、`max = +half_extent`，索引位的含义与 `Box3T::corner` 相同），再用 `frame.to_parent` 送到世界坐标。`contains` 则是反向的：先 `frame.to_local` 再逐轴比。两个方向都要有测试。
 
 - [ ] **Step 3: 验证并提交**
 
