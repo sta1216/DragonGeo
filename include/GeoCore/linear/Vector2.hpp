@@ -31,16 +31,14 @@ struct Vector2T {
     /// 极端量级上都不会因中间量下溢/上溢而丢失精度。代价是两次除法，
     /// 热路径上若只需要比较长度请改用 length_squared()。
     [[nodiscard]] Scalar length() const noexcept {
-        const Scalar abs_x = core::absolute_value(x);
-        const Scalar abs_y = core::absolute_value(y);
-        const Scalar scale = abs_x > abs_y ? abs_x : abs_y;
+        const Scalar scale = core::max_abs_of(x, y);
         if (scale == Scalar{0}) {
             return Scalar{0};
         }
         if (!core::is_finite(scale)) {
-            // 含 ±inf（或全为 NaN）分量时，下面的 inf / inf 会算出 NaN 并污染
-            // 结果 —— 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
-            // 此时真实长度本就是 ±inf，直接返回它。
+            // 含 ±inf 分量时下面的 inf / inf 会算出 NaN 并污染结果 —— 缩放本是
+            // 为消除溢出而引入，不能反而在无穷输入上退化。缩放系数由
+            // max_abs_of 给出，规则是：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。
             return scale;
         }
         const Scalar scaled_x = x / scale;

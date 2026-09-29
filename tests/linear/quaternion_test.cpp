@@ -126,6 +126,26 @@ TEST_CASE("norm and normalize handle non-finite input consistently",
     CHECK_FALSE(normalize(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}).has_value());
 }
 
+TEST_CASE("norm gives a slot-independent answer on non-finite input",
+          "[linear][quaternion][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    // norm 与 VectorNT::length 共用 core::max_abs_of，规则相同：
+    // 任一无穷分量 ⇒ +inf；否则含 NaN ⇒ NaN。槽位不影响答案。
+    CHECK(std::isnan(norm(Quaternion{5.0, nan, 0.0, 0.0})));
+    CHECK(std::isnan(norm(Quaternion{nan, 5.0, 0.0, 0.0})));
+    CHECK(std::isnan(norm(Quaternion{0.0, 0.0, nan, 5.0})));
+    CHECK(std::isnan(norm(Quaternion{5.0, 0.0, 0.0, nan})));
+
+    CHECK(norm(Quaternion{infinity, nan, 0.0, 0.0}) == infinity);
+    CHECK(norm(Quaternion{nan, infinity, 0.0, 0.0}) == infinity);
+    CHECK(norm(Quaternion{1.0, 1.0, nan, infinity}) == infinity);
+
+    // 无 NaN 的输入不受影响
+    CHECK(norm(Quaternion{5.0, 0.0, 0.0, 0.0}) == 5.0);
+}
+
 TEST_CASE("rotation about x by 90 degrees maps y to z", "[linear][quaternion]") {
     // 上面所有用例都绕 z 轴，因此四元数的 x、y 分量恒为零 —— 那些分量上的
     // 符号或系数错误会在 0 = 0 里消失。换一个轴把它们逼出来。

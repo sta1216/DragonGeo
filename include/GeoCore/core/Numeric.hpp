@@ -27,6 +27,40 @@ template <std::floating_point Scalar>
         && value != -std::numeric_limits<Scalar>::infinity();
 }
 
+/// 一组分量的最大绝对值，并对非有限输入规定确定的答案。
+///
+/// 规则：任一分量为 ±inf ⇒ +inf；否则任一分量为 NaN ⇒ NaN；否则取最大绝对值
+/// （恒为非负）。若无此规定，逐项比较遇到 NaN 时比较均返回 false，fold 会
+/// 静默保留前一个值 —— 于是同一个量在不同元数的类型上给出互相矛盾的答案。
+///
+/// 合并是可交换、可结合的：±inf 压过 NaN，NaN 压过任何有限值。因此
+/// max_abs_of(a, b, c) 展开成两两合并时与参数顺序无关。
+template <std::floating_point Scalar>
+[[nodiscard]] constexpr Scalar max_abs_of(Scalar a, Scalar b) noexcept {
+    const Scalar abs_a = absolute_value(a);
+    const Scalar abs_b = absolute_value(b);
+    const Scalar infinity = std::numeric_limits<Scalar>::infinity();
+
+    if (abs_a == infinity || abs_b == infinity) {
+        // 必须先判 inf：与 NaN 同时出现时，规范给出的答案是 +inf。
+        return infinity;
+    }
+    if (!is_finite(abs_a) || !is_finite(abs_b)) {
+        return std::numeric_limits<Scalar>::quiet_NaN();   // 此刻只可能是 NaN
+    }
+    return abs_a > abs_b ? abs_a : abs_b;
+}
+
+template <std::floating_point Scalar>
+[[nodiscard]] constexpr Scalar max_abs_of(Scalar a, Scalar b, Scalar c) noexcept {
+    return max_abs_of(max_abs_of(a, b), c);
+}
+
+template <std::floating_point Scalar>
+[[nodiscard]] constexpr Scalar max_abs_of(Scalar a, Scalar b, Scalar c, Scalar d) noexcept {
+    return max_abs_of(max_abs_of(a, b), max_abs_of(c, d));
+}
+
 /// 把 value 限制到 [low, high]。要求 low <= high。
 template <std::floating_point Scalar>
 [[nodiscard]] constexpr Scalar clamp(Scalar value, Scalar low, Scalar high) noexcept {

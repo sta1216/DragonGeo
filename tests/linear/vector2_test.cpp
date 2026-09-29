@@ -101,3 +101,19 @@ TEST_CASE("length of a vector containing infinity is infinity, not NaN",
     CHECK(Vector2{1.0, infinity}.length() == infinity);
     CHECK(Vector2{infinity, infinity}.length() == infinity);
 }
+
+TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
+          "[linear][vector2][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    // 逐项取最大绝对值时，与 NaN 的比较一律返回 false，fold 会静默保留前一个
+    // 值，答案于是取决于 NaN 落在哪一槽。规则固定为：任一无穷分量 ⇒ ±inf；
+    // 否则含 NaN ⇒ NaN。槽位与元数都不再影响结果。
+    CHECK(std::isnan(Vector2{5.0, nan}.length()));
+    CHECK(std::isnan(Vector2{nan, 5.0}.length()));
+
+    // 无穷压过 NaN：这一条把上面那条规则的优先级也钉住
+    CHECK(Vector2{infinity, nan}.length() == infinity);
+    CHECK(Vector2{nan, infinity}.length() == infinity);
+}

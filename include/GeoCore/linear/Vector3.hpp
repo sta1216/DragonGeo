@@ -23,17 +23,12 @@ struct Vector3T {
 
     /// 欧几里得长度。先按最大分量缩放，避免中间量上溢或下溢。
     [[nodiscard]] Scalar length() const noexcept {
-        const Scalar abs_x = core::absolute_value(x);
-        const Scalar abs_y = core::absolute_value(y);
-        const Scalar abs_z = core::absolute_value(z);
-        const Scalar scale = abs_x > abs_y ? (abs_x > abs_z ? abs_x : abs_z)
-                                           : (abs_y > abs_z ? abs_y : abs_z);
+        const Scalar scale = core::max_abs_of(x, y, z);
         if (scale == Scalar{0}) {
             return Scalar{0};
         }
         if (!core::is_finite(scale)) {
-            // 同 Vector2T::length：含 ±inf（或全为 NaN）分量时，inf / inf 会
-            // 算出 NaN；真实长度本就是 ±inf，直接返回它。
+            // 同 Vector2T::length：规则是任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。
             return scale;
         }
         const Scalar scaled_x = x / scale;

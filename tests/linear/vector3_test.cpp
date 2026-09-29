@@ -89,3 +89,24 @@ TEST_CASE("length of a vector containing infinity is infinity, not NaN",
     CHECK(Vector3{1.0, infinity, 1.0}.length() == infinity);
     CHECK(Vector3{infinity, infinity, infinity}.length() == infinity);
 }
+
+TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
+          "[linear][vector3][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    // 这里的嵌套三目曾经让 {5, NaN, 0} 返回 0：`5 > NaN` 与 `NaN > 0` 都是
+    // false，fold 于是保留了零槽的值，再被 scale == 0 的提前返回放大成
+    // 「长度为零」。规则改为：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。
+    CHECK(std::isnan(Vector3{5.0, nan, 0.0}.length()));
+    CHECK(std::isnan(Vector3{nan, 5.0, 0.0}.length()));
+    CHECK(std::isnan(Vector3{0.0, nan, 5.0}.length()));
+    // 无 NaN 的输入不受这条规则影响
+    CHECK(Vector3{5.0, 0.0, 0.0}.length() == 5.0);
+
+    // 无穷压过 NaN，且与槽位无关 —— 旧实现里 {NaN, inf, 1} 与 {inf, NaN, 1}
+    // 给出的答案不同（nan 与 inf）。
+    CHECK(Vector3{infinity, nan, 1.0}.length() == infinity);
+    CHECK(Vector3{nan, infinity, 1.0}.length() == infinity);
+    CHECK(Vector3{1.0, nan, infinity}.length() == infinity);
+}

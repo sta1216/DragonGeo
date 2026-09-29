@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cmath>
+#include <concepts>
 #include <optional>
 
 #include <GeoCore/core/Constants.hpp>
+#include <GeoCore/core/Numeric.hpp>
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Matrix.hpp>
 #include <GeoCore/linear/UnitVector3.hpp>
@@ -53,17 +55,14 @@ template <typename Scalar>
 template <typename Scalar>
 [[nodiscard]] Scalar norm(QuaternionT<Scalar> q) noexcept {
     // 先按最大分量缩放，避免中间量上溢或下溢。
-    Scalar scale = core::absolute_value(q.w);
-    if (core::absolute_value(q.x) > scale) { scale = core::absolute_value(q.x); }
-    if (core::absolute_value(q.y) > scale) { scale = core::absolute_value(q.y); }
-    if (core::absolute_value(q.z) > scale) { scale = core::absolute_value(q.z); }
+    const Scalar scale = core::max_abs_of(q.w, q.x, q.y, q.z);
 
     if (scale == Scalar{0}) {
         return Scalar{0};
     }
     if (!core::is_finite(scale)) {
-        // 与 Vector3T::length 保持一致：含 ±inf 分量时模长就是 ±inf，而不是
-        // inf/inf 算出的 NaN。两条路径的语义必须一致，否则调用方在模长的
+        // 与 Vector3T::length 保持一致，规则同为：任一无穷分量 ⇒ ±inf；
+        // 否则含 NaN ⇒ NaN。两条路径的语义必须一致，否则调用方在模长的
         // 两个来源上会得到互相矛盾的结果。
         return scale;
     }
