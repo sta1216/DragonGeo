@@ -13,6 +13,7 @@
 #include <GeoCore/linear/Vector4.hpp>
 #include <GeoCore/linear/Point2.hpp>
 #include <GeoCore/linear/Point3.hpp>
+#include <GeoCore/linear/Interval.hpp>
 #include <GeoCore/linear/UnitVector2.hpp>
 #include <GeoCore/linear/UnitVector3.hpp>
 #include <GeoCore/linear/Matrix.hpp>
