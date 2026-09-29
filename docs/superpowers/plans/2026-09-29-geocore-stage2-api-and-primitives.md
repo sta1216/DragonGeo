@@ -1340,6 +1340,7 @@ git commit -m "feat(linear): add IntervalT"
 - **`contains(Box3T)`：任一方为空盒时返回 `false`。** 数学上 `∅ ⊆ B` 是空真，但那会让 `if (a.contains(b))` 在 `b` 为空时通过，是每个调用者都会踩的坑；`intersects` 已经采用「空盒与任何盒都不相交」，`contains` 保持同向。**这是刻意的约定，必须在文档里写明理由**，否则下一个人会把它当 bug 改掉。
 - **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内）。**规范空盒**确实无需特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。**但含 NaN 的盒需要显式判定**：Task 5 在 `Interval` 上实测过，比较碰上 NaN 的返回值取决于操作数顺序，于是同一对参数换方向给出不同答案（`{1,5}.intersects({NaN,NaN})` 真、反方向假）。所以 `intersects` 与 `merged` 开头都要加 `if (is_empty() || other.is_empty())` 那一类判定 —— 与 `contains(Box3T)` 已经采用的做法一致。**并且把注释里「无需特判」的说法一并删掉**，它现在是假的。
 - **`merged` 同样要显式判空**：朴素写法对规范空成立（`min(…, +inf)` 恰好取回自身），但对含 NaN 分量的盒不成立。写成 `if (is_empty()) return other.is_empty() ? empty() : other; if (other.is_empty()) return *this;` 再逐分量合并。
+  **注意：`Interval` 那边「`intersects` 的自判空在结果上是冗余的」这条结论不能搬过来。** `Interval::intersects` 用的是 `max(min) <= min(max)`，自家为空时朴素比较必假，所以自判空确实冗余；而 **Box 用的是交叉操作数**（逐分量 `min <= other.max && max >= other.min`），去掉自判空会让「非规范空 ∩ 一个跨过它的盒」变成**真**。**Box 的两半判空都是载重的**（Task 6 实测：去掉任一半都有变异体存活／死亡证明成立）。`contains(Box3T)` 的自判空则确实冗余 —— 同一头文件里两个函数的结论相反，**注释要分别写明，不要为了「一致」统一成一种说法**。这条对 Task 8 的 `OrientedBox` 同样适用。
   **第一支那个 `other.is_empty() ? empty() : other` 不能省 —— 规范化优先于恒等律。** 两者只在**非规范空**上冲突（恒等律说 `merged(∅,x)=x`，规范化说产出空必须是 `empty()`），而本项目明写的规则是后者。省掉它会让 `merged` 在两个「空」表示不同时**不对称**（两侧各自返回「另一个」，都是空集但 `==` 比表示）—— Task 5 实测 4140/14641 组输入不对称，补上后归零。这条冲突在 Task 6 上完全同形。
 
 - [ ] **Step 1: 写失败测试**
