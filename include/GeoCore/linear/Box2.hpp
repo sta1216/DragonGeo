@@ -209,6 +209,10 @@ struct Box2T {
     /// **用 `result.is_empty()` 判、不要用 `min > max` 判** —— 前者是全函数
     /// （含 NaN），后者会让 `empty().expanded(+inf)` 这种算出 NaN 的结果
     /// 冒充非空盒。
+    ///
+    /// `amount` 为 **NaN** 时逐分量算出 NaN（`0 - NaN` 是 NaN），全函数谓词判它
+    /// 为真，于是同样落回**规范空盒** —— 与 `+inf` 那一格同源：**所有非有限
+    /// 输入都走同一条规范化出口**，调用者不必为 amount 特判。
     [[nodiscard]] constexpr Box2T expanded(Scalar amount) const noexcept {
         const Box2T result{Point2T<Scalar>{min.x - amount, min.y - amount},
                            Point2T<Scalar>{max.x + amount, max.y + amount}};

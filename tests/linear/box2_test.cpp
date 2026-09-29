@@ -257,6 +257,12 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 有限盒被 -inf 「膨胀」得到的是规范空盒（min 变 +inf、max 变 -inf），
     // 与 `expanded(-2.0)` 同类，同样是规范化出口。
     CHECK(Box2{Point2{1.0, 2.0}, Point2{3.0, 4.0}}.expanded(-infinity) == Box2::empty());
+
+    // amount 是 NaN 时逐分量算出 NaN（`0 - NaN`），全函数谓词判中间结果为真，
+    // 于是**同样落回规范空盒** —— 与 `+inf` 那一格同源，是「所有非有限输入都走
+    // 同一条规范化出口」的推论。下面这条是本文件里唯一走「有限盒 + NaN 增量」
+    // 这条路的断言（`empty().expanded(inf)` 走的是另一个入口）。
+    CHECK(Box2{Point2{1.0, 2.0}, Point2{3.0, 4.0}}.expanded(nan) == Box2::empty());
     // <<< sweep-add
 }
 
@@ -503,7 +509,8 @@ TEST_CASE("the implicitly generated special members carry both corners",
 
 TEST_CASE("every declared callable is noexcept", "[linear][box2]") {
     // Interfaces 对本类型的两个工厂明文写了 noexcept，成员一律 noexcept 是全库
-    // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败。
+    // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败 ——
+    // 最后一条 `!=` 除外，理由见它自己的注释。
     STATIC_REQUIRE(noexcept(Box2T<double>::empty()));
     STATIC_REQUIRE(noexcept(Box2T<double>::from_corners(Point2T<double>{}, Point2T<double>{})));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.is_empty()));
@@ -517,6 +524,42 @@ TEST_CASE("every declared callable is noexcept", "[linear][box2]") {
     STATIC_REQUIRE(noexcept(Box2T<double>{}.expanded(0.0)));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.corner(0)));
     STATIC_REQUIRE(noexcept(Box2T<double>{} == Box2T<double>{}));
+    // 这一条相对上一条是**零独立证据**：C++20 的 `!=` 是 `!(a == b)` 的重写，
+    // noexcept 规格继承自被重写的 `operator==`，于是删掉 `operator==` 的 noexcept
+    // 时上面一条与这一条**同时**失败。保留它只为把「生成的 `!=` 也被真的用过」
+    // 写出来，不要把它计入覆盖率。（真要把 `!=` 的 noexcept 单独钉死，
+    // 只能手写一个 `operator!=`，而全库约定是不手写。）
     STATIC_REQUIRE(noexcept(Box2T<double>{} != Box2T<double>{}));
+}
+
+TEST_CASE("every callable is usable in a constant expression",
+          "[linear][box2]") {
+    // 与 box3_test.cpp 同一条用例、同一批实体（二维少一维但**可调用实体一个不少**）。
+    // 逐个删掉 `constexpr` 后，`contains` 的两个重载、`intersects`、`extent`、
+    // `half_extent`、`center`、`expanded`、`operator==` 原本全部存活 ——
+    // 那些 `constexpr` 当时是无人见证的承诺。这一格把它们一次性放进常量表达式。
+    // 花括号里的逗号与本版 Catch2 的 `STATIC_REQUIRE`（变参宏）的关系见
+    // box3_test.cpp 的同一用例；这里同样先存具名常量。
+    constexpr Box2T<double> box{Point2T<double>{0.0, 0.0},
+                                Point2T<double>{2.0, 4.0}};
+    constexpr Point2T<double> inner_min{};
+    constexpr Point2T<double> inner_max{1.0, 1.0};
+    constexpr Box2T<double> inner{inner_min, inner_max};
+    constexpr Box2T<double> canonical_empty = Box2T<double>::empty();
+    constexpr Point2T<double> corner_one{2.0, 0.0};
+
+    STATIC_REQUIRE_FALSE(box.is_empty());
+    STATIC_REQUIRE(box.contains(inner_min));
+    STATIC_REQUIRE(box.contains(inner));
+    STATIC_REQUIRE(box.intersects(box));
+    STATIC_REQUIRE(box.extent().x == 2.0);
+    STATIC_REQUIRE(box.half_extent().x == 1.0);
+    STATIC_REQUIRE(box.center().x == 1.0);
+    STATIC_REQUIRE(box.merged(box) == box);
+    STATIC_REQUIRE(box.expanded(1.0).min.x == -1.0);
+    STATIC_REQUIRE(box.corner(1) == corner_one);
+    STATIC_REQUIRE(canonical_empty.is_empty());
+    STATIC_REQUIRE(Box2T<double>::from_corners(inner_min, inner_max).max.y == 1.0);
+    STATIC_REQUIRE(box == box);
 }
 // <<< sweep-add

@@ -269,6 +269,13 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 与 `expanded(-2.0)` 同类，同样是规范化出口。
     CHECK(Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}}.expanded(-infinity) ==
           Box3::empty());
+
+    // amount 是 NaN 时逐分量算出 NaN（`0 - NaN`），全函数谓词判中间结果为真，
+    // 于是**同样落回规范空盒** —— 与 `+inf` 那一格同源，是「所有非有限输入都走
+    // 同一条规范化出口」的推论。下面这条是本文件里唯一走「有限盒 + NaN 增量」
+    // 这条路的断言（`empty().expanded(inf)` 走的是另一个入口）。
+    CHECK(Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}}.expanded(nan) ==
+          Box3::empty());
     // <<< sweep-add
 }
 
@@ -538,7 +545,8 @@ TEST_CASE("the implicitly generated special members carry both corners",
 
 TEST_CASE("every declared callable is noexcept", "[linear][box3]") {
     // Interfaces 对本类型的两个工厂明文写了 noexcept，成员一律 noexcept 是全库
-    // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败。
+    // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败 ——
+    // 最后一条 `!=` 除外，理由见它自己的注释。
     STATIC_REQUIRE(noexcept(Box3T<double>::empty()));
     STATIC_REQUIRE(noexcept(Box3T<double>::from_corners(Point3T<double>{}, Point3T<double>{})));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.is_empty()));
@@ -552,6 +560,48 @@ TEST_CASE("every declared callable is noexcept", "[linear][box3]") {
     STATIC_REQUIRE(noexcept(Box3T<double>{}.expanded(0.0)));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.corner(0)));
     STATIC_REQUIRE(noexcept(Box3T<double>{} == Box3T<double>{}));
+    // 这一条相对上一条是**零独立证据**：C++20 的 `!=` 是 `!(a == b)` 的重写，
+    // noexcept 规格继承自被重写的 `operator==`，于是删掉 `operator==` 的 noexcept
+    // 时上面一条与这一条**同时**失败。保留它只为把「生成的 `!=` 也被真的用过」
+    // 写出来，不要把它计入覆盖率。（真要把 `!=` 的 noexcept 单独钉死，
+    // 只能手写一个 `operator!=`，而全库约定是不手写。）
     STATIC_REQUIRE(noexcept(Box3T<double>{} != Box3T<double>{}));
+}
+
+TEST_CASE("every callable is usable in a constant expression",
+          "[linear][box3]") {
+    // 13 个可调用实体里，`empty` / `from_corners` / `merged` / `corner` / `is_empty`
+    // 在别处已经被常量求值钉住；**其余八个在补这一格之前没有任何见证** ——
+    // 逐个删掉 `constexpr` 后它们全部存活（实测 8/8 存活：`contains` 的两个重载、
+    // `intersects`、`extent`、`half_extent`、`center`、`expanded`、`operator==`）。
+    // 也就是说那些 `constexpr` 当时是无人见证的承诺。这一格把它们一次性放进
+    // 常量表达式：删掉**任意一个**的 `constexpr`，这里就编译不过。
+    //
+    // 关于花括号里的逗号：`STATIC_REQUIRE` 在本版 Catch2 里是变参宏
+    // （`static_assert( __VA_ARGS__, #__VA_ARGS__ )`），所以
+    // `Point3T<double>{2.0, 0.0, 0.0}` 直接写在括号里**不会**被拆成多个实参 ——
+    // 这一点是实测的（另建 TU 编过），不是推测。下面仍然先把比较值存进具名常量：
+    // 对单参数宏那才是安全写法，也更好读。
+    constexpr Box3T<double> box{Point3T<double>{0.0, 0.0, 0.0},
+                                Point3T<double>{2.0, 4.0, 6.0}};
+    constexpr Point3T<double> inner_min{};
+    constexpr Point3T<double> inner_max{1.0, 1.0, 1.0};
+    constexpr Box3T<double> inner{inner_min, inner_max};
+    constexpr Box3T<double> canonical_empty = Box3T<double>::empty();
+    constexpr Point3T<double> corner_one{2.0, 0.0, 0.0};
+
+    STATIC_REQUIRE_FALSE(box.is_empty());
+    STATIC_REQUIRE(box.contains(inner_min));
+    STATIC_REQUIRE(box.contains(inner));
+    STATIC_REQUIRE(box.intersects(box));
+    STATIC_REQUIRE(box.extent().x == 2.0);
+    STATIC_REQUIRE(box.half_extent().x == 1.0);
+    STATIC_REQUIRE(box.center().x == 1.0);
+    STATIC_REQUIRE(box.merged(box) == box);
+    STATIC_REQUIRE(box.expanded(1.0).min.x == -1.0);
+    STATIC_REQUIRE(box.corner(1) == corner_one);
+    STATIC_REQUIRE(canonical_empty.is_empty());
+    STATIC_REQUIRE(Box3T<double>::from_corners(inner_min, inner_max).max.y == 1.0);
+    STATIC_REQUIRE(box == box);
 }
 // <<< sweep-add
