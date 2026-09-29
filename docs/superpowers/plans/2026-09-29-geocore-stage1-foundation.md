@@ -621,6 +621,7 @@ inline constexpr double sqrt_two = std::numbers::sqrt2;
 
 #include <concepts>
 #include <cmath>
+#include <limits>
 
 namespace GeoCore::core {
 
@@ -630,6 +631,19 @@ namespace GeoCore::core {
 template <std::floating_point Scalar>
 [[nodiscard]] constexpr Scalar absolute_value(Scalar value) noexcept {
     return value < Scalar{0} ? -value : value;
+}
+
+/// 是否为有限值（既非 ±inf 也非 NaN）。
+///
+/// 手写而非使用 std::isfinite：后者在 C++20 尚不是 constexpr，而本层的
+/// 工具函数需要能在常量表达式中求值。Tolerance 依赖它来拒绝非有限输入 ——
+/// 没有这个判断，`|inf - 5| <= resolve(inf)` 会退化成 `inf <= inf`，
+/// 把无穷大判成「与任何有限值相等」。
+template <std::floating_point Scalar>
+[[nodiscard]] constexpr bool is_finite(Scalar value) noexcept {
+    return value == value
+        && value != std::numeric_limits<Scalar>::infinity()
+        && value != -std::numeric_limits<Scalar>::infinity();
 }
 
 /// 把 value 限制到 [low, high]。要求 low <= high。
@@ -685,6 +699,8 @@ template <std::floating_point Scalar>
 ```cpp
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
+
 #include <GeoCore/core/Tolerance.hpp>
 
 using GeoCore::core::Tolerance;
@@ -729,6 +745,43 @@ TEST_CASE("a zero tolerance rejects only exact zero", "[core][tolerance]") {
     CHECK(exact.is_zero(0.0));
     CHECK_FALSE(exact.is_zero(1e-300));
 }
+
+TEST_CASE("Tolerance::resolve is symmetric in the sign of the magnitude",
+          "[core][tolerance]") {
+    const Tolerance tolerance{1e-12, 1e-9};
+
+    // 量级一律取绝对值，符号不应有任何影响。
+    //
+    // 这条断言专门盯住一个不写绝对值就完全无法察觉的回归：若 resolve 误写成
+    // `abs + rel * magnitude`，正量级的用例会全部照过（文件里其余量级都是正数），
+    // 只有负量级会得到一个更小的容差。这是该公式最可能的一次写错。
+    CHECK(tolerance.resolve(-1e6) == tolerance.resolve(1e6));
+    CHECK(tolerance.resolve(-1.0) == tolerance.resolve(1.0));
+    CHECK(tolerance.resolve(-1e6) > tolerance.resolve(0.0));
+}
+
+TEST_CASE("non-finite values are neither zero nor approximately equal",
+          "[core][tolerance][degenerate]") {
+    const Tolerance tolerance{1e-12, 1e-9};
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 溢出成无穷大的量绝不能被判为零 —— 它恰恰是调用者最该被示警的情形
+    CHECK_FALSE(tolerance.is_zero(infinity));
+    CHECK_FALSE(tolerance.is_zero(-infinity));
+
+    // 无穷大不等于任何有限值
+    CHECK_FALSE(tolerance.equal(infinity, 5.0));
+    CHECK_FALSE(tolerance.equal(infinity, 1e300));
+    CHECK_FALSE(tolerance.equal(-infinity, 1e300));
+
+    // 但「完全相等」仍是相等，无穷大也不例外
+    CHECK(tolerance.equal(infinity, infinity));
+
+    // NaN 不等于任何东西，包括它自己
+    CHECK_FALSE(tolerance.equal(not_a_number, not_a_number));
+    CHECK_FALSE(tolerance.is_zero(not_a_number));
+}
 ```
 
 - [ ] **Step 5: 运行测试，确认失败**
@@ -772,7 +825,18 @@ struct Tolerance {
 
     /// 判定两个标量在该容差下是否可视为相等。
     /// 参考量级取二者绝对值中的较大者。
+    ///
+    /// 非有限输入另行处理：完全相等（含 ±inf 与自身）返回 true，其余任何
+    /// 涉及 ±inf 或 NaN 的组合一律返回 false。若不特判，`|inf - 5| <=
+    /// resolve(inf)` 会退化为 `inf <= inf` 而返回 true —— 无穷大被判成
+    /// 「与任何有限值相等」，这与本类型的存在目的恰好相反。
     [[nodiscard]] constexpr bool equal(double a, double b) const noexcept {
+        if (a == b) {
+            return true;
+        }
+        if (!is_finite(a) || !is_finite(b)) {
+            return false;
+        }
         const double scale = absolute_value(a) > absolute_value(b)
                                  ? absolute_value(a)
                                  : absolute_value(b);
@@ -783,7 +847,13 @@ struct Tolerance {
     ///
     /// 注意参考量级取的是 x 自身，故判定条件等价于
     /// |x| <= abs / (1 - rel)，在 rel 远小于 1 时约等于 abs。
+    ///
+    /// 非有限值一律不视为零：把溢出成 ±inf 或变成 NaN 的量静默归类为
+    /// 「可忽略」，正是调用者最需要被示警时却得到放行的情形。
     [[nodiscard]] constexpr bool is_zero(double x) const noexcept {
+        if (!is_finite(x)) {
+            return false;
+        }
         return absolute_value(x) <= resolve(x);
     }
 };
