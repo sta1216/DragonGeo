@@ -8,3 +8,4 @@
 #include <GeoCore/core/Numeric.hpp>
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/core/Version.hpp>
+#include <GeoCore/linear/Vector2.hpp>
