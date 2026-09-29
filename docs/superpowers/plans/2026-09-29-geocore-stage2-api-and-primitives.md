@@ -55,6 +55,10 @@
 
    **默认用「金丝雀变异」自证，`/showIncludes` 作为加分项。** 金丝雀 = 一个必定死亡的变异（例如让某个被测函数恒返回 0）；它可移植（不依赖 MSVC 的开关），而且**同时验证了编译、链接、运行整条链路**，而 `/showIncludes` 只验证编译期解析。**在采信任何一个变异体的结果之前先让金丝雀死一次。**（Task 4–11）
 
+8. **类型别名必须被测试命名 —— 否则它是一行没有证据的声明。** 本阶段每个新类型都带一个 `...f` 的 float 别名（`Point2f`、`Intervalf`、`Box3f`、`Coordinate3f`、`OrientedBox3f` ……）。**未被任何测试命名的别名，其绑定写错时成员连一次实例化都不会发生。** 这不是推测：Task 4 实测把 `Point3f` 绑成 `Point3T<double>`，**全库 134 个用例全绿、退出码 0** —— float 用户静默拿到 double 存储。
+
+   **因此每个类型的测试文件都必须有一条**（通常是该文件的第一条）：`STATIC_REQUIRE(std::is_same_v<Box3f, Box3T<float>>);` 这类断言，并显式 `using` 该别名与模板名。这条同时把别名和模板名都拉进编译，顺带保证两者的可见性。（Task 4–8）
+
 ---
 
 ## File Structure
@@ -605,12 +609,22 @@ git commit -m "refactor(linear): make transform factories and apply members"
 
 using Catch::Approx;
 using GeoCore::linear::Point3;
+using GeoCore::linear::Point3T;
+using GeoCore::linear::Point3f;
 using GeoCore::linear::Vector3;
 
 namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+}
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][point3]") {
+    // 别名若从未被任何测试命名过，绑定写错时成员连一次实例化都不会发生 ——
+    // 实测：把 Point3f 绑成 Point3T<double>，全库 134 个用例全绿、退出码 0。
+    // float 用户会静默拿到 double 存储，精度与内存占用都不是承诺的样子。
+    STATIC_REQUIRE(std::is_same_v<Point3f, Point3T<float>>);
 }
 
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
@@ -693,12 +707,21 @@ TEST_CASE("Point3 distance_to", "[linear][point3]") {
 
 using Catch::Approx;
 using GeoCore::linear::Point2;
+using GeoCore::linear::Point2T;
+using GeoCore::linear::Point2f;
 using GeoCore::linear::Vector2;
 
 namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+}
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][point2]") {
+    // 同 point3_test.cpp。二维的「绑定写错」在列表初始化收窄检查下会编译失败，
+    // 但那条**偶然**的防线不该被依赖 —— 断言本身才是承诺。
+    STATIC_REQUIRE(std::is_same_v<Point2f, Point2T<float>>);
 }
 
 TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
@@ -845,7 +868,18 @@ git commit -m "feat(linear): add Point2T and Point3T"
 
 - [ ] **Step 1: 写失败测试**
 
-创建 `tests/linear/interval_test.cpp`（需要 `<cmath>` 与 `<limits>`）：
+创建 `tests/linear/interval_test.cpp`（需要 `<cmath>`、`<limits>` 与 `<type_traits>`）。**第一条用例必须是别名绑定**（Reason 见 Review Focus 第 8 条；未命名的别名写错了也没人知道）：
+
+```cpp
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][interval]") {
+    STATIC_REQUIRE(std::is_same_v<Intervalf, IntervalT<float>>);
+}
+```
+
+（记得 `using GeoCore::linear::Intervalf;` 与 `using GeoCore::linear::IntervalT;`。）
+
+其余用例：
 
 ```cpp
 TEST_CASE("merging with the empty interval is the identity",
@@ -995,7 +1029,19 @@ git commit -m "feat(linear): add IntervalT"
 
 - [ ] **Step 1: 写失败测试**
 
-创建 `tests/linear/box3_test.cpp`。需要 `<catch2/catch_approx.hpp>`、`<catch2/catch_test_macros.hpp>`、`<cmath>`（`std::isnan`）。若你实现 `empty()` 时要用 `std::numeric_limits`，头文件里还得有 `<limits>`：
+创建 `tests/linear/box3_test.cpp`。需要 `<catch2/catch_approx.hpp>`、`<catch2/catch_test_macros.hpp>`、`<cmath>`（`std::isnan`）、`<type_traits>`。若你实现 `empty()` 时要用 `std::numeric_limits`，头文件里还得有 `<limits>`。
+
+**第一条用例必须是别名绑定**（Review Focus 第 8 条）：
+
+```cpp
+TEST_CASE("the float alias really is the float instantiation", "[linear][box3]") {
+    STATIC_REQUIRE(std::is_same_v<Box3f, Box3T<float>>);
+}
+```
+
+（`using GeoCore::linear::Box3f;` 与 `using GeoCore::linear::Box3T;`。`box2_test.cpp` 里同样来一条 `Box2f`/`Box2T`。）
+
+其余用例：
 
 ```cpp
 TEST_CASE("an empty box contains nothing and merges as identity",
@@ -1305,7 +1351,18 @@ TEST_CASE("only a rigid transform is a coordinate frame",
 }
 ```
 
-测试文件 `tests/linear/coordinate3_test.cpp` 需要 `<cmath>`（`std::sqrt`）、`<catch2/catch_approx.hpp` 与 `using Catch::Approx;`、`GeoCore/core/Constants.hpp`（`half_pi`），并照 `transform3_test.cpp` 的写法在匿名命名空间里放一个 `z_axis` 常量。
+测试文件 `tests/linear/coordinate3_test.cpp` 需要 `<cmath>`（`std::sqrt`）、`<type_traits>`、`<catch2/catch_approx.hpp` 与 `using Catch::Approx;`、`GeoCore/core/Constants.hpp`（`half_pi`），并照 `transform3_test.cpp` 的写法在匿名命名空间里放一个 `z_axis` 常量。
+
+**第一条用例必须是别名绑定**（Review Focus 第 8 条）：
+
+```cpp
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][coordinate3]") {
+    STATIC_REQUIRE(std::is_same_v<Coordinate3f, Coordinate3T<float>>);
+}
+```
+
+（`using GeoCore::linear::Coordinate3f;` 与 `Coordinate3T`。`coordinate2_test.cpp` 里同样来一条 `Coordinate2f`/`Coordinate2T`。）
 
 创建 `tests/linear/coordinate2_test.cpp`。二维**不共享**三维的测试文件 —— 两个头文件分开写，3D 对了不代表 2D 也对。按二维改写：`Point2`/`Vector2`/`Coordinate2`/`UnitVector2`；`from_axes` 只有两个轴（校验两轴正交且 `x × y` 的**标量叉积为正**，二维没有第三个轴可比）；`from_z_axis` 改为 `from_x_axis(origin, x)`（`y` 就是 `x` 逆时针转 90°）。**非正交拒绝、左手系拒绝、往返、非轴向 y 的期望轴值、`from_transform` 的四条判据**都要在二维各来一份。
 
@@ -1380,7 +1437,18 @@ git commit -m "feat(linear): add Coordinate2T and Coordinate3T"
 
 - [ ] **Step 1: 写失败测试**
 
-创建 `tests/linear/oriented_box3_test.cpp`（需要 `<cmath>` 取 `std::sqrt`、`<catch2/catch_approx.hpp>` + `using Catch::Approx;`，并照其它测试放一个匿名命名空间的 `z_axis`）。
+创建 `tests/linear/oriented_box3_test.cpp`（需要 `<cmath>` 取 `std::sqrt`、`<type_traits>`、`<catch2/catch_approx.hpp>` + `using Catch::Approx;`，并照其它测试放一个匿名命名空间的 `z_axis`）。
+
+**第一条用例必须是别名绑定**（Review Focus 第 8 条）：
+
+```cpp
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][orientedbox3]") {
+    STATIC_REQUIRE(std::is_same_v<OrientedBox3f, OrientedBox3T<float>>);
+}
+```
+
+（`using GeoCore::linear::OrientedBox3f;` 与 `OrientedBox3T`。`oriented_box2_test.cpp` 里同样来一条。）
 
 ```cpp
 TEST_CASE("rotating a box grows its axis-aligned bounding box",
