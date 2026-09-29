@@ -577,6 +577,7 @@ git commit -m "refactor(linear): make transform factories and apply members"
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <type_traits>
 
 #include <GeoCore/linear/Point3.hpp>
@@ -620,6 +621,14 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector3>);
     CHECK(b - a == Vector3{3.0, 4.0, 5.0});
 
+    // 两个点只要有一个分量不同就必须不相等。**这一条不能省** ——
+    // 上面所有期望值的 x 分量都恰好与左操作数相同（11、-9 都是从 a.x=1 算出来的），
+    // 于是一个「只比较 x」的 operator== 会让本文件全部断言静默通过（已用变异测试
+    // 实测：把 == 改成只比 x，21 条断言全过）。
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 9.0, 3.0});
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 2.0, 9.0});
+    CHECK(Point3{1.0, 2.0, 3.0} == Point3{1.0, 2.0, 3.0});
+
     // 点 + 点不存在 —— 这是本任务的核心不变量（Review Focus 第 1 条）：
     // 写错了不会报错，只会静默给出错误语义。必须真的断言，不能只注释掉。
     //
@@ -635,6 +644,12 @@ TEST_CASE("point and vector arithmetic follows affine rules",
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));
+
+    // 上一条的 Δz 是 0，一个「只算 x/y」的实现照样通过（已用变异测试实测：
+    // 丢掉 z 之后本文件 11 条断言全过）。补一条三个分量都非零的，
+    // 并把 z 单独钉一次。
+    CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{0.0, 0.0, 5.0}) == Approx(5.0));
+    CHECK(Point3{1.0, 2.0, 3.0}.distance_to(Point3{2.0, 4.0, 5.0}) == Approx(3.0));
 }
 ```
 
@@ -644,6 +659,7 @@ TEST_CASE("Point3 distance_to", "[linear][point3]") {
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <type_traits>
 
 #include <GeoCore/linear/Point2.hpp>
@@ -682,6 +698,11 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
 
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector2>);
     CHECK(b - a == Vector2{3.0, 4.0});
+
+    // 同 point3_test.cpp：== 的 y 分量必须有独立证据，否则一个「只比较 x」
+    // 的实现会让本文件全部断言静默通过。
+    CHECK(Point2{1.0, 2.0} != Point2{1.0, 9.0});
+    CHECK(Point2{1.0, 2.0} == Point2{1.0, 2.0});
 
     static_assert(!addable<Point2>, "Point + Point must not be well-formed");
 }
@@ -750,7 +771,9 @@ template <typename Scalar>
 
 `Point2T` 的三个运算符与 `operator==` 照写一遍（把 `3` 换成 `2`、`z` 去掉）。
 
-**关于 `Point + Point`**：代码块里刻意没有它，`static_assert` 会守住这一点。**也不要顺手加 `Vector + Point`** —— spec §5.0 的运算符清单里没有它（只有 `Point + Vector` 与 `Point - Point`），计划不擅自扩 API。若你实现时觉得它显然应该存在，那是**设计问题不是实现问题**，请在报告里提出来，别默默加上。
+**关于 `Point + Point`**：代码块里刻意没有它，`static_assert` 会守住这一点。**也不要顺手加 `Vector + Point`** —— spec 的运算符清单（**§4.4**，不是 §5.0；§5.0 只是能力清单）里没有它，计划不擅自扩 API。若你实现时觉得它显然应该存在，那是**设计问题不是实现问题**，请在报告里提出来，别默默加上。
+
+（顺带说明：§4.4 的片段只列了 `Point3 + Vector3` 与 `Point3 - Point3` 两条，本计划的 Interfaces 多了 `Point - Vector` —— 那是计划有意加的，实现跟随 Interfaces。`Transform3T * Point3T` 将在 Task 9 加，届时应回填进 §4.4。）
 
 在 `GeoCore.hpp` 的 `Vector2/3/4` 之后追加两个 include。
 
@@ -936,6 +959,7 @@ git commit -m "feat(linear): add IntervalT"
 - **规范表示**：`min` 的每个分量 `+inf`，`max` 的每个分量 `-inf`。**凡是产出空盒的运算都必须给出这个规范形式**，不能给「只有 x 分量倒置」的盒 —— 理由同 `Interval`：一个量两种表示会让 `==`、`extent()`、`center()` 全部变成「看情况」。
 - **`extent()`**：空盒返回 `Vector3{0,0,0}`。原始差是 `-inf - (+inf) = -inf`，那是没有意义的「尺寸」还会静默传播；空集的测度是 0。
 - **`center()`**：用 `min * 0.5 + max * 0.5` 逐分量实现（不是 `(min+max)*0.5`，那是 Interval 那边已经裁定的溢出陷阱）。空盒与任一无穷端点都自然得到 NaN —— 这是「没有中心」的诚实答案，文档写明并配测试。
+  **注意这里不能直写 `min * 0.5 + max * 0.5`** —— `min`/`max` 是 `Point3T`，而 Task 4 刻意**没有**给 `Point` 提供 `operator*(Point, Scalar)`，也**没有** `Point + Point`（`p * 2.0` 与 `-p` 都编译不过，已实测）。必须写成逐分量的标量运算：`min.x * 0.5 + max.x * 0.5` 等等。`extent()` 的 `max - min` 则可以直写（`Point - Point -> Vector` 已提供）。
 - **`contains(Box3T)`：任一方为空盒时返回 `false`。** 数学上 `∅ ⊆ B` 是空真，但那会让 `if (a.contains(b))` 在 `b` 为空时通过，是每个调用者都会踩的坑；`intersects` 已经采用「空盒与任何盒都不相交」，`contains` 保持同向。**这是刻意的约定，必须在文档里写明理由**，否则下一个人会把它当 bug 改掉。
 - **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内），且都无需对空盒特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。
 
