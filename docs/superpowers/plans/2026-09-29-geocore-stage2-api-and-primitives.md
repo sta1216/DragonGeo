@@ -517,6 +517,16 @@ grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
 
 本任务改完后，`include/`、`examples/`、`tests/`、`ci/` 里应再无对已删名字的引用。
 
+> **已知局限（本轮实测发现，留待后续决策，不在本任务内改）**
+>
+> Task 3 的实现者在本地做了否定对照：手工用 `cl` 编译 `ci/consumer/main.cpp` 但**不给 `/utf-8`**，`/W4` 与默认警告级**两种情形都是 exit 0**，只产出 14 条 `C4819`，**0 条 `error C`**；给了 `/utf-8` 则零诊断（MSVC 14.39.33519）。
+>
+> 这意味着：**`consumer-smoke` 作业对「`/utf-8` 没随 `INTERFACE_COMPILE_OPTIONS` 导出」这一回归未必会变红** —— 该作业只构建、未开 `-Werror`，而本机的表现是警告而非失败。`ci.yml` 里「cp936 主机上消费方会直接编译失败」这句表述在本机不成立。
+>
+> 未验证的部分：GitHub 的 `windows-latest` runner 是 cp1252，它几乎映射全部字节，`C4819` 可能根本不出现 —— 那样这个作业连警告都没有。**这需要真机验证，不能靠推测。**
+>
+> 这是阶段 1 C1 依赖的那道防线。若确认它不可靠，可选的补法（**都不属于本计划任何任务**，需单独决策）：给 `ci/consumer` 加 `/WX`（它不设置任何**编码**选项，因此「诊断只能指向 GeoCore 头文件」这个前提仍然成立，但 C4819 会变成硬失败）。**不要在本任务里顺手改 CI。**
+
 - [ ] **Step 3d: 补 `Transform2T::identity()` 的覆盖**
 
 `Transform2T::identity()` 是本任务**新建**的工厂（二维原本没有 `identity_transform` 自由函数可搬），也是这批工厂里唯一零覆盖的一个。在 `tests/linear/transform2_test.cpp` 里补一条，照 3D 那条的写法：
