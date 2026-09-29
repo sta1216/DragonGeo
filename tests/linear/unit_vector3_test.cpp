@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <type_traits>
 
@@ -115,4 +116,20 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
     const auto parallel = normalize(Vector3{1.0, 0.0, 0.0});
     REQUIRE(parallel.has_value());
     CHECK(cross(*x, *parallel).length() == Approx(0.0));
+}
+
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
+          "[linear][unitvector3][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 一个 has_value() 为真、内容却是 NaN 的「单位向量」是本库最不该交出的
+    // 返回值：调用者无从察觉，而 NaN 会一路污染 dot / cross 与所有容差判断。
+    CHECK_FALSE(normalize(Vector3{infinity, 1.0, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{1.0, infinity, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{infinity, infinity, infinity}).has_value());
+
+    // NaN 输入比无穷更常见：任何上游的 0/0 或 inf - inf 都会落到这里
+    CHECK_FALSE(normalize(Vector3{not_a_number, 1.0, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{not_a_number, not_a_number, not_a_number}).has_value());
 }

@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <GeoCore/linear/UnitVector2.hpp>
 
@@ -33,4 +34,18 @@ TEST_CASE("2D cross of unit vectors is the sine of the angle",
     CHECK(cross(*x, *y) == Approx(1.0));
     CHECK(cross(*y, *x) == Approx(-1.0));
     CHECK(cross(*x, *x) == Approx(0.0));
+}
+
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
+          "[linear][unitvector2][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 理由同 UnitVector3T：交出一个内容为 NaN 的「单位向量」比返回 nullopt 危险得多。
+    CHECK_FALSE(normalize(Vector2{infinity, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector2{1.0, infinity}).has_value());
+    CHECK_FALSE(normalize(Vector2{infinity, infinity}).has_value());
+
+    CHECK_FALSE(normalize(Vector2{not_a_number, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector2{not_a_number, not_a_number}).has_value());
 }

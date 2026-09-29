@@ -38,11 +38,14 @@ private:
 using UnitVector2 = UnitVector2T<double>;
 using UnitVector2f = UnitVector2T<float>;
 
+/// 归一化。语义与 UnitVector3T 的同名函数一致：长度在给定容差下可视为零、
+/// 或本身不是有限值时返回 std::nullopt。
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector2T<Scalar>> normalize(
     Vector2T<Scalar> v, core::Tolerance tolerance = {}) noexcept {
     const Scalar length = v.length();
-    if (tolerance.is_zero(static_cast<double>(length))) {
+    // 非有限长度同样返回 nullopt，理由见 UnitVector3T 的同名函数。
+    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
         return std::nullopt;
     }
     return UnitVector2T<Scalar>::from_normalized_unchecked(v / length);
