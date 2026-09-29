@@ -3798,6 +3798,10 @@ int main() {
     print("transformed       ", apply(model, position));
 
     // 方向不受平移影响。
+    //
+    // 注意随后两行输出里会出现 -4.44e-16、-8.88e-16 这样的极小分量：绕 z 轴
+    // 旋转 90° 在浮点下并不精确，cos(π/2) 不是精确的 0。这是 IEEE-754 的固有
+    // 行为，不是缺陷，示例照实打印而不做美化 —— 使用者本就应该预期到它。
     const Vector3 direction{1.0, 0.0, 0.0};
     print("direction         ", direction);
     print("transformed dir   ", model * direction);
@@ -3860,7 +3864,9 @@ normalize(zero) correctly returned nullopt
 ./build/windows-vs/examples/Debug/transform_pipeline.exe
 ```
 
-Expected: 输出的 `transformed` 为 `(10, 2, 0)`，`transformed dir` 为 `(0, 2, 0)`，`round trip` 回到 `(1, 0, 0)`，末行为 `inverse(flatten) is nullopt (as expected)`。
+Expected: 输出的 `transformed` 为 `(10, 2, 0)`；`transformed dir` 为 `(-4.44089e-16, 2, 0)`；`round trip` 为 `(1, -8.88178e-16, 0)`；末行为 `inverse(flatten) is nullopt (as expected)`。
+
+> 后两处的非零极小分量**不是缺陷**，而是 IEEE-754 在 90° 上的固有舍入：`sin(π/4)²` 不是精确的 `0.5`，因此 `cos(π/2)` 也不是精确的 `0`，`to_matrix` 的 `m00 = 1 - 2(yy + zz)` 于是得到约 `-2.22e-16`。示例照实打印而不做美化 —— 几何库的每位使用者都会遇到这个量级的残差，把它展示出来比藏起来有用。**切勿**为了输出好看而改示例代码或放宽这里的预期值。
 
 - [ ] **Step 4: 完善 README 与 Doxygen 配置**
 
