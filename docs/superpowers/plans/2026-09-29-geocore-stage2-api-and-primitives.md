@@ -1511,15 +1511,26 @@ git commit -m "feat(linear): add OrientedBox2T and OrientedBox3T"
 
 **Files:**
 - Modify: `include/GeoCore/linear/Transform2.hpp`、`Transform3.hpp`
-- Modify: `tests/linear/transform3_test.cpp`、`examples/transform_pipeline.cpp`
+- Modify: `tests/linear/transform3_test.cpp`、`transform2_test.cpp`
+- Modify: `examples/transform_pipeline.cpp`
 
 **Interfaces:**
 - Produces:
-  - `Point3T Transform3T::transform_point(Point3T) const noexcept`
-  - `Point2T Transform2T::transform_point(Point2T) const noexcept`
-  - 自由运算符 `Transform3T * Point3T -> Point3T`（与 `Transform * Vector3T` 并列）
+  - `constexpr Point3T Transform3T::transform_point(Point3T) const noexcept` —— **`constexpr`，与 `apply` 同口径**（`apply` 是 `constexpr`，两者数学内容相同，没有理由一个能用于常量表达式另一个不能）
+  - `constexpr Point2T Transform2T::transform_point(Point2T) const noexcept`
+  - 自由运算符 `Transform3T * Point3T -> Point3T`（与 `Transform * Vector3T` 并列）及 `Transform2T * Point2T`
 
 - [ ] **Step 1: 写失败测试**
+
+`transform3_test.cpp` 目前**没有** `Point3` 的 using，也**没有** `<type_traits>`（它现有的 `STATIC_REQUIRE` 都用在别处）。请先补上：
+
+```cpp
+#include <type_traits>          // 本任务新用 STATIC_REQUIRE(std::is_same_v<...>)
+
+using GeoCore::linear::Point3;  // 同段的 using 一起补
+```
+
+然后追加：
 
 ```cpp
 TEST_CASE("a transform carries points, not just vectors",
@@ -1537,11 +1548,30 @@ TEST_CASE("a transform carries points, not just vectors",
 }
 ```
 
+**二维同样要一份**（`transform2_test.cpp`）：`Transform2T::transform_point` 在 Interfaces 里，但原计划只在 Files 里列了三维测试文件 —— 那会让这个成员**零覆盖**。照着上面改写：`Transform2::translation(Vector2{10.0, 0.0})`、`Point2{1.0, 2.0}`、期望 `Point2{11.0, 2.0}`，并保留「方向不被平移」那一行（`t * Vector2{1.0, 2.0} == Vector2{1.0, 2.0}`）。
+
 - [ ] **Step 2-3: 实现**
 
-`transform_point` 与 `apply` 的数学内容相同，但接受 `Point3T` 并返回 `Point3T`。**保留 `apply(Vector3T)`** —— 它仍有用途（对以 `Vector3T` 承载的位置做变换），但文档须指明新代码应当用 `transform_point`。
+`transform_point` 与 `apply` 的数学内容相同，但接受 `PointNT` 并返回 `PointNT`。**保留 `apply(VectorNT)`** —— 它仍有用途（对以 `VectorNT` 承载的位置做变换），但文档须指明新代码应当用 `transform_point`。
 
-更新 `examples/transform_pipeline.cpp` 改用 `Point3` + `transform_point`，让示例展示正确的用法；预期输出随之需要修正（把 `apply(model, position)` 换成 `model * position`）。
+**`Transform3.hpp` 顶部那段注释必须一起改。** Task 3 的 Step 3b 已经把那句失效的「Point3 属于 prim 层」删掉，换成了指向未来的表述：「作用于 Point3 的成员（transform_point）在同一类型上一并提供，**随 Point3 落地（Task 9）**」。Task 9 落地之后这句话就成了**永久的将来时** —— 必须改成现在时，并把这个新的第三种「施加」语义写进那张分工表：
+
+```
+/// 三种「施加」语义不要混用 ——
+///   operator*(Point3T)    施加完整仿射变换，输入按**位置**解读
+///   operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
+///   apply(Vector3T)       施加完整仿射变换，把 Vector 读作位置（历史用法，新代码请用 transform_point）
+/// transform_point(Point3T) 与 operator*(Point3T) 等价，名字更直白。
+```
+
+**「第 4 行假定为 (0,0,0,1)」那一段仍然不要动。**
+
+更新 `examples/transform_pipeline.cpp`：
+
+- `position` 改为 `Point3`，`apply(model, position)` 改为 `model * position`（或 `model.transform_point(position)`），`round_trip` 同理。
+- **`print` 辅助函数只接受 `const Vector3&`**，而 `Point3` **不能**转换成 `Vector3`（Task 4 已实测两个方向都不可转换）。所以要么加一个 `print(const char*, const Point3&)` 重载，要么直接打印三个分量。**这一点计划原稿没提，不加就编不过。**
+- 文件顶部的注释第 2 条现在写的是「apply() 变换位置，operator\* 变换方向（平移不作用于方向）」—— 改成描述 `operator*` 对 Point 与 Vector 的两种含义。
+- **预期输出应当逐字节不变。** 数据没变、数学没变，只是类型从 `Vector3` 变成 `Point3`，打印出来的数字完全相同。**这就是本次示例改动的验收标准**：若输出有任何一位数字变了，说明改错了 —— 不要把它当成「预期输出需要重新生成」。第 44–47 行那段关于 `-4.44e-16` 的注释仍然适用，**不要美化**。
 
 - [ ] **Step 4: 运行全部并提交**
 
