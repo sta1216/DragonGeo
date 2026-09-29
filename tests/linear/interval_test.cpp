@@ -207,6 +207,14 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
     CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
 
+    // **这一条是「结果侧必须用全函数谓词」的活例，不能省。**
+    // 中间结果 {NaN, NaN} 不是空的（`!(NaN <= NaN)` 虽为真，但那是全函数谓词
+    // 才判得出 —— 用 `min > max` 会判成非空），所以必须靠结果侧那句全函数谓词
+    // 才落得回 `empty()`。缺了它，把结果侧写成 `min > max` 会全绿通过，
+    // 而 `expanded` 会开始交出 `{NaN, NaN}` —— `is_empty()` 为真、`== empty()`
+    // 为假，正是本项目禁止的「第二个空表示」。
+    CHECK(Interval{1.0, 5.0}.expanded(nan) == Interval::empty());
+
     // `{+inf, +inf}` **不是**空区间（它含 +inf 一个点），但它的长度是
     // `inf - inf` = NaN。这是「非空却没有有限长度」的哨兵值，与 center 同类，
     // 文档写明并在此钉住 —— 不要让一个看似成功的长度悄悄是 NaN。
