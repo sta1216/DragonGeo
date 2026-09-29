@@ -11,7 +11,6 @@ using Catch::Approx;
 
 using GeoCore::core::half_pi;
 using GeoCore::core::Tolerance;
-using GeoCore::linear::dot;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Quaternion;
 using GeoCore::linear::UnitVector3;
@@ -82,7 +81,7 @@ TEST_CASE("quaternion multiplication composes rotations",
 
 TEST_CASE("dot of a unit quaternion with itself is 1", "[linear][quaternion]") {
     const Quaternion q = Quaternion::from_axis_angle(z_axis, 0.7);
-    CHECK(dot(q, q) == Approx(1.0));
+    CHECK(q.dot(q) == Approx(1.0));
 }
 
 TEST_CASE("normalize rejects the zero quaternion",

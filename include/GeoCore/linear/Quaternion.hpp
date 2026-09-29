@@ -39,6 +39,11 @@ struct QuaternionT {
         return QuaternionT<Scalar>{w, -x, -y, -z};
     }
 
+    /// 四元数内积。
+    [[nodiscard]] constexpr Scalar dot(QuaternionT other) const noexcept {
+        return w * other.w + x * other.x + y * other.y + z * other.z;
+    }
+
     /// 模长。
     [[nodiscard]] Scalar norm() const noexcept {
         // 先按最大分量缩放，避免中间量上溢或下溢。
@@ -143,12 +148,6 @@ struct QuaternionT {
 
 using Quaternion = QuaternionT<double>;
 using Quaternionf = QuaternionT<float>;
-
-/// 四元数内积。
-template <typename Scalar>
-[[nodiscard]] constexpr Scalar dot(QuaternionT<Scalar> a, QuaternionT<Scalar> b) noexcept {
-    return a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
-}
 
 /// 四元数乘法，对应旋转的复合。`a * b` 表示先施加 b 再施加 a。
 template <typename Scalar>
