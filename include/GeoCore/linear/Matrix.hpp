@@ -182,7 +182,11 @@ template <typename Scalar, int N>
                   "inverse is implemented for 2x2, 3x3 and 4x4 matrices only");
 
     const Scalar det = determinant(m);
-    if (tolerance.is_zero(static_cast<double>(det))) {
+    // 行列式非有限时同样返回 nullopt。若只依赖容差判断，含 NaN 或 ±inf 的
+    // 矩阵会得到一个 has_value() 为真、内容全是 NaN 的逆矩阵 —— 调用者无从
+    // 察觉，而 NaN 会污染后续全部计算。这与 normalize() 的裁定是同一条原则。
+    if (!core::is_finite(static_cast<double>(det))
+        || tolerance.is_zero(static_cast<double>(det))) {
         return std::nullopt;
     }
     const Scalar inv_det = Scalar{1} / det;

@@ -113,3 +113,48 @@ TEST_CASE("an exact tolerance rejects only a genuinely singular matrix",
     CHECK_FALSE(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}, exact).has_value());
     CHECK(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0000000001}}}, exact).has_value());
 }
+
+TEST_CASE("4x4 determinant pins the cofactor expansion",
+          "[linear][matrix][determinant]") {
+    // 单位阵与三角阵的行列式都等于对角线之积，会恰好掩盖余子式展开里的交叉
+    // 项错误。这里用一个一般（非三角、非对称、非奇异）矩阵，把展开钉住。
+    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0},
+                     {1.0, 4.0, 2.0, 6.0},
+                     {3.0, 1.0, 5.0, 2.0},
+                     {4.0, 2.0, 3.0, 1.0}}};
+    CHECK(determinant(m) == Approx(-85.0));
+}
+
+TEST_CASE("4x4 inverse round-trips", "[linear][matrix][inverse]") {
+    // 4×4 的逆矩阵要算 16 个三阶余子式，而且 Task 9 的 Transform 会消费它 ——
+    // 但原测试只覆盖了 2×2 与 3×3。
+    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0},
+                     {1.0, 4.0, 2.0, 6.0},
+                     {3.0, 1.0, 5.0, 2.0},
+                     {4.0, 2.0, 3.0, 1.0}}};
+    const auto inv = inverse(m);
+
+    REQUIRE(inv.has_value());
+    const Matrix4 product = m * *inv;
+    const Matrix4 unit = identity<double, 4>();
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            CHECK(product(i, j) == Approx(unit(i, j)).margin(1e-12));
+        }
+    }
+}
+
+TEST_CASE("inverse of a non-finite matrix is nullopt",
+          "[linear][matrix][inverse][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 与 normalize() 同一条原则：绝不交出一个 has_value() 为真、内容却是
+    // NaN 的结果 —— 调用者无从察觉，而 NaN 会污染后续全部计算。
+    CHECK_FALSE(inverse(Matrix2{{{not_a_number, 1.0}, {2.0, 3.0}}}).has_value());
+    CHECK_FALSE(inverse(Matrix2{{{infinity, 1.0}, {2.0, 3.0}}}).has_value());
+    CHECK_FALSE(inverse(Matrix3{{{1.0, infinity, 3.0},
+                                 {4.0, 5.0, 6.0},
+                                 {7.0, 8.0, not_a_number}}}).has_value());
+}
