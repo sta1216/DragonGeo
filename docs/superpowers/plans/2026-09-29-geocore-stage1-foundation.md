@@ -2772,6 +2772,7 @@ git commit -m "feat(linear): add determinant and optional-returning inverse"
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
@@ -2877,6 +2878,23 @@ TEST_CASE("to_matrix agrees with rotate", "[linear][quaternion]") {
     CHECK(by_matrix.y == Approx(by_quaternion.y));
     CHECK(by_matrix.z == Approx(by_quaternion.z));
 }
+
+TEST_CASE("norm and normalize handle non-finite input consistently",
+          "[linear][quaternion][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // norm 与 Vector3T::length 语义一致：无穷输入的模长就是无穷，不是 NaN
+    CHECK(norm(Quaternion{infinity, 0.0, 0.0, 0.0}) == infinity);
+    CHECK(norm(Quaternion{0.0, 0.0, infinity, 0.0}) == infinity);
+
+    // normalize 与 UnitVector::normalize / Matrix::inverse 同一条原则：
+    // 绝不交出一个 has_value() 为真、内容却是 NaN 的结果。
+    CHECK_FALSE(normalize(Quaternion{infinity, 0.0, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{0.0, infinity, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{not_a_number, 0.0, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}).has_value());
+}
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
@@ -2954,6 +2972,12 @@ template <typename Scalar>
     if (scale == Scalar{0}) {
         return Scalar{0};
     }
+    if (!core::is_finite(scale)) {
+        // 与 Vector3T::length 保持一致：含 ±inf 分量时模长就是 ±inf，而不是
+        // inf/inf 算出的 NaN。两条路径的语义必须一致，否则调用方在模长的
+        // 两个来源上会得到互相矛盾的结果。
+        return scale;
+    }
     const Scalar sw = q.w / scale;
     const Scalar sx = q.x / scale;
     const Scalar sy = q.y / scale;
@@ -2961,12 +2985,16 @@ template <typename Scalar>
     return scale * std::sqrt(sw * sw + sx * sx + sy * sy + sz * sz);
 }
 
-/// 归一化。模长在给定容差下可视为零时返回 std::nullopt。
+/// 归一化。模长在给定容差下可视为零、或本身不是有限值时返回 std::nullopt。
 template <typename Scalar>
 [[nodiscard]] std::optional<QuaternionT<Scalar>> normalize(
     QuaternionT<Scalar> q, core::Tolerance tolerance = {}) noexcept {
     const Scalar magnitude = norm(q);
-    if (tolerance.is_zero(static_cast<double>(magnitude))) {
+    // 与 UnitVector::normalize / Matrix::inverse 同一条原则：绝不交出一个
+    // has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会
+    // 污染后续全部计算。
+    if (!core::is_finite(static_cast<double>(magnitude))
+        || tolerance.is_zero(static_cast<double>(magnitude))) {
         return std::nullopt;
     }
     const Scalar inverse_magnitude = Scalar{1} / magnitude;
