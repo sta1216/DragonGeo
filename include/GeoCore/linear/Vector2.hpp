@@ -37,6 +37,12 @@ struct Vector2T {
         if (scale == Scalar{0}) {
             return Scalar{0};
         }
+        if (!core::is_finite(scale)) {
+            // 含 ±inf（或全为 NaN）分量时，下面的 inf / inf 会算出 NaN 并污染
+            // 结果 —— 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
+            // 此时真实长度本就是 ±inf，直接返回它。
+            return scale;
+        }
         const Scalar scaled_x = x / scale;
         const Scalar scaled_y = y / scale;
         return scale * std::sqrt(scaled_x * scaled_x + scaled_y * scaled_y);

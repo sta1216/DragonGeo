@@ -90,3 +90,14 @@ TEST_CASE("Vector2T is usable with float", "[linear][vector2]") {
     CHECK(v.length() == 5.0f);
     CHECK(v.x == 3.0f);
 }
+
+TEST_CASE("length of a vector containing infinity is infinity, not NaN",
+          "[linear][vector2][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    // 缩放写法若不特判，inf / inf 会算出 NaN 并污染整条计算链 ——
+    // 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
+    CHECK(Vector2{infinity, 1.0}.length() == infinity);
+    CHECK(Vector2{1.0, infinity}.length() == infinity);
+    CHECK(Vector2{infinity, infinity}.length() == infinity);
+}
