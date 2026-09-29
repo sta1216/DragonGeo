@@ -719,8 +719,11 @@ TEST_CASE("the mutable subscript writes the component it names",
 
 TEST_CASE("Point3 keeps its declaration-level guarantees",
           "[linear][point3]") {
-    // 分量别名。
+    // 分量别名 —— **两个实例化都要钉**。只钉 float 时，一个把
+    // `using scalar_type = float;` 硬编码的实现照样全绿（实测存活）；
+    // 全库其余类型都是 `Scalar`，硬编码是实打实的缺陷。
     STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
+    STATIC_REQUIRE(std::is_same_v<Point3T<double>::scalar_type, double>);
 
     // noexcept 是 Interfaces 的明文承诺，也要有证据。
     STATIC_REQUIRE(noexcept(Point3{}.distance_to(Point3{})));
@@ -772,12 +775,19 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector3>);
     CHECK(b - a == Vector3{3.0, 4.0, 5.0});
 
-    // 两个点只要有一个分量不同就必须不相等。**这一条不能省** ——
+    // 两个点只要有一个分量不同就必须不相等 —— **三个方向各要一条**。
     // 上面所有期望值的 x 分量都恰好与左操作数相同（11、-9 都是从 a.x=1 算出来的），
-    // 于是一个「只比较 x」的 operator== 会让本文件全部断言静默通过（已用变异测试
-    // 实测：把 == 改成只比 x，21 条断言全过）。
-    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 9.0, 3.0});
-    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 2.0, 9.0});
+    // 于是一个「只比较 x」的 operator== 会让本文件全部断言静默通过
+    // （已用变异测试实测：把 == 改成只比 x，21 条断言全过）。
+    //
+    // 而只补两个方向同样不够：三条断言若写成 {y 不同, z 不同, 相等}，一个
+    // **忽略 x** 的实现照样全绿（实测存活）。更糟的是它会**连带**抹掉
+    // `operator+` 的 x 槽证据 —— 下面 `a + v == Point3{11,22,33}` 的 x 方向
+    // 正是经由 `==` 传递的，于是「operator+ 把 x 写成 0」也一起存活。
+    // 一条断言被架空，另一条断言就跟着失效。
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 9.0, 3.0});   // y 不同
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 2.0, 9.0});   // z 不同
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{9.0, 2.0, 3.0});   // x 不同
     CHECK(Point3{1.0, 2.0, 3.0} == Point3{1.0, 2.0, 3.0});
 
     // 点 + 点不存在 —— 这是本任务的核心不变量（Review Focus 第 1 条）：
@@ -876,6 +886,7 @@ TEST_CASE("the mutable subscript writes the component it names",
 TEST_CASE("Point2 keeps its declaration-level guarantees",
           "[linear][point2]") {
     STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
+    STATIC_REQUIRE(std::is_same_v<Point2T<double>::scalar_type, double>);
     STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
 
     // 同 point3_test.cpp：常量求值 + **不带花括号**的默认初始化。
@@ -923,7 +934,11 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
     STATIC_REQUIRE(std::is_same_v<decltype(Point2{}.distance_to(Point2{})), double>);
 
+    // **两个操作数都不能是原点。** 用原点做操作数时，`x - other.x` 与
+    // `x + other.x` 平方后相同，把 dx 变号也能存活（实测：2D 侧存活，
+    // 3D 侧正因为下面第三条用了非原点对才被杀掉）。
     CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
+    CHECK(Point2{1.0, 2.0}.distance_to(Point2{4.0, 6.0}) == Approx(5.0));
 }
 ```
 
