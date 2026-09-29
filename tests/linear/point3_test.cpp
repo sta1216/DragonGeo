@@ -16,6 +16,10 @@ namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+
+/// 两种**不同**类型之间能否相加 —— 用来钉住 `Vector + Point` 不存在。
+template <typename A, typename B>
+concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -24,14 +28,6 @@ TEST_CASE("the float alias really is the float instantiation",
     // 实测：把 Point3f 绑成 Point3T<double>，全库 134 个用例全绿、退出码 0。
     // float 用户会静默拿到 double 存储，精度与内存占用都不是承诺的样子。
     STATIC_REQUIRE(std::is_same_v<Point3f, Point3T<float>>);
-}
-
-TEST_CASE("scalar_type is the scalar the type is instantiated with",
-          "[linear][point3]") {
-    // scalar_type 同样只是一处声明：在补这条之前它从未被任何测试命名过，
-    // 与别名绑定是同一类缺口 —— 没被命名过的实体，成员连实例化都不会发生。
-    STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
-    STATIC_REQUIRE(std::is_same_v<Point3T<double>::scalar_type, double>);
 }
 
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
@@ -67,6 +63,43 @@ TEST_CASE("the mutable subscript writes the component it names",
     CHECK(p.x == 1.0);
     CHECK(p.y == 2.0);
     CHECK(p.z == 3.0);
+}
+
+TEST_CASE("Point3 keeps its declaration-level guarantees",
+          "[linear][point3]") {
+    // 分量别名。
+    STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
+
+    // noexcept 是 Interfaces 的明文承诺，也要有证据。
+    STATIC_REQUIRE(noexcept(Point3{}.distance_to(Point3{})));
+
+    // 默认成员初始化值 `Scalar x{}` —— **用常量求值钉，不要用类型特征**。
+    // `!is_trivially_default_constructible_v` 看着聪明，实际是**恒真**的：
+    // 去掉一个分量的 NSDMI 之后，另外两个还在，构造函数依然非平凡，断言照样
+    // 通过（已实测：去掉全部三个才变）。那正是它要防的变异体。
+    //
+    // 常量表达式里读一个不确定值**不是 UB，是编译错误**（C2131 / C2737），
+    // 所以下面这段既零 UB、又能检出**任意一个**分量的 NSDMI 缺失。
+    //
+    // 注意 `default_point` **不能写花括号**：写了就是聚合的值初始化，
+    // 有没有 NSDMI 都会清零，什么也测不出来。
+    constexpr Point3T<double> default_point;
+    STATIC_REQUIRE(default_point.x == 0.0);
+    STATIC_REQUIRE(default_point.y == 0.0);
+    STATIC_REQUIRE(default_point.z == 0.0);
+}
+
+TEST_CASE("copy assignment carries every component", "[linear][point3]") {
+    // 隐式拷贝赋值也必须被真的用一次。否则它从未被实例化，一个只赋前两个
+    // 分量的手写赋值运算符会完全静默 —— 已实测：从仓库测试编出的 obj 里
+    // 连拷贝赋值的符号（`??4`）都不存在。
+    const Point3 source{4.0, 5.0, 6.0};
+    Point3 target{0.0, 0.0, 0.0};
+    target = source;
+
+    CHECK(target.x == 4.0);
+    CHECK(target.y == 5.0);
+    CHECK(target.z == 6.0);
 }
 
 TEST_CASE("point and vector arithmetic follows affine rules",
@@ -106,11 +139,16 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     // 匿名命名空间的 `addable`。这一点与 Catch2 无关，也与用不用
     // STATIC_REQUIRE 无关。
     static_assert(!addable<Point3>, "Point + Point must not be well-formed");
+
+    // `Vector + Point` 同样必须不存在 —— spec 的运算符清单里没有它，
+    // 本计划的 Interfaces 也明令不加。它同样只能由编译器判定。
+    static_assert(!addable_pair<Vector3, Point3>,
+                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
-    // 返回类型同样从未被任何测试命名过：把它收窄成 float，本文件照样全绿
-    // （只有 /W4 的 C4244 提示，而警告不阻断构建）。大坐标下那是静默的精度损失。
+    // 返回类型也要钉住。收窄成 float 之后 42 条断言全绿、exit 0
+    // （/W4 下会出 C4244，但测试套件检不出 —— 别指望编译器的警告代替断言）。
     STATIC_REQUIRE(std::is_same_v<decltype(Point3{}.distance_to(Point3{})), double>);
 
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));

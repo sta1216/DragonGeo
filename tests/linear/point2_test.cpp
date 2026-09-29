@@ -16,6 +16,9 @@ namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+
+template <typename A, typename B>
+concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -25,13 +28,6 @@ TEST_CASE("the float alias really is the float instantiation",
     // 全过、退出码 0。所以下面这条不是「加固一道已有的防线」，它是这里**唯一**
     // 的证据。
     STATIC_REQUIRE(std::is_same_v<Point2f, Point2T<float>>);
-}
-
-TEST_CASE("scalar_type is the scalar the type is instantiated with",
-          "[linear][point2]") {
-    // 同 point3_test.cpp：没被任何测试命名过的声明等同于没有证据。
-    STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
-    STATIC_REQUIRE(std::is_same_v<Point2T<double>::scalar_type, double>);
 }
 
 TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
@@ -59,6 +55,26 @@ TEST_CASE("the mutable subscript writes the component it names",
     CHECK(p.y == 5.0);
 }
 
+TEST_CASE("Point2 keeps its declaration-level guarantees",
+          "[linear][point2]") {
+    STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
+    STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
+
+    // 同 point3_test.cpp：常量求值 + **不带花括号**的默认初始化。
+    constexpr Point2T<double> default_point;
+    STATIC_REQUIRE(default_point.x == 0.0);
+    STATIC_REQUIRE(default_point.y == 0.0);
+}
+
+TEST_CASE("copy assignment carries every component", "[linear][point2]") {
+    const Point2 source{4.0, 5.0};
+    Point2 target{0.0, 0.0};
+    target = source;
+
+    CHECK(target.x == 4.0);
+    CHECK(target.y == 5.0);
+}
+
 TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
           "[linear][point2]") {
     const Point2 a{1.0, 2.0};
@@ -74,16 +90,19 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector2>);
     CHECK(b - a == Vector2{3.0, 4.0});
 
-    // 同 point3_test.cpp：== 的 y 分量必须有独立证据，否则一个「只比较 x」
-    // 的实现会让本文件全部断言静默通过。
-    CHECK(Point2{1.0, 2.0} != Point2{1.0, 9.0});
+    // 两个分量**各要一条**不同方向的证据。只钉 y 是不够的：一个
+    // 「只比较 y」的 operator== 会让本文件全绿（已实测存活），
+    // 于是 Point2{1,2} == Point2{5,2} 被静默判为相等。
+    CHECK(Point2{1.0, 2.0} != Point2{1.0, 9.0});   // y 不同
+    CHECK(Point2{1.0, 2.0} != Point2{9.0, 2.0});   // x 不同
     CHECK(Point2{1.0, 2.0} == Point2{1.0, 2.0});
 
     static_assert(!addable<Point2>, "Point + Point must not be well-formed");
+    static_assert(!addable_pair<Vector2, Point2>,
+                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
-    // 同 point3_test.cpp：返回类型没有被任何断言命名过，收窄成 float 也不会被发现。
     STATIC_REQUIRE(std::is_same_v<decltype(Point2{}.distance_to(Point2{})), double>);
 
     CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
