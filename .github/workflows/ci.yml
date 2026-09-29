@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-latest
+            configure: ninja-debug
+            build: ninja-debug
+            test: ninja-debug
+            cxx: g++
+          - name: Linux Clang
+            os: ubuntu-latest
+            configure: ninja-debug
+            build: ninja-debug
+            test: ninja-debug
+            cxx: clang++
+          - name: macOS AppleClang
+            os: macos-latest
+            configure: ninja-debug
+            build: ninja-debug
+            test: ninja-debug
+            cxx: clang++
+          - name: Windows MSVC
+            os: windows-latest
+            configure: windows-vs
+            build: windows-vs-debug
+            test: windows-vs-debug
+            cxx: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure }}
+        env:
+          CXX: ${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.build }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.test }}

@@ -1,0 +1,7 @@
+#pragma once
+
+/// GeoCore —— 一个稳健、高效、易用的 C++ 几何库。
+///
+/// 本头文件聚合全部公开接口。也可以只包含需要的子头以减少编译时间。
+
+#include <GeoCore/core/Version.hpp>
