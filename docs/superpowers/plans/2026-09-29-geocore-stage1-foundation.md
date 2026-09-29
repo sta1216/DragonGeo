@@ -2895,6 +2895,58 @@ TEST_CASE("norm and normalize handle non-finite input consistently",
     CHECK_FALSE(normalize(Quaternion{not_a_number, 0.0, 0.0, 0.0}).has_value());
     CHECK_FALSE(normalize(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}).has_value());
 }
+
+TEST_CASE("rotation about x by 90 degrees maps y to z", "[linear][quaternion]") {
+    // 上面所有用例都绕 z 轴，因此四元数的 x、y 分量恒为零 —— 那些分量上的
+    // 符号或系数错误会在 0 = 0 里消失。换一个轴把它们逼出来。
+    const UnitVector3 x_axis = UnitVector3::from_normalized_unchecked(Vector3{1.0, 0.0, 0.0});
+    const Quaternion q = from_axis_angle(x_axis, half_pi);
+
+    const Vector3 rotated = rotate(q, Vector3{0.0, 1.0, 0.0});
+    CHECK(rotated.x == Approx(0.0).margin(1e-15));
+    CHECK(rotated.y == Approx(0.0).margin(1e-15));
+    CHECK(rotated.z == Approx(1.0));
+}
+
+TEST_CASE("to_matrix and rotate agree on a general axis", "[linear][quaternion]") {
+    // 绕 z 轴时 xz = wy = yz = wx = 0，于是 m02/m20/m12/m21 恒为零，任何
+    // 局限于这两块的符号错误都不可见。用一个一般轴让它们全部非零。
+    const UnitVector3 axis = UnitVector3::from_normalized_unchecked(
+        Vector3{1.0, 2.0, 3.0} / std::sqrt(14.0));
+    const Quaternion q = from_axis_angle(axis, 0.7);
+    const Matrix3 m = to_matrix(q);
+
+    // 先证明这次确实覆盖了那四个条目
+    CHECK(m(0, 2) != 0.0);
+    CHECK(m(2, 0) != 0.0);
+    CHECK(m(1, 2) != 0.0);
+    CHECK(m(2, 1) != 0.0);
+
+    // 两条独立推导路径必须给出同一答案
+    const Vector3 v{0.3, -0.7, 1.1};
+    const Vector3 by_matrix = m * v;
+    const Vector3 by_quaternion = rotate(q, v);
+
+    CHECK(by_matrix.x == Approx(by_quaternion.x));
+    CHECK(by_matrix.y == Approx(by_quaternion.y));
+    CHECK(by_matrix.z == Approx(by_quaternion.z));
+}
+
+TEST_CASE("normalize scales a non-unit quaternion", "[linear][quaternion]") {
+    // 原用例只用 has_value() 检查 normalize，因此一个「对非零模长原样返回」
+    // 的实现也能全部通过。这里数值验证缩放路径本身。
+    const auto axis_aligned = normalize(Quaternion{2.0, 0.0, 0.0, 0.0});
+    REQUIRE(axis_aligned.has_value());
+    CHECK(axis_aligned->w == Approx(1.0));
+
+    const auto general = normalize(Quaternion{1.0, 2.0, 3.0, 4.0});
+    REQUIRE(general.has_value());
+    CHECK(norm(*general) == Approx(1.0));
+    CHECK(general->w == Approx(1.0 / std::sqrt(30.0)));
+    CHECK(general->x == Approx(2.0 / std::sqrt(30.0)));
+    CHECK(general->y == Approx(3.0 / std::sqrt(30.0)));
+    CHECK(general->z == Approx(4.0 / std::sqrt(30.0)));
+}
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
