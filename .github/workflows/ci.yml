@@ -19,6 +19,12 @@ jobs:
             build: ninja-debug
             test: ninja-debug
             cxx: g++
+          - name: Linux GCC Release
+            os: ubuntu-latest
+            configure: ninja-release
+            build: ninja-release
+            test: ninja-release
+            cxx: g++
           - name: Linux Clang
             os: ubuntu-latest
             configure: ninja-debug
@@ -51,3 +57,33 @@ jobs:
 
       - name: Test
         run: ctest --preset ${{ matrix.test }}
+
+  # 安装包消费方冒烟。上面的矩阵全部在仓库自己的 CMake 树里构建，使用的
+  # 编码选项来自顶层 add_compile_options —— 正因为如此，导出目标漏掉
+  # INTERFACE_COMPILE_OPTIONS 这件事在那些腿上永远看不见（cp936 主机上
+  # 消费方会直接编译失败）。这里刻意绕开 in-tree 构建：install 到临时前缀，
+  # 再用 find_package 构建 ci/consumer，最后跑起来。
+  consumer-smoke:
+    name: Windows MSVC (installed package consumer)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset windows-vs
+
+      - name: Build
+        run: cmake --build --preset windows-vs-release
+
+      - name: Install into a prefix
+        run: cmake --install build/windows-vs --config Release --prefix "${{ github.workspace }}/build/_install"
+
+      - name: Configure the consumer
+        run: cmake -S ci/consumer -B build/consumer -DCMAKE_PREFIX_PATH="${{ github.workspace }}/build/_install"
+
+      - name: Build the consumer
+        run: cmake --build build/consumer --config Release
+
+      - name: Run the consumer
+        run: ./build/consumer/Release/consumer.exe
