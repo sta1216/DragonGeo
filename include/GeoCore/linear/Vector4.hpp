@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <concepts>
 #include <cmath>
 
@@ -39,6 +40,27 @@ struct Vector4T {
         const Scalar scaled_w = w / scale;
         return scale * std::sqrt(scaled_x * scaled_x + scaled_y * scaled_y
                                  + scaled_z * scaled_z + scaled_w * scaled_w);
+    }
+
+    /// 下标访问。索引 0/1/2/3 依次对应 x/y/z/w。
+    ///
+    /// 越界是未定义行为 —— 与 std::array 一致，不做边界检查。
+    [[nodiscard]] constexpr Scalar& operator[](int index) noexcept {
+        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : w));
+    }
+
+    [[nodiscard]] constexpr const Scalar& operator[](int index) const noexcept {
+        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : w));
+    }
+
+    /// 导出为数组，便于与外部库互操作。
+    [[nodiscard]] constexpr std::array<Scalar, 4> to_array() const noexcept {
+        return {x, y, z, w};
+    }
+
+    /// 点积。四维没有叉积，本层也不存在 UnitVector4T，故没有 normalized。
+    [[nodiscard]] constexpr Scalar dot(Vector4T other) const noexcept {
+        return x * other.x + y * other.y + z * other.z + w * other.w;
     }
 };
 
@@ -85,13 +107,6 @@ template <typename Scalar, typename Divisor>
 template <typename Scalar>
 [[nodiscard]] constexpr bool operator==(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
     return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-// ---- 几何量 ----
-
-template <typename Scalar>
-[[nodiscard]] constexpr Scalar dot(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
-    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
 } // namespace GeoCore::linear

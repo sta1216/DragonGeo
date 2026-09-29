@@ -41,6 +41,15 @@ public:
     [[nodiscard]] constexpr Scalar y() const noexcept { return value_.y; }
     [[nodiscard]] constexpr Scalar z() const noexcept { return value_.z; }
 
+    [[nodiscard]] constexpr Scalar dot(UnitVector3T other) const noexcept {
+        return value_.dot(other.value_);
+    }
+
+    /// 叉积。结果不保证是单位向量（两向量平行时为零向量），故返回 Vector3T。
+    [[nodiscard]] constexpr Vector3T<Scalar> cross(UnitVector3T other) const noexcept {
+        return value_.cross(other.value_);
+    }
+
     [[nodiscard]] constexpr bool operator==(const UnitVector3T&) const noexcept = default;
 
 private:
@@ -51,24 +60,6 @@ private:
 
 using UnitVector3 = UnitVector3T<double>;
 using UnitVector3f = UnitVector3T<float>;
-
-/// 归一化。向量长度在给定容差下可视为零、或本身不是有限值时返回
-/// std::nullopt，因此调用者无法得到含 NaN 的单位向量。
-template <typename Scalar>
-[[nodiscard]] std::optional<UnitVector3T<Scalar>> normalize(
-    Vector3T<Scalar> v, core::Tolerance tolerance = {}) noexcept {
-    const Scalar length = v.length();
-    // 非有限长度同样返回 nullopt。容差判断对 ±inf 与 NaN 一律返回 false
-    // （`is_zero` 刻意不把溢出量静默归类为零），若就此放行，本函数会交出一个
-    // has_value() 为真、内容却是 NaN 的「单位向量」：调用者无从察觉，而 NaN
-    // 会一路污染 dot / cross 与每一个容差比较 —— 那些比较对 NaN 都返回 false，
-    // 下游几何代码会静默走「否」分支。NaN 输入比无穷更常见：任何上游的
-    // 0/0 或 inf - inf 都会落到这里。
-    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
-        return std::nullopt;
-    }
-    return UnitVector3T<Scalar>::from_normalized_unchecked(v / length);
-}
 
 // ---- 保持不变量的运算 ----
 
@@ -104,14 +95,13 @@ template <typename Scalar>
 }
 
 template <typename Scalar>
-[[nodiscard]] constexpr Scalar dot(UnitVector3T<Scalar> a, UnitVector3T<Scalar> b) noexcept {
-    return dot(a.as_vector(), b.as_vector());
-}
-
-/// 叉积。结果不保证是单位向量（两向量平行时为零向量），故返回 Vector3T。
-template <typename Scalar>
-[[nodiscard]] constexpr Vector3T<Scalar> cross(UnitVector3T<Scalar> a, UnitVector3T<Scalar> b) noexcept {
-    return cross(a.as_vector(), b.as_vector());
+[[nodiscard]] std::optional<UnitVector3T<Scalar>> Vector3T<Scalar>::normalized(
+    core::Tolerance tolerance) const noexcept {
+    const Scalar length = this->length();
+    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
+        return std::nullopt;
+    }
+    return UnitVector3T<Scalar>::from_normalized_unchecked(*this / length);
 }
 
 } // namespace GeoCore::linear

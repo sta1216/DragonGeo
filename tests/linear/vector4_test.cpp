@@ -18,7 +18,7 @@ TEST_CASE("Vector4 arithmetic is component-wise", "[linear][vector4]") {
 TEST_CASE("Vector4 dot includes the w component", "[linear][vector4]") {
     const Vector4 a{1.0, 2.0, 3.0, 4.0};
     const Vector4 b{1.0, 1.0, 1.0, 1.0};
-    CHECK(dot(a, b) == 10.0);
+    CHECK(a.dot(b) == 10.0);
 }
 
 TEST_CASE("Vector4 length includes the w component", "[linear][vector4]") {

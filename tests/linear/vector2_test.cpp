@@ -45,17 +45,17 @@ TEST_CASE("dot and cross match their definitions", "[linear][vector2]") {
     const Vector2 a{1.0, 0.0};
     const Vector2 b{0.0, 1.0};
 
-    CHECK(dot(a, b) == 0.0);
-    CHECK(dot(a, a) == 1.0);
-    CHECK(cross(a, b) == 1.0);
-    CHECK(cross(b, a) == -1.0);
-    CHECK(cross(a, a) == 0.0);
+    CHECK(a.dot(b) == 0.0);
+    CHECK(a.dot(a) == 1.0);
+    CHECK(a.cross(b) == 1.0);
+    CHECK(b.cross(a) == -1.0);
+    CHECK(a.cross(a) == 0.0);
 
     // {1,0}·{0,1} 恒为 0，第二项上任何符号错误都看不出来。用一对各分量
     // 都非零的通用输入把两项的符号钉住：正确 1*3 + 2*5 = 13，第二项符号
     // 错为 1*3 - 2*5 = -7。
-    CHECK(dot(Vector2{1.0, 2.0}, Vector2{3.0, 5.0}) == 13.0);
-    CHECK(cross(Vector2{1.0, 2.0}, Vector2{3.0, 5.0}) == -1.0);
+    CHECK(Vector2{1.0, 2.0}.dot(Vector2{3.0, 5.0}) == 13.0);
+    CHECK(Vector2{1.0, 2.0}.cross(Vector2{3.0, 5.0}) == -1.0);
 }
 
 TEST_CASE("length of the 3-4-5 triangle is exact", "[linear][vector2]") {
@@ -122,4 +122,14 @@ TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
     // 无穷压过 NaN：这一条把上面那条规则的优先级也钉住
     CHECK(Vector2{infinity, nan}.length() == infinity);
     CHECK(Vector2{nan, infinity}.length() == infinity);
+}
+
+TEST_CASE("Vector2 members: dot, cross and subscript", "[linear][vector2]") {
+    const Vector2 a{1.0, 2.0};
+    const Vector2 b{3.0, 5.0};
+
+    CHECK(a.dot(b) == 13.0);          // 1*3 + 2*5
+    CHECK(a.cross(b) == -1.0);        // 1*5 - 2*3
+    CHECK(a[0] == 1.0);
+    CHECK(a[1] == 2.0);
 }

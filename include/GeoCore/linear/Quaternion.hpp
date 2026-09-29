@@ -163,8 +163,8 @@ template <typename Scalar>
     // v' = v + 2 * q_vec × (q_vec × v + w * v)
     // 比 q * (0,v) * conj(q) 少了两次四元数乘法，且不必构造纯四元数。
     const Vector3T<Scalar> q_vector{q.x, q.y, q.z};
-    const Vector3T<Scalar> t = cross(q_vector, v) + v * q.w;
-    return v + cross(q_vector, t) * Scalar{2};
+    const Vector3T<Scalar> t = q_vector.cross(v) + v * q.w;
+    return v + q_vector.cross(t) * Scalar{2};
 }
 
 /// 转换为等价的旋转矩阵。

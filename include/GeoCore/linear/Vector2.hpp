@@ -1,11 +1,16 @@
 #pragma once
 
+#include <array>
 #include <concepts>
 #include <cmath>
+#include <optional>
 
 #include <GeoCore/core/Numeric.hpp>
+#include <GeoCore/core/Tolerance.hpp>
 
 namespace GeoCore::linear {
+
+template <typename Scalar> class UnitVector2T;
 
 /// 二维向量：纯代数载体，不含任何几何语义。
 ///
@@ -45,6 +50,39 @@ struct Vector2T {
         const Scalar scaled_y = y / scale;
         return scale * std::sqrt(scaled_x * scaled_x + scaled_y * scaled_y);
     }
+
+    /// 下标访问。索引 0/1 依次对应 x/y。
+    ///
+    /// 越界是未定义行为 —— 与 std::array 一致，不做边界检查。
+    [[nodiscard]] constexpr Scalar& operator[](int index) noexcept {
+        return index == 0 ? x : y;
+    }
+
+    [[nodiscard]] constexpr const Scalar& operator[](int index) const noexcept {
+        return index == 0 ? x : y;
+    }
+
+    /// 导出为数组，便于与外部库互操作。
+    [[nodiscard]] constexpr std::array<Scalar, 2> to_array() const noexcept {
+        return {x, y};
+    }
+
+    /// 点积。
+    [[nodiscard]] constexpr Scalar dot(Vector2T other) const noexcept {
+        return x * other.x + y * other.y;
+    }
+
+    /// 二维叉积，返回标量（有向面积的两倍再取半，即 z 分量）。
+    /// 正值表示 other 在 this 的逆时针一侧。
+    [[nodiscard]] constexpr Scalar cross(Vector2T other) const noexcept {
+        return x * other.y - y * other.x;
+    }
+
+    /// 归一化。零向量或退化向量返回 std::nullopt。
+    ///
+    /// 定义在 UnitVector2.hpp —— 返回类型 UnitVector2T 在那里才完整。
+    [[nodiscard]] std::optional<UnitVector2T<Scalar>> normalized(
+        core::Tolerance tolerance = {}) const noexcept;
 };
 
 using Vector2 = Vector2T<double>;
@@ -94,20 +132,5 @@ template <typename Scalar>
     return a.x == b.x && a.y == b.y;
 }
 // C++20 由 operator== 自动生成 operator!=，无需手写。
-
-// ---- 几何量 ----
-
-/// 点积。
-template <typename Scalar>
-[[nodiscard]] constexpr Scalar dot(Vector2T<Scalar> a, Vector2T<Scalar> b) noexcept {
-    return a.x * b.x + a.y * b.y;
-}
-
-/// 二维叉积，返回标量（有向面积的两倍再取半，即 z 分量）。
-/// 正值表示 b 在 a 的逆时针一侧。
-template <typename Scalar>
-[[nodiscard]] constexpr Scalar cross(Vector2T<Scalar> a, Vector2T<Scalar> b) noexcept {
-    return a.x * b.y - a.y * b.x;
-}
 
 } // namespace GeoCore::linear

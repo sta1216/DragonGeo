@@ -29,6 +29,15 @@ public:
     [[nodiscard]] constexpr Scalar x() const noexcept { return value_.x; }
     [[nodiscard]] constexpr Scalar y() const noexcept { return value_.y; }
 
+    [[nodiscard]] constexpr Scalar dot(UnitVector2T other) const noexcept {
+        return value_.dot(other.value_);
+    }
+
+    /// 二维叉积，即两单位向量夹角的正弦。
+    [[nodiscard]] constexpr Scalar cross(UnitVector2T other) const noexcept {
+        return value_.cross(other.value_);
+    }
+
     [[nodiscard]] constexpr bool operator==(const UnitVector2T&) const noexcept = default;
 
 private:
@@ -39,19 +48,6 @@ private:
 
 using UnitVector2 = UnitVector2T<double>;
 using UnitVector2f = UnitVector2T<float>;
-
-/// 归一化。语义与 UnitVector3T 的同名函数一致：长度在给定容差下可视为零、
-/// 或本身不是有限值时返回 std::nullopt。
-template <typename Scalar>
-[[nodiscard]] std::optional<UnitVector2T<Scalar>> normalize(
-    Vector2T<Scalar> v, core::Tolerance tolerance = {}) noexcept {
-    const Scalar length = v.length();
-    // 非有限长度同样返回 nullopt，理由见 UnitVector3T 的同名函数。
-    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
-        return std::nullopt;
-    }
-    return UnitVector2T<Scalar>::from_normalized_unchecked(v / length);
-}
 
 template <typename Scalar>
 [[nodiscard]] constexpr UnitVector2T<Scalar> operator-(UnitVector2T<Scalar> u) noexcept {
@@ -83,14 +79,13 @@ template <typename Scalar>
 }
 
 template <typename Scalar>
-[[nodiscard]] constexpr Scalar dot(UnitVector2T<Scalar> a, UnitVector2T<Scalar> b) noexcept {
-    return dot(a.as_vector(), b.as_vector());
-}
-
-/// 二维叉积，即两单位向量夹角的正弦。
-template <typename Scalar>
-[[nodiscard]] constexpr Scalar cross(UnitVector2T<Scalar> a, UnitVector2T<Scalar> b) noexcept {
-    return cross(a.as_vector(), b.as_vector());
+[[nodiscard]] std::optional<UnitVector2T<Scalar>> Vector2T<Scalar>::normalized(
+    core::Tolerance tolerance) const noexcept {
+    const Scalar length = this->length();
+    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
+        return std::nullopt;
+    }
+    return UnitVector2T<Scalar>::from_normalized_unchecked(*this / length);
 }
 
 } // namespace GeoCore::linear
