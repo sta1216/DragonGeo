@@ -58,7 +58,7 @@ prim         几何原语：点、射线、线段、平面、三角形、包围�
   ↑
 predicates   orient2d / orient3d / incircle / insphere（过滤 + 自适应精确）
   ↑
-linear       纯代数：Vector2/3/4、Matrix2/3/4、Quaternion、Transform —— 无几何语义
+linear       纯代数：Vector2/3/4、UnitVector2/3、Matrix2/3/4、Quaternion、Transform
   ↑
 core         Scalar、Tolerance、常量、数值工具
 ```
@@ -238,8 +238,10 @@ namespace GeoCore::predicates {
 
 ### 5.1 prim — 几何原语
 
-**2D**：`Point2` `Vector2` `UnitVector2` `Segment2` `Ray2` `Line2` `Circle` `Triangle2` `Rectangle` `AxisAlignedBox2`
-**3D**：`Point3` `Vector3` `UnitVector3` `Segment3` `Ray3` `Line3` `Plane` `Triangle3` `AxisAlignedBox3` `OrientedBox3` `Sphere` `Cylinder` `Capsule` `Disk` `Box` `Frustum`
+**2D**：`Point2` `Segment2` `Ray2` `Line2` `Circle` `Triangle2` `Rectangle` `AxisAlignedBox2`
+**3D**：`Point3` `Segment3` `Ray3` `Line3` `Plane` `Triangle3` `AxisAlignedBox3` `OrientedBox3` `Sphere` `Cylinder` `Capsule` `Disk` `Box` `Frustum`
+
+（代数类型 `Vector2/3/4`、`UnitVector2/3` 属于 `linear` 层，不在此列出 —— 它们不含任何几何语义。）
 
 全部为 POD 风格值类型，`constexpr` 可构造，成员为命名字段（便于调试）而非数组。
 
