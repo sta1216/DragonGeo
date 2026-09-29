@@ -319,9 +319,11 @@ Expected:
 
 创建 `CMakePresets.json`：
 
+> **注意 `version` 的取值：** 必须与项目声明的 CMake 底线一致。schema v2 对应 CMake 3.20，恰好是本计划的底线。切勿写成 v6 —— 那是 CMake 3.25 才引入的 schema，而 presets 文件在任何 `CMakeLists.txt` 之前解析，使用者在 3.20–3.24 上会得到一个预设解析硬错误，且错误信息与项目代码毫无关联。本文件只用到 v2 已有的能力（三类预设列表与 `output.outputOnFailure`）。
+
 ```json
 {
-  "version": 6,
+  "version": 2,
   "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
   "configurePresets": [
     {
