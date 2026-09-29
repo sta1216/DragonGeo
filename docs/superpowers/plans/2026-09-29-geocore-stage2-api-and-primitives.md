@@ -1861,7 +1861,7 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 2. `p + p` 无法编译，`p - p` 得到 `Vector`；`Coordinate` 无法从非正交轴构造；`OrientedBox::to_axis_aligned` 对旋转盒真的变大。
 3. 自由函数形式的 `dot`/`cross`/`norm`/`determinant`/`transposed`/`inverse`/`normalized`/`rotate`/`to_matrix`/`apply` 与各静态工厂**已不存在**；运算符仍为自由函数。
 4. 两个示例以成员形式编写并输出正确。
-5. `benchmarks/BASELINE.md` 存有可复现的基线，且 `dot`/`cross`/`subscript` 处于个位数纳秒量级。
+5. `benchmarks/BASELINE.md` 存有可复现的基线，且**每个基准都明显慢于空循环基准**（这一条比具体数字重要 —— 详见 Task 11 Step 3 的反空转验证）。
 
 **不在本阶段**：曲线（登记于 spec §5.6）、JSON、SVG。SVG 依赖 2D 图形对象，须待曲线落地；JSON 已明确暂不实现。
 
