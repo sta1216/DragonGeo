@@ -900,15 +900,24 @@ git commit -m "feat(linear): add IntervalT"
 - Consumes: `Point2T` / `Point3T`
 - Produces:
   - `struct Box3T { Point3T<Scalar> min{}; Point3T<Scalar> max{}; }`，别名 `Box3` / `Box3f`
-  - `static constexpr Box3T empty() noexcept`；`static Box3T from_points(span<const Point3T>)`（★ 后续，本轮先给两点的 `from_corners`）
+  - `static constexpr Box3T empty() noexcept`；`static Box3T from_corners(Point3T, Point3T)`（★ `from_points(span<const Point3T>)` 留待后续阶段）
   - `bool is_empty() const`、`bool contains(Point3T) const`、`bool contains(Box3T) const`、`bool intersects(Box3T) const`
   - `Point3T center() const`、`Vector3T extent() const`、`Vector3T half_extent() const`
   - `Box3T merged(Box3T) const`、`Box3T expanded(Scalar) const`
   - `Point3T corner(int index) const` —— 8 个角，索引位含义文档化
+  - `bool operator==(Box3T, Box3T) noexcept`（自由函数；`!=` 由 C++20 生成）
+
+**空盒语义（与 Task 5 的 `Interval` 完全对齐，两处不得各行其是）：**
+
+- **规范表示**：`min` 的每个分量 `+inf`，`max` 的每个分量 `-inf`。**凡是产出空盒的运算都必须给出这个规范形式**，不能给「只有 x 分量倒置」的盒 —— 理由同 `Interval`：一个量两种表示会让 `==`、`extent()`、`center()` 全部变成「看情况」。
+- **`extent()`**：空盒返回 `Vector3{0,0,0}`。原始差是 `-inf - (+inf) = -inf`，那是没有意义的「尺寸」还会静默传播；空集的测度是 0。
+- **`center()`**：用 `min * 0.5 + max * 0.5` 逐分量实现（不是 `(min+max)*0.5`，那是 Interval 那边已经裁定的溢出陷阱）。空盒与任一无穷端点都自然得到 NaN —— 这是「没有中心」的诚实答案，文档写明并配测试。
+- **`contains(Box3T)`：任一方为空盒时返回 `false`。** 数学上 `∅ ⊆ B` 是空真，但那会让 `if (a.contains(b))` 在 `b` 为空时通过，是每个调用者都会踩的坑；`intersects` 已经采用「空盒与任何盒都不相交」，`contains` 保持同向。**这是刻意的约定，必须在文档里写明理由**，否则下一个人会把它当 bug 改掉。
+- **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内），且都无需对空盒特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。
 
 - [ ] **Step 1: 写失败测试**
 
-关键用例：
+创建 `tests/linear/box3_test.cpp`。需要 `<catch2/catch_approx.hpp>`、`<catch2/catch_test_macros.hpp>`、`<cmath>`（`std::isnan`）。若你实现 `empty()` 时要用 `std::numeric_limits`，头文件里还得有 `<limits>`：
 
 ```cpp
 TEST_CASE("an empty box contains nothing and merges as identity",
@@ -921,6 +930,7 @@ TEST_CASE("an empty box contains nothing and merges as identity",
     CHECK_FALSE(empty.intersects(box));
     CHECK(empty.merged(box) == box);
     CHECK(box.merged(empty) == box);
+    CHECK(empty.merged(empty) == empty);
 }
 
 TEST_CASE("a degenerate box (a point) is not empty", "[linear][box3]") {
@@ -931,16 +941,85 @@ TEST_CASE("a degenerate box (a point) is not empty", "[linear][box3]") {
     CHECK(point.extent() == Vector3{0.0, 0.0, 0.0});
 }
 
-TEST_CASE("box corners are ordered and distinct", "[linear][box3]") {
+TEST_CASE("box corners pin every index bit", "[linear][box3]") {
     const Box3 box{Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 4.0}};
 
-    // 索引的 bit0/bit1/bit2 依次选择 x/y/z 取 min 还是 max
+    // 索引的 bit0/bit1/bit2 依次选择 x/y/z 取 min 还是 max，置位取 max。
+    // 只测 0 与 7 是不够的：那两端恰好是「全 min」与「全 max」，三个轴的
+    // 位若被两两互换，0 和 7 仍然都对得上。中间三个索引各只置一位，
+    // 把每一位独立钉死。
     CHECK(box.corner(0) == Point3{0.0, 0.0, 0.0});
+    CHECK(box.corner(1) == Point3{1.0, 0.0, 0.0});
+    CHECK(box.corner(2) == Point3{0.0, 2.0, 0.0});
+    CHECK(box.corner(4) == Point3{0.0, 0.0, 4.0});
     CHECK(box.corner(7) == Point3{1.0, 2.0, 4.0});
+
     CHECK(box.center() == Point3{0.5, 1.0, 2.0});
     CHECK(box.half_extent() == Vector3{0.5, 1.0, 2.0});
+    CHECK(box.extent() == Vector3{1.0, 2.0, 4.0});
+}
+
+TEST_CASE("box overlap is closed and empty boxes intersect nothing",
+          "[linear][box3]") {
+    const Box3 a{Point3{0.0, 0.0, 0.0}, Point3{2.0, 2.0, 2.0}};
+    const Box3 touching{Point3{2.0, 0.0, 0.0}, Point3{4.0, 2.0, 2.0}};
+    const Box3 apart{Point3{3.0, 0.0, 0.0}, Point3{4.0, 2.0, 2.0}};
+
+    CHECK(a.intersects(touching));            // 共享一个面，算相交
+    CHECK_FALSE(a.intersects(apart));
+    CHECK(a.contains(Box3{Point3{0.5, 0.5, 0.5}, Point3{1.5, 1.5, 1.5}}));
+    CHECK_FALSE(a.contains(touching));
+
+    // 空盒与任何盒都不相交，也不包含任何盒，且不被任何盒包含。
+    CHECK_FALSE(Box3::empty().intersects(a));
+    CHECK_FALSE(a.intersects(Box3::empty()));
+    CHECK_FALSE(a.contains(Box3::empty()));
+    CHECK_FALSE(Box3::empty().contains(a));
+}
+
+TEST_CASE("box extent and center are defined on the empty box",
+          "[linear][box3]") {
+    // 空盒的测度是 0，不是 -inf。
+    CHECK(Box3::empty().extent() == Vector3{0.0, 0.0, 0.0});
+
+    // 没有中心：(+inf) + (-inf) 逐分量为 NaN。刻意如此，不是漏判。
+    CHECK(std::isnan(Box3::empty().center().x));
+    CHECK(std::isnan(Box3::empty().center().y));
+    CHECK(std::isnan(Box3::empty().center().z));
+
+    // center 用 min*0.5 + max*0.5，这两种极端值都能算对。
+    CHECK(Box3{Point3{1e308, 0.0, 0.0}, Point3{1e308, 0.0, 0.0}}.center().x == 1e308);
+    CHECK(Box3{Point3{-1e308, 0.0, 0.0}, Point3{1e308, 0.0, 0.0}}.center().x == 0.0);
+}
+
+TEST_CASE("merged and expanded keep the canonical empty box",
+          "[linear][box3]") {
+    const Box3 a{Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}};
+    const Box3 b{Point3{2.0, 2.0, 2.0}, Point3{3.0, 3.0, 3.0}};
+
+    CHECK(a.merged(b) == Box3{Point3{0.0, 0.0, 0.0}, Point3{3.0, 3.0, 3.0}});
+
+    CHECK(a.expanded(1.0) == Box3{Point3{-1.0, -1.0, -1.0}, Point3{2.0, 2.0, 2.0}});
+
+    // 收缩过头得到规范空盒，不是「分量倒置但非规范」的形式。
+    CHECK(a.expanded(-2.0) == Box3::empty());
+
+    // 空盒膨胀后仍是空盒，不会变成整个空间。
+    CHECK(Box3::empty().expanded(1.0) == Box3::empty());
+}
+
+TEST_CASE("from_corners accepts the two corners in either order",
+          "[linear][box3]") {
+    const Box3 forward = Box3::from_corners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 4.0});
+    const Box3 reversed = Box3::from_corners(Point3{1.0, 2.0, 4.0}, Point3{0.0, 0.0, 0.0});
+
+    CHECK(forward == reversed);
+    CHECK(forward.min == Point3{0.0, 0.0, 0.0});
+    CHECK(forward.max == Point3{1.0, 2.0, 4.0});
 }
 ```
+
+创建 `tests/linear/box2_test.cpp`。二维**不共享**三维的测试文件，同一条不变量在这里要独立断言一次 —— 两个头文件是分开写的，3D 对了不代表 2D 也对。把上面 `box3_test.cpp` 的用例按二维改写一遍：`Point2`/`Vector2`/`Box2`，`corner` 只有 4 个（索引的 bit0/bit1 选 x/y），去掉 z 分量，非均匀盒用 `(1, 2)` 这样的边长以便暴露轴位互换，`extent`/`center`/`expanded`/`from_corners`/空盒的规则完全照搬。**`center` 的溢出用例保留**（`{1e308,0}`–`{1e308,0}` 与 `{-1e308,0}`–`{1e308,0}`）。
 
 - [ ] **Step 2: 实现**
 
@@ -951,10 +1030,6 @@ template <typename Scalar>
 [[nodiscard]] constexpr Box3T<Scalar> Box3T<Scalar>::empty() noexcept {
     constexpr Scalar inf = std::numeric_limits<Scalar>::infinity();
     return Box3T<Scalar>{Point3T<Scalar>{inf, inf, inf}, Point3T<Scalar>{-inf, -inf, -inf}};
-}
-
-[[nodiscard]] constexpr bool is_empty() const noexcept {
-    return min.x > max.x || min.y > max.y || min.z > max.z;
 }
 
 /// 合并。与空盒合并返回另一方 —— 这一点由上面的表示自动成立。
@@ -971,6 +1046,50 @@ template <typename Scalar>
 ```
 
 `corner(int index)` 的索引约定：**bit 0 / bit 1 / bit 2 依次选择 x / y / z 取 `min` 还是 `max`** —— 置位取 `max`。该含义写进文档，因为 `corner(0)` 到 `corner(7)` 的遍历顺序在后续的网格与包围体代码里会被反复使用。
+
+其余成员：
+
+```cpp
+/// 由两个角点构造，**接受任意顺序** —— 名字说的是「角点」不是「min/max」，
+/// 调用方不该被迫先自己排一遍。逐分量取 min / max。
+template <typename Scalar>
+[[nodiscard]] constexpr Box3T<Scalar> from_corners(Point3T<Scalar> a, Point3T<Scalar> b) noexcept;
+
+[[nodiscard]] constexpr bool is_empty() const noexcept {
+    return min.x > max.x || min.y > max.y || min.z > max.z;
+}
+
+/// 空盒返回零向量：空集的测度是 0，而 max - min 会给出 -inf。
+[[nodiscard]] constexpr Vector3T<Scalar> extent() const noexcept {
+    if (is_empty()) {
+        return Vector3T<Scalar>{};
+    }
+    return max - min;
+}
+
+/// 逐分量 min*0.5 + max*0.5 —— 不是 (min+max)*0.5（在 [1e308,1e308] 上溢出），
+/// 也不是 min+(max-min)*0.5（在 [-1e308,1e308] 上溢出）。端点无穷时自然得到 NaN。
+[[nodiscard]] constexpr Point3T<Scalar> center() const noexcept;
+
+/// 向两侧各扩 k。收缩过头（结果倒置）时返回规范空盒，
+/// 空盒膨胀后仍是空盒（**不要**退化成整个空间）。
+[[nodiscard]] constexpr Box3T<Scalar> expanded(Scalar amount) const noexcept;
+```
+
+**`contains(Box3T)` 里「任一方为空盒返回 `false`」必须显式写出来**，不能指望朴素比较：
+
+```cpp
+[[nodiscard]] constexpr bool contains(Box3T<Scalar> other) const noexcept {
+    if (is_empty() || other.is_empty()) {
+        return false;   // 见 Interfaces 里的理由，这是刻意的约定
+    }
+    return min.x <= other.min.x && max.x >= other.max.x
+        && min.y <= other.min.y && max.y >= other.max.y
+        && min.z <= other.min.z && max.z >= other.max.z;
+}
+```
+
+若不判空，`a.contains(Box3::empty())` 会因为 `min.x <= +inf` 与 `max.x >= -inf` 恒真而**返回 true** —— 那是空真，是每个调用者都会踩的坑。
 
 - [ ] **Step 3: 验证并提交**
 
