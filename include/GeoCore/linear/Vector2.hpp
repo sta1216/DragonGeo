@@ -81,6 +81,8 @@ struct Vector2T {
     /// 归一化。零向量或退化向量返回 std::nullopt。
     ///
     /// 定义在 UnitVector2.hpp —— 返回类型 UnitVector2T 在那里才完整。
+    /// 因此调用者不能只包含本头文件：UnitVector2T 不完整时，返回的
+    /// std::optional 无法实例化。
     [[nodiscard]] std::optional<UnitVector2T<Scalar>> normalized(
         core::Tolerance tolerance = {}) const noexcept;
 };

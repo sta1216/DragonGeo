@@ -18,7 +18,7 @@ namespace GeoCore::linear {
 ///   -u               -> UnitVector3T   （保持）
 ///   u * scalar       -> Vector3T       （缩放后不再是单位向量）
 ///   u + u            -> Vector3T       （和一般不是单位向量）
-///   cross(u, u)      -> Vector3T       （平行时退化为零向量）
+///   u.cross(u)       -> Vector3T       （平行时退化为零向量）
 template <typename Scalar>
 class UnitVector3T {
 public:
@@ -27,7 +27,7 @@ public:
     /// 前置条件：normalized 已是单位向量。命名即警告。
     ///
     /// 违反前置条件不会立即出错，但会让本类型的不变量永久失效，
-    /// 后续依赖该不变量的代码将得到错误结果。请优先使用 normalize()。
+    /// 后续依赖该不变量的代码将得到错误结果。请优先使用 Vector3T::normalized()。
     [[nodiscard]] static constexpr UnitVector3T from_normalized_unchecked(
         Vector3T<Scalar> normalized) noexcept {
         return UnitVector3T{normalized};
@@ -98,6 +98,12 @@ template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector3T<Scalar>> Vector3T<Scalar>::normalized(
     core::Tolerance tolerance) const noexcept {
     const Scalar length = this->length();
+    // 非有限长度同样返回 nullopt。容差判断对 ±inf 与 NaN 一律返回 false
+    // （`is_zero` 刻意不把溢出量静默归类为零），若就此放行，本函数会交出一个
+    // has_value() 为真、内容却是 NaN 的「单位向量」：调用者无从察觉，而 NaN
+    // 会一路污染 dot / cross 与每一个容差比较 —— 那些比较对 NaN 都返回 false，
+    // 下游几何代码会静默走「否」分支。NaN 输入比无穷更常见：任何上游的
+    // 0/0 或 inf - inf 都会落到这里。
     if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
         return std::nullopt;
     }
