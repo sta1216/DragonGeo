@@ -20,6 +20,7 @@
 - **容差显式传参**，默认值来自 `GeoCore::core::Tolerance`，不得在任何函数体内硬编码阈值。
 - **Point / Vector / UnitVector 类型分离**（Point 属于 `prim` 层，不在本计划范围内）。
 - **分量访问的形式取决于类型，且两者会在同一段代码里并存：** `VectorNT` 是聚合，其 `x`/`y`/`z`/`w` 是**数据成员**；`UnitVectorNT` 是不变量类型，其 `x()`/`y()`/`z()` 是**访问器方法**。凡接收集合函数返回值的表达式（如 `cross(u, v)`、`dot` 的两参返回值路径），其分量一律用数据成员形式 —— 写成 `cross(...).z()` 会得到 `error C2064`。
+- **`MatrixT` 是单成员聚合：** 它只有 `Scalar data[N][N]` 一个数据成员，因此矩阵字面量需要**两层**花括号 —— `Matrix2{{{1.0, 2.0}, {3.0, 4.0}}}`（外层给 `MatrixT`，内层给 `data`）。少一层会让第二个 clause 成为多余的初始化器，得到 `error C2078`。空初始化形式 `Matrix2 zero{}` 不受影响。
 - **未实现的方法一律抛 `std::logic_error`**，消息含函数名与原因。
 - **测试文件与被测头文件目录结构镜像**，用 Catch2 的 `TEST_CASE` + 标签。
 - **Catch2 v3 的 `Approx` 需要两件事，缺一不可：** 包含 `<catch2/catch_approx.hpp>`，**并且** `using Catch::Approx;`。v3 把 `Approx` 放在 `Catch` 命名空间内，且 Catch2 自身不提供任何 `using Catch::Approx;` —— 只包含头文件会让调用处报 `error C3861: "Approx": 找不到标识符`。断言宏（`TEST_CASE`、`CHECK`、`REQUIRE`、`STATIC_REQUIRE`、`SUCCEED`）来自 `<catch2/catch_test_macros.hpp>`，它们是宏，不受命名空间影响，无需 using。
@@ -2103,7 +2104,7 @@ TEST_CASE("MatrixT is zero-initialized and supports aggregate init",
     CHECK(zero(0, 0) == 0.0);
     CHECK(zero(1, 1) == 0.0);
 
-    const Matrix2 m{{1.0, 2.0}, {3.0, 4.0}};
+    const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
     CHECK(m(0, 0) == 1.0);
     CHECK(m(0, 1) == 2.0);
     CHECK(m(1, 0) == 3.0);
@@ -2113,52 +2114,52 @@ TEST_CASE("MatrixT is zero-initialized and supports aggregate init",
 TEST_CASE("identity is the multiplicative unit", "[linear][matrix]") {
     const Matrix3 unit = identity<double, 3>();
 
-    const Matrix3 m{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}};
+    const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}}};
     CHECK(unit * m == m);
     CHECK(m * unit == m);
 }
 
 TEST_CASE("matrix multiplication follows the row-column rule",
           "[linear][matrix]") {
-    const Matrix2 a{{1.0, 2.0}, {3.0, 4.0}};
-    const Matrix2 b{{5.0, 6.0}, {7.0, 8.0}};
+    const Matrix2 a{{{1.0, 2.0}, {3.0, 4.0}}};
+    const Matrix2 b{{{5.0, 6.0}, {7.0, 8.0}}};
 
     // [1 2] [5 6]   [19 22]
     // [3 4] [7 8] = [43 50]
-    CHECK(a * b == Matrix2{{19.0, 22.0}, {43.0, 50.0}});
+    CHECK(a * b == Matrix2{{{19.0, 22.0}, {43.0, 50.0}}});
 }
 
 TEST_CASE("matrix multiplication is not commutative", "[linear][matrix]") {
-    const Matrix2 a{{1.0, 2.0}, {3.0, 4.0}};
-    const Matrix2 b{{5.0, 6.0}, {7.0, 8.0}};
+    const Matrix2 a{{{1.0, 2.0}, {3.0, 4.0}}};
+    const Matrix2 b{{{5.0, 6.0}, {7.0, 8.0}}};
 
     CHECK_FALSE(a * b == b * a);
 }
 
 TEST_CASE("transpose swaps rows and columns", "[linear][matrix]") {
-    const Matrix2 m{{1.0, 2.0}, {3.0, 4.0}};
-    CHECK(transpose(m) == Matrix2{{1.0, 3.0}, {2.0, 4.0}});
+    const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
+    CHECK(transpose(m) == Matrix2{{{1.0, 3.0}, {2.0, 4.0}}});
 
     // 转置两次回到自身
     CHECK(transpose(transpose(m)) == m);
 
     // 转置与乘法反交换
-    const Matrix2 n{{5.0, 6.0}, {7.0, 8.0}};
+    const Matrix2 n{{{5.0, 6.0}, {7.0, 8.0}}};
     CHECK(transpose(m * n) == transpose(n) * transpose(m));
 }
 
 TEST_CASE("matrix addition and subtraction are component-wise",
           "[linear][matrix]") {
-    const Matrix2 a{{1.0, 2.0}, {3.0, 4.0}};
-    const Matrix2 b{{5.0, 6.0}, {7.0, 8.0}};
+    const Matrix2 a{{{1.0, 2.0}, {3.0, 4.0}}};
+    const Matrix2 b{{{5.0, 6.0}, {7.0, 8.0}}};
 
-    CHECK(a + b == Matrix2{{6.0, 8.0}, {10.0, 12.0}});
-    CHECK(b - a == Matrix2{{4.0, 4.0}, {4.0, 4.0}});
+    CHECK(a + b == Matrix2{{{6.0, 8.0}, {10.0, 12.0}}});
+    CHECK(b - a == Matrix2{{{4.0, 4.0}, {4.0, 4.0}}});
 }
 
 TEST_CASE("matrix times vector applies the row-column rule",
           "[linear][matrix]") {
-    const Matrix2 m{{1.0, 2.0}, {3.0, 4.0}};
+    const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
     const Vector2 v{5.0, 6.0};
 
     // [1 2] [5]   [17]
@@ -2175,7 +2176,7 @@ TEST_CASE("4x4 matrix times 4D vector", "[linear][matrix]") {
 
 TEST_CASE("3x3 rotation-like matrix transforms a vector", "[linear][matrix]") {
     // 绕 z 轴旋转 90°： (x, y) -> (-y, x)
-    const Matrix3 rotate{{0.0, -1.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 0.0, 1.0}};
+    const Matrix3 rotate{{{0.0, -1.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 0.0, 1.0}}};
     const Vector3 v{1.0, 0.0, 0.0};
 
     const Vector3 rotated = rotate * v;
@@ -2421,13 +2422,13 @@ using GeoCore::linear::Matrix3;
 using GeoCore::linear::Matrix4;
 
 TEST_CASE("determinant of a 2x2 matrix", "[linear][matrix][determinant]") {
-    CHECK(determinant(Matrix2{{1.0, 2.0}, {3.0, 4.0}}) == Approx(-2.0));
+    CHECK(determinant(Matrix2{{{1.0, 2.0}, {3.0, 4.0}}}) == Approx(-2.0));
     CHECK(determinant(identity<double, 2>()) == Approx(1.0));
-    CHECK(determinant(Matrix2{{1.0, 2.0}, {2.0, 4.0}}) == Approx(0.0));
+    CHECK(determinant(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}) == Approx(0.0));
 }
 
 TEST_CASE("determinant of a 3x3 matrix", "[linear][matrix][determinant]") {
-    const Matrix3 m{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 10.0}};
+    const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 10.0}}};
     CHECK(determinant(m) == Approx(-3.0));
 
     CHECK(determinant(identity<double, 3>()) == Approx(1.0));
@@ -2436,7 +2437,7 @@ TEST_CASE("determinant of a 3x3 matrix", "[linear][matrix][determinant]") {
 TEST_CASE("determinant of a singular 3x3 matrix is zero",
           "[linear][matrix][determinant][degenerate]") {
     // 第三行是前两行之和
-    const Matrix3 m{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {5.0, 7.0, 9.0}};
+    const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {5.0, 7.0, 9.0}}};
     CHECK(determinant(m) == Approx(0.0));
 }
 
@@ -2444,17 +2445,17 @@ TEST_CASE("determinant of a 4x4 matrix", "[linear][matrix][determinant]") {
     CHECK(determinant(identity<double, 4>()) == Approx(1.0));
 
     // 下三角矩阵的行列式是对角线之积
-    const Matrix4 lower{
+    const Matrix4 lower{{
         {2.0, 0.0, 0.0, 0.0},
         {3.0, 4.0, 0.0, 0.0},
         {5.0, 6.0, 7.0, 0.0},
         {8.0, 9.0, 10.0, 11.0},
-    };
+    }};
     CHECK(determinant(lower) == Approx(2.0 * 4.0 * 7.0 * 11.0));
 }
 
 TEST_CASE("inverse times original is the identity", "[linear][matrix][inverse]") {
-    const Matrix2 m{{4.0, 7.0}, {2.0, 6.0}};
+    const Matrix2 m{{{4.0, 7.0}, {2.0, 6.0}}};
     const auto inv = inverse(m);
 
     REQUIRE(inv.has_value());
@@ -2467,7 +2468,7 @@ TEST_CASE("inverse times original is the identity", "[linear][matrix][inverse]")
 }
 
 TEST_CASE("3x3 inverse round-trips", "[linear][matrix][inverse]") {
-    const Matrix3 m{{1.0, 2.0, 3.0}, {0.0, 1.0, 4.0}, {5.0, 6.0, 0.0}};
+    const Matrix3 m{{{1.0, 2.0, 3.0}, {0.0, 1.0, 4.0}, {5.0, 6.0, 0.0}}};
     const auto inv = inverse(m);
 
     REQUIRE(inv.has_value());
@@ -2484,25 +2485,25 @@ TEST_CASE("3x3 inverse round-trips", "[linear][matrix][inverse]") {
 TEST_CASE("inverse of a singular matrix is nullopt",
           "[linear][matrix][inverse][degenerate]") {
     // 第二行是第一行的两倍
-    const Matrix2 singular{{1.0, 2.0}, {2.0, 4.0}};
+    const Matrix2 singular{{{1.0, 2.0}, {2.0, 4.0}}};
 
     const auto inv = inverse(singular);
 
     // 必须是 nullopt，而不是含 inf / NaN 的矩阵
     CHECK_FALSE(inv.has_value());
 
-    const Matrix3 singular3{
+    const Matrix3 singular3{{
         {1.0, 2.0, 3.0},
         {2.0, 4.0, 6.0},
         {1.0, 1.0, 1.0},
-    };
+    }};
     CHECK_FALSE(inverse(singular3).has_value());
 }
 
 TEST_CASE("inverse of a matrix containing NaN does not crash",
           "[linear][matrix][inverse][degenerate]") {
     const double nan = std::numeric_limits<double>::quiet_NaN();
-    const Matrix2 bad{{nan, 1.0}, {2.0, 3.0}};
+    const Matrix2 bad{{{nan, 1.0}, {2.0, 3.0}}};
 
     // 结果不作保证，但不得崩溃
     const auto inv = inverse(bad);
@@ -2514,8 +2515,8 @@ TEST_CASE("an exact tolerance rejects only a genuinely singular matrix",
           "[linear][matrix][inverse][degenerate]") {
     const Tolerance exact{0.0, 0.0};
 
-    CHECK_FALSE(inverse(Matrix2{{1.0, 2.0}, {2.0, 4.0}}, exact).has_value());
-    CHECK(inverse(Matrix2{{1.0, 2.0}, {2.0, 4.0000000001}}, exact).has_value());
+    CHECK_FALSE(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}, exact).has_value());
+    CHECK(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0000000001}}}, exact).has_value());
 }
 ```
 
