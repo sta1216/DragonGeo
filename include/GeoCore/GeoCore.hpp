@@ -15,3 +15,5 @@
 #include <GeoCore/linear/UnitVector3.hpp>
 #include <GeoCore/linear/Matrix.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
+#include <GeoCore/linear/Transform2.hpp>
+#include <GeoCore/linear/Transform3.hpp>
