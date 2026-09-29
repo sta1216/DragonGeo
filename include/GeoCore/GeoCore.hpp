@@ -13,3 +13,4 @@
 #include <GeoCore/linear/Vector4.hpp>
 #include <GeoCore/linear/UnitVector2.hpp>
 #include <GeoCore/linear/UnitVector3.hpp>
+#include <GeoCore/linear/Matrix.hpp>
