@@ -23,13 +23,57 @@ ctest --preset windows-vs-debug
 
 ## Design principles
 
-- **Robust predicates over epsilon.** Orientation and in-circle decisions are
-  exact, so degenerate input gets a correct answer rather than a plausible one.
-- **Tolerance is an explicit parameter.** There is no global epsilon constant.
-- **Types carry invariants.** `Point`, `Vector`, and `UnitVector` are distinct
-  types, so a whole class of bugs is rejected at compile time.
+These are the commitments the design is built around. Two of the three are
+target design rather than shipped behaviour today — the layers that carry them
+are listed as planned in the table above.
+
+- **Robust predicates over epsilon** *(target design: the `predicates` layer is
+  planned, not present)*. Orientation and in-circle decisions are exact, so
+  degenerate input gets a correct answer rather than a plausible one.
+- **Tolerance is an explicit parameter.** No global epsilon constant exists.
+  Every entry point that needs a threshold takes a `core::Tolerance`.
+- **Types carry invariants** *(partly shipped)*. `UnitVector` is already a
+  distinct type from `Vector`, so scaling one is a visible change of return
+  type. The `Point`/`Vector` split belongs to the `prim` layer, which is
+  planned rather than present.
 
 See `docs/superpowers/specs/` for the full design.
+
+## Using GeoCore from another project
+
+The library is header-only; a consumer needs the include directories and,
+on MSVC, the `/utf-8` option — both travel with the exported target, so
+linking `GeoCore::GeoCore` is enough.
+
+Installed package:
+
+```bash
+cmake --install build/windows-vs --config Release --prefix /opt/geocore
+```
+
+```cmake
+find_package(GeoCore REQUIRED)
+target_link_libraries(your_target PRIVATE GeoCore::GeoCore)
+```
+
+Source tree:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(GeoCore
+    GIT_REPOSITORY https://example.invalid/GeoCore.git   # 替换为实际仓库地址
+    GIT_TAG        main)                                  # 或某个发布标签
+FetchContent_MakeAvailable(GeoCore)
+target_link_libraries(your_target PRIVATE GeoCore::GeoCore)
+```
+
+`ci/consumer/` is a minimal consumer of the *installed* package, built in CI;
+it deliberately sets no charset option of its own, so that a regression in
+what the package exports cannot hide.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## Quick start
 
