@@ -3915,11 +3915,11 @@ int main() {
 ```
 PROJECT_NAME           = GeoCore
 PROJECT_BRIEF          = "A robust, efficient, and easy-to-use C++ geometry library"
-OUTPUT_DIRECTORY       = api
-INPUT                  = ../include ../README.md
+OUTPUT_DIRECTORY       = docs/api
+INPUT                  = include README.md
 RECURSIVE              = YES
 FILE_PATTERNS          = *.hpp *.md
-USE_MDFILE_AS_MAINPAGE = ../README.md
+USE_MDFILE_AS_MAINPAGE = README.md
 EXTRACT_ALL            = YES
 JAVADOC_AUTOBRIEF      = YES
 GENERATE_HTML          = YES
@@ -3928,7 +3928,11 @@ QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO
 ```
 
-用 `doxygen docs/Doxyfile` 生成到 `docs/api/`（该目录已被 `.gitignore` 中的规则覆盖需自行确认；若未覆盖，请把 `docs/api/` 追加进 `.gitignore`）。
+从**仓库根目录**运行 `doxygen docs/Doxyfile`，产物落在 `docs/api/`（`.gitignore` 已覆盖该路径）。
+
+> **doxygen 对相对路径的基准是当前工作目录，不是 Doxyfile 所在目录。** `INPUT`、`OUTPUT_DIRECTORY`、`USE_MDFILE_AS_MAINPAGE` 三者皆然。因此上面的路径一律写成从仓库根出发的形式，与那条命令配套。
+>
+> 若误按「相对 Doxyfile 所在目录」来写（`INPUT = ../include`、`OUTPUT_DIRECTORY = api`），后果有两层：文档会是空的（`INPUT` 解析到仓库之外），同时在**仓库根**生成一个未被 `.gitignore` 忽略的 `api/` 目录，随时可能被误提交。写配置时请连同运行命令一起核对。
 
 - [ ] **Step 5: 全量验证并提交**
 
