@@ -1705,7 +1705,8 @@ git commit -m "feat(linear): add Box2T and Box3T"
   - `Vector3T to_parent(Vector3T local) const`、`Vector3T to_local(Vector3T parent) const`
   - `Coordinate2T` 同构，但有两处必然不同：
     - `static std::optional<Coordinate2T> from_axes(Point2T, UnitVector2T x, UnitVector2T y, Tolerance = {})` —— 只有两轴，校验 `x·y ≈ 0` 且二维叉积（`x.x*y.y - x.y*y.x`）为正（右手/逆时针）
-    - `static Coordinate2T from_x_axis(Point2T, UnitVector2T x) noexcept` —— **取代三维的 `from_z_axis`**。二维没有第三轴，x 是主轴，`y` 就是 `x` 逆时针转 90°：`(-x.y, x.x)`，无需参考向量、也不存在退化，因此可以 `noexcept` 返回裸值
+    - `static std::optional<Coordinate2T> from_x_axis(Point2T, UnitVector2T x, Tolerance = {})` —— **取代三维的 `from_z_axis`**。二维没有第三轴，x 是主轴，`y` 就是 `x` 逆时针转 90°：`(-x.y, x.x)`；**构造出 `y` 之后要交给 `from_axes` 校验并返回 `optional`，与三维的 `from_z_axis` 结构一致**。
+      **为什么不能直接返回裸值**：`from_normalized_unchecked` 是公开接口，调用者可以用它造出一个长度不是 1 的「单位向量」，于是 `from_x_axis` 会输出 `diag(2,2)` 这种**拉伸标架**（实测 `AᵀA−I = 3.0`）—— 而三维的 `from_z_axis` 走 `from_axes`，同样输入会被拒绝。本任务开头那句是绝对的：「非正交的坐标系必须无法通过公开接口构造出来」。**一个几乎处处成立的不变量不是不变量** —— 这与 Task 5 把 `is_empty()` 从偏函数改成全函数是同一个动作。
 
 **`from_transform` 必须是 `optional`。** 计划原先写的是 `noexcept` 返回裸值，理由是「线性部分须为正交（由 `Transform` 的工厂保证）」—— **这句话是假的**。`Transform3T` 的工厂里有 `scaling(Vector3{2,3,4})`，它显然不正交；而 `translation * rotation * scaling` 这样的复合更是把非正交直接喂进来。若 `from_transform` 不校验，它就是一条**公开的、能构造出非正交坐标系的路径** —— 正好是本任务开头那句「必须无法通过公开接口构造出来」要禁止的事，也正好是 Review Focus 第 2 条点名的失败模式（静默拉伸几何）。所以它和另外两个工厂一样返回 `optional`。
 
