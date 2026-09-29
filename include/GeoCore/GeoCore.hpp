@@ -9,3 +9,5 @@
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/core/Version.hpp>
 #include <GeoCore/linear/Vector2.hpp>
+#include <GeoCore/linear/Vector3.hpp>
+#include <GeoCore/linear/Vector4.hpp>
