@@ -1559,6 +1559,16 @@ template <typename Scalar>
 
 /// 合并。与空盒合并返回另一方 —— 这一点由上面的表示自动成立。
 [[nodiscard]] constexpr Box3T merged(Box3T other) const noexcept {
+    // 两道判空见上面的散文 —— 缺了它们，含 NaN 的盒与「两个空表示不同」
+    // 两种情形都会出错（Task 5 实测）。**这段代码块原稿漏了守卫，是散文
+    // 与代码块自相矛盾**，以散文为准。
+    if (is_empty()) {
+        return other.is_empty() ? empty() : other;
+    }
+    if (other.is_empty()) {
+        return *this;
+    }
+
     Box3T result{};
     result.min.x = min.x < other.min.x ? min.x : other.min.x;
     result.min.y = min.y < other.min.y ? min.y : other.min.y;
