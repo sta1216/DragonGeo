@@ -30,3 +30,39 @@ ctest --preset windows-vs-debug
   types, so a whole class of bugs is rejected at compile time.
 
 See `docs/superpowers/specs/` for the full design.
+
+## Quick start
+
+```cpp
+#include <GeoCore/GeoCore.hpp>
+#include <iostream>
+
+int main() {
+    using namespace GeoCore::linear;
+
+    const Vector3 a{1.0, 2.0, 3.0};
+    const Vector3 b{4.0, 5.0, 6.0};
+
+    std::cout << dot(a, b) << '\n';   // 32
+
+    // 归一化返回 optional —— 零向量无解这一事实由类型表达，
+    // 调用者无法忽略这个分支。
+    if (const auto unit = normalize(a)) {
+        std::cout << unit->as_vector().length() << '\n';   // 1
+    }
+}
+```
+
+更多示例见 `examples/`。
+
+## What works today
+
+| Area | Status |
+|---|---|
+| `core` — 常量、数值工具、容差模型 | 完成 |
+| `linear` — `Vector2/3/4`、`UnitVector2/3`、`Matrix2/3/4`、`Quaternion`、`Transform2/3` | 完成 |
+| `predicates` — 精确方向 / 内切圆判定 | 计划 2 |
+| `prim` / `query` — 几何原语与求交查询 | 计划 3 |
+| `polygon` / `mesh` / `solid` 接口骨架 | 计划 4 |
+
+尚未实现的能力以接口形式存在时会抛出 `std::logic_error`，绝不静默返回错误结果。

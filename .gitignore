@@ -29,6 +29,9 @@ compile_commands.json
 *.profraw
 *.profdata
 
+# Generated documentation
+docs/api/
+
 # IDE and editor
 .vs/
 .vscode/

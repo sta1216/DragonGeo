@@ -1,0 +1,13 @@
+PROJECT_NAME           = GeoCore
+PROJECT_BRIEF          = "A robust, efficient, and easy-to-use C++ geometry library"
+OUTPUT_DIRECTORY       = api
+INPUT                  = ../include ../README.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp *.md
+USE_MDFILE_AS_MAINPAGE = ../README.md
+EXTRACT_ALL            = YES
+JAVADOC_AUTOBRIEF      = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
