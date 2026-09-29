@@ -64,6 +64,12 @@
 
    **默认用「金丝雀变异」自证，`/showIncludes` 作为加分项。** 金丝雀 = 一个必定死亡的变异（例如让某个被测函数恒返回 0）；它可移植（不依赖 MSVC 的开关），而且**同时验证了编译、链接、运行整条链路**，而 `/showIncludes` 只验证编译期解析。**在采信任何一个变异体的结果之前先让金丝雀死一次。**（Task 4–11）
 
+   **「对照组通过不等于装置有效」这条同样适用于文本比对。** Task 4 的实现者踩过：它复用了上一轮缓存的行号去抽取计划文本，而计划在此期间前移了 4 行 —— 抽取到错位片段，而比对基准用的是**同一组错行号**，两边同样错，于是显示 `IDENTICAL`。**假阴性。** 所以：
+   - 文本比对**禁止复用缓存的行号**，要按代码围栏或唯一锚点定位；
+   - 比对前先做一次**反向自证**：故意改一个字符，确认比对会报差异；报不出来就说明比对本身无效。
+
+   这与变异测试侧的金丝雀是同一条原则：**验证装置本身需要证据。**（Task 4–11）
+
 8. **只存在于声明里、从未被任何测试命名的实体，等同于没有证据。**
 
    前七条讲的是「测试存在但输入落在盲区」；这一条更深一层：**对象根本没有被实例化过**。Task 4 实测把 `Point3f` 绑成 `Point3T<double>`，**全库 134 个用例全绿、退出码 0** —— 别名从未被任何测试命名，其成员连一次实例化都不会发生，绑定写错完全静默，float 用户静默拿到 double 存储。
@@ -687,6 +693,17 @@ TEST_CASE("the mutable subscript writes the component it names",
     CHECK(p.z == 3.0);
 }
 
+TEST_CASE("Point3 keeps its declaration-level guarantees",
+          "[linear][point3]") {
+    // 分量别名。
+    STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
+
+    // 默认成员初始化值 `Scalar x{}`。去掉那对花括号之后默认构造的分量变成
+    // 不确定值，而本条断言用**类型特征**检出 —— 不读任何值，因此无 UB。
+    // （`Point3 p{};` 会走聚合的值初始化、照样清零，所以靠读值抓不住它。）
+    STATIC_REQUIRE(!std::is_trivially_default_constructible_v<Point3T<double>>);
+}
+
 TEST_CASE("point and vector arithmetic follows affine rules",
           "[linear][point3]") {
     const Point3 a{1.0, 2.0, 3.0};
@@ -727,6 +744,10 @@ TEST_CASE("point and vector arithmetic follows affine rules",
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
+    // 返回类型也要钉住。收窄成 float 之后 42 条断言全绿、exit 0
+    // （/W4 下会出 C4244，但测试套件检不出 —— 别指望编译器的警告代替断言）。
+    STATIC_REQUIRE(std::is_same_v<decltype(Point3{}.distance_to(Point3{})), double>);
+
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));
 
     // 上一条的 Δz 是 0，一个「只算 x/y」的实现照样通过（已用变异测试实测：
@@ -794,6 +815,12 @@ TEST_CASE("the mutable subscript writes the component it names",
     CHECK(p.y == 5.0);
 }
 
+TEST_CASE("Point2 keeps its declaration-level guarantees",
+          "[linear][point2]") {
+    STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
+    STATIC_REQUIRE(!std::is_trivially_default_constructible_v<Point2T<double>>);
+}
+
 TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
           "[linear][point2]") {
     const Point2 a{1.0, 2.0};
@@ -818,6 +845,8 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(Point2{}.distance_to(Point2{})), double>);
+
     CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
 }
 ```
