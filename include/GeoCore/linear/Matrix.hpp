@@ -192,7 +192,7 @@ template <typename Scalar, int N>
 // ---- 求逆 ----
 
 /// 逆矩阵。行列式在给定容差下可视为零（即奇异）时返回 std::nullopt ——
-/// 参与比较的是按最大元素归一化后的行列式，理由见函数体首段注释。
+/// 参与比较的是逐行平衡后的行列式，理由见函数体首段注释。
 ///
 /// 用 optional 而非抛出异常：奇异矩阵是数学事实，不是程序错误，调用者
 /// 有责任处理这个分支。返回 std::nullopt 也让调用者不可能拿到一个含
@@ -207,28 +207,40 @@ template <typename Scalar, int N>
 
     // 行列式是 N 阶量，直接与长度容差比较是量纲错误：s = 1e-4 时 det = 1e-12
     // 会被默认容差的绝对项判为奇异，而 s = 1e150 时 det 会先溢出成 ±inf。
-    // 先按最大元素归一化，行列式便恒为 O(1)，比较才有意义，中间量也不会溢出。
     //
-    // 逐元素两两合并而不是滚动比较：max_abs_of 的合并可交换可结合，因此
-    // 结果的槽位无关性不打折扣。
-    Scalar scale = Scalar{0};
+    // 逐行平衡：每行除以该行自己的最大绝对元素。「按整个矩阵的最大元素归一化」
+    // 在这里不成立 —— scaling_3d 返回的是齐次矩阵，其第 4 行恒为 (0,0,0,1)，
+    // 最大元素永远是 1，于是小尺度缩放的 det 依旧是 1e-12。逐行平衡不假设
+    // 各行元素同量级，正合此处；平衡后的行列式落在由 N 决定的小常数之内，
+    // 既不会溢出，也不会因量纲而与一阶容差不可比。
+    //
+    // 折叠用滚动比较而非 max_abs_of：这里与 length() 不同，非有限分量不需要
+    // 在折叠里显式保留 —— 它要么被跳过（与 row_max 的比较恒为 false），要么
+    // 让 row_max 变成 ±inf，两种情形都会在 balanced 里留下 NaN，交由下面的
+    // 行列式守卫处置。
+    Scalar row_scale[N];
     for (int i = 0; i < N; ++i) {
+        Scalar row_max = Scalar{0};
         for (int j = 0; j < N; ++j) {
-            scale = core::max_abs_of(scale, m.data[i][j]);
+            const Scalar magnitude = core::absolute_value(m.data[i][j]);
+            if (magnitude > row_max) {
+                row_max = magnitude;
+            }
         }
-    }
-    if (scale == Scalar{0}) {
-        return std::nullopt;   // 全零矩阵必然奇异
+        if (row_max == Scalar{0}) {
+            return std::nullopt;   // 整行为零 ⇒ 必然奇异
+        }
+        row_scale[i] = row_max;
     }
 
-    MatrixT<Scalar, N> normalized{};
+    MatrixT<Scalar, N> balanced{};
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
-            normalized.data[i][j] = m.data[i][j] / scale;
+            balanced.data[i][j] = m.data[i][j] / row_scale[i];
         }
     }
 
-    const Scalar det = determinant(normalized);
+    const Scalar det = determinant(balanced);
     // 行列式非有限时同样返回 nullopt。若只依赖容差判断，含 NaN 或 ±inf 的
     // 矩阵会得到一个 has_value() 为真、内容全是 NaN 的逆矩阵 —— 调用者无从
     // 察觉，而 NaN 会污染后续全部计算。这与 normalize() 的裁定是同一条原则。
@@ -240,24 +252,24 @@ template <typename Scalar, int N>
 
     MatrixT<Scalar, N> result{};
     if constexpr (N == 2) {
-        result.data[0][0] =  normalized.data[1][1] * inv_det;
-        result.data[0][1] = -normalized.data[0][1] * inv_det;
-        result.data[1][0] = -normalized.data[1][0] * inv_det;
-        result.data[1][1] =  normalized.data[0][0] * inv_det;
+        result.data[0][0] =  balanced.data[1][1] * inv_det;
+        result.data[0][1] = -balanced.data[0][1] * inv_det;
+        result.data[1][0] = -balanced.data[1][0] * inv_det;
+        result.data[1][1] =  balanced.data[0][0] * inv_det;
     } else if constexpr (N == 3) {
-        result.data[0][0] = (normalized.data[1][1] * normalized.data[2][2] - normalized.data[1][2] * normalized.data[2][1]) * inv_det;
-        result.data[0][1] = (normalized.data[0][2] * normalized.data[2][1] - normalized.data[0][1] * normalized.data[2][2]) * inv_det;
-        result.data[0][2] = (normalized.data[0][1] * normalized.data[1][2] - normalized.data[0][2] * normalized.data[1][1]) * inv_det;
-        result.data[1][0] = (normalized.data[1][2] * normalized.data[2][0] - normalized.data[1][0] * normalized.data[2][2]) * inv_det;
-        result.data[1][1] = (normalized.data[0][0] * normalized.data[2][2] - normalized.data[0][2] * normalized.data[2][0]) * inv_det;
-        result.data[1][2] = (normalized.data[0][2] * normalized.data[1][0] - normalized.data[0][0] * normalized.data[1][2]) * inv_det;
-        result.data[2][0] = (normalized.data[1][0] * normalized.data[2][1] - normalized.data[1][1] * normalized.data[2][0]) * inv_det;
-        result.data[2][1] = (normalized.data[0][1] * normalized.data[2][0] - normalized.data[0][0] * normalized.data[2][1]) * inv_det;
-        result.data[2][2] = (normalized.data[0][0] * normalized.data[1][1] - normalized.data[0][1] * normalized.data[1][0]) * inv_det;
+        result.data[0][0] = (balanced.data[1][1] * balanced.data[2][2] - balanced.data[1][2] * balanced.data[2][1]) * inv_det;
+        result.data[0][1] = (balanced.data[0][2] * balanced.data[2][1] - balanced.data[0][1] * balanced.data[2][2]) * inv_det;
+        result.data[0][2] = (balanced.data[0][1] * balanced.data[1][2] - balanced.data[0][2] * balanced.data[1][1]) * inv_det;
+        result.data[1][0] = (balanced.data[1][2] * balanced.data[2][0] - balanced.data[1][0] * balanced.data[2][2]) * inv_det;
+        result.data[1][1] = (balanced.data[0][0] * balanced.data[2][2] - balanced.data[0][2] * balanced.data[2][0]) * inv_det;
+        result.data[1][2] = (balanced.data[0][2] * balanced.data[1][0] - balanced.data[0][0] * balanced.data[1][2]) * inv_det;
+        result.data[2][0] = (balanced.data[1][0] * balanced.data[2][1] - balanced.data[1][1] * balanced.data[2][0]) * inv_det;
+        result.data[2][1] = (balanced.data[0][1] * balanced.data[2][0] - balanced.data[0][0] * balanced.data[2][1]) * inv_det;
+        result.data[2][2] = (balanced.data[0][0] * balanced.data[1][1] - balanced.data[0][1] * balanced.data[1][0]) * inv_det;
     } else {
         // 4×4 按伴随矩阵求逆：result(i, j) = cofactor(j, i) / det。
         // 先用 2×2 子式算出每个 3×3 余子式，再按符号填入转置位置。
-        const auto minor3 = [&normalized](int skip_row, int skip_column) noexcept -> Scalar {
+        const auto minor3 = [&balanced](int skip_row, int skip_column) noexcept -> Scalar {
             Scalar block[3][3];
             int r = 0;
             for (int i = 0; i < 4; ++i) {
@@ -265,7 +277,7 @@ template <typename Scalar, int N>
                 int c = 0;
                 for (int j = 0; j < 4; ++j) {
                     if (j == skip_column) { continue; }
-                    block[r][c] = normalized.data[i][j];
+                    block[r][c] = balanced.data[i][j];
                     ++c;
                 }
                 ++r;
@@ -284,12 +296,16 @@ template <typename Scalar, int N>
         }
     }
 
-    // (scale·A)^-1 = A^-1 / scale。还原尺度后元素可能重新溢出（真实逆确实
-    // 可能巨大），必须再检查一次，否则又会交出一个 has_value() 为真、内容
-    // 却是 inf 的矩阵 —— 那正是先前裁定禁止的形态。
+    // A = diag(s_i)·N ⇒ A^-1 = N^-1·diag(1/s_i)：第 j 列除以 s_j。对角因子乘在
+    // 右侧，所以这里的下标是**列号**，与上面两个循环里的行号不是同一个 —— 写成
+    // row_scale[i] 会让非对角元出错，而对称矩阵上的测试未必看得出来。
+    //
+    // 还原尺度后元素可能重新溢出（真实逆确实可能巨大），必须再检查一次，否则
+    // 又会交出一个 has_value() 为真、内容却是 inf 的矩阵 —— 那正是先前裁定
+    // 禁止的形态。
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
-            result.data[i][j] /= scale;
+            result.data[i][j] /= row_scale[j];
             if (!core::is_finite(static_cast<double>(result.data[i][j]))) {
                 return std::nullopt;
             }

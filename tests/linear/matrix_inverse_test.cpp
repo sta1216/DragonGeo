@@ -5,16 +5,20 @@
 #include <limits>
 
 #include <GeoCore/linear/Matrix.hpp>
+#include <GeoCore/linear/Transform3.hpp>
 
 using Catch::Approx;
 
 using GeoCore::core::Tolerance;
+using GeoCore::linear::apply;
 using GeoCore::linear::determinant;
 using GeoCore::linear::identity;
 using GeoCore::linear::inverse;
 using GeoCore::linear::Matrix2;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Matrix4;
+using GeoCore::linear::scaling_3d;
+using GeoCore::linear::Vector3;
 
 TEST_CASE("determinant of a 2x2 matrix", "[linear][matrix][determinant]") {
     CHECK(determinant(Matrix2{{{1.0, 2.0}, {3.0, 4.0}}}) == Approx(-2.0));
@@ -113,8 +117,8 @@ TEST_CASE("inverse rescales badly scaled matrices before testing the determinant
           "[linear][matrix][inverse]") {
     // 行列式是 N 阶量，直接拿它跟一阶容差比是量纲错误：diag(1e-4) 的 det =
     // 1e-12 会被默认容差的绝对项（1e-12）判为奇异，而 diag(1e150) 的 det =
-    // 1e450 会在任何比较之前就溢出成 inf。先按最大元素归一化再比较，两者
-    // 都能得到正确答案。
+    // 1e450 会在任何比较之前就溢出成 inf。先逐行平衡再比较，两者都能得到
+    // 正确答案。
     const Matrix3 tiny{{{1e-4, 0.0, 0.0}, {0.0, 1e-4, 0.0}, {0.0, 0.0, 1e-4}}};
     const auto tiny_inverse = inverse(tiny);
 
@@ -136,13 +140,40 @@ TEST_CASE("inverse rescales badly scaled matrices before testing the determinant
             CHECK(product(i, j) == Approx(unit(i, j)).margin(1e-12));
         }
     }
+}
 
-    // 裁定还要求 scaling_3d(1e-4) / (1e-5) / (1e150) 的逆同样存在。这三个是
-    // 4×4 仿射矩阵，第 4 行的齐次 1 让「最大绝对元素」归一化对线性部分失效：
-    // 归一化后的行列式分别是 1e-12、1e-15、1e-150，仍落在默认容差的绝对项
-    // 之内，因此它们目前仍返回 nullopt。机制与验收标准在此互相矛盾，见
-    // .superpowers/sdd/2026-09-29-geocore-stage1-foundation/final-fix-report.md
-    // 的 FIX 3 一节，留待裁定后固定 —— 这里刻意不写断言。
+TEST_CASE("inverse of a scaled homogeneous transform exists",
+          "[linear][matrix][inverse]") {
+    // 缩放的仿射矩阵是齐次矩阵，第 4 行恒为 (0,0,0,1)。「按整个矩阵的最大
+    // 元素归一化」对它无效 —— 最大元素永远是 1，小尺度缩放的平衡后行列式
+    // 仍是 1e-12。逐行平衡后每行各自成为 (1,0,0,0)/(0,1,0,0)/(0,0,1,0)/
+    // (0,0,0,1) 这样的单位行，行列式为 1，与缩放倍数无关。
+    const auto tiny = inverse(scaling_3d(1e-4));
+
+    REQUIRE(tiny.has_value());
+    CHECK((*tiny).matrix(0, 0) == Approx(1e4));
+    CHECK((*tiny).matrix(1, 1) == Approx(1e4));
+    CHECK((*tiny).matrix(2, 2) == Approx(1e4));
+    CHECK((*tiny).matrix(3, 3) == Approx(1.0));
+
+    const auto smaller = inverse(scaling_3d(1e-5));
+
+    REQUIRE(smaller.has_value());
+    CHECK((*smaller).matrix(0, 0) == Approx(1e5));
+
+    // 反转：det = 1e450 会在平衡之前就溢出成 inf
+    const auto huge = inverse(scaling_3d(1e150));
+
+    REQUIRE(huge.has_value());
+    CHECK((*huge).matrix(0, 0) == Approx(1e-150));
+    CHECK((*huge).matrix(3, 3) == Approx(1.0));
+
+    // 回环把它们钉在一起：两个方向的缩放互逆
+    const Vector3 original{1.0, 2.0, 3.0};
+    const Vector3 round_trip = apply(*huge, apply(scaling_3d(1e150), original));
+    CHECK(round_trip.x == Approx(original.x).margin(1e-12));
+    CHECK(round_trip.y == Approx(original.y).margin(1e-12));
+    CHECK(round_trip.z == Approx(original.z).margin(1e-12));
 }
 
 TEST_CASE("inverse refuses a matrix whose restored inverse would overflow",
