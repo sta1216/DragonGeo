@@ -87,6 +87,10 @@
 
    这与变异测试侧的金丝雀是同一条原则：**验证装置本身需要证据。**（Task 4–11）
 
+   **两条装置层面的坑，都产生「看起来最好」的错误结论**：
+   - **变异实验不要与仓库的干净构建并发跑。** 二者共用 Catch2 的 Debug 库，`--clean-first` 会把它删掉重建，结果**每个变异体连同对照组一起链接失败**。若只看「变异体全死」，得到的结论完全错误却看起来最漂亮。（Task 5 实测踩到，靠「对照组没绿」拦下。）
+   - **替换脚本的锚点必须断言命中次数恰为 1。** 一次跨换行的 `str.replace` 命中 0 次却静默通过，等于什么都没变异，而结果会显示「变异体存活或全绿」。加一句 `assert count == 1` 即可拦住 —— 和「对照组自证」是同一件事：**没命中也是一种失败，不能当成功。**（Task 5–11）
+
 8. **只存在于声明里、从未被任何测试命名的实体，等同于没有证据。**
 
    前七条讲的是「测试存在但输入落在盲区」；这一条更深一层：**对象根本没有被实例化过**。Task 4 实测把 `Point3f` 绑成 `Point3T<double>`，**全库 134 个用例全绿、退出码 0** —— 别名从未被任何测试命名，其成员连一次实例化都不会发生，绑定写错完全静默，float 用户静默拿到 double 存储。
@@ -1159,6 +1163,24 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
     // 无界区间膨胀后仍然无界。
     CHECK(Interval::unbounded().expanded(1.0) == Interval::unbounded());
 }
+
+TEST_CASE("the empty predicate is total, including on non-finite input",
+          "[linear][interval][degenerate]") {
+    // `min > max` 对 NaN 返回 false，等于谎称这是一个正常的非空区间；
+    // `!(min <= max)` 才是全函数。这一条是下面两个出口能自动规范化的前提。
+    CHECK(Interval{0.0 / 0.0, 0.0 / 0.0}.is_empty());
+
+    // 空区间被 +inf 膨胀：`+inf - (+inf)` 是 NaN，若不把谓词改全，
+    // 这里会返回 {NaN, NaN} 且 is_empty() 报 false —— 一个看似成功、
+    // 实则含 NaN 的「区间」，正是本项目那条原则要禁止的东西。
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Interval::empty().expanded(infinity) == Interval::empty());
+    CHECK(Interval::empty().expanded(-infinity) == Interval::empty());
+
+    // 有限区间的这两种极端膨胀都有正确的归宿。
+    CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
+    CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
+}
 ```
 
 - [ ] **Step 2-4: 实现、验证、提交**
@@ -1166,7 +1188,8 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
 实现要点：
 
 - `contains` 用**闭区间**（`value >= min && value <= max`），不引入容差 —— 区间包含是精确谓词，带容差的包含会让「这个点是否在区间内」随上下文变化。
-- `is_empty()` 是 `min > max`；`empty()` 是 `{+inf, -inf}`，`unbounded()` 是 `{-inf, +inf}`。
+- `is_empty()` 实现为 **`!(min <= max)`**，**不是** `min > max`。差别只在非有限值上，但正好是要命的地方：`min > max` 对 `{NaN, NaN}` 返回 **false**，也就是**谎称自己是一个正常的非空区间**；而 `!(min <= max)` 对 NaN、对倒置、对规范空三种情形都返回真。**空判定必须是全函数** —— 任何区间要么空、要么满足 `min <= max`，不允许存在「两个都不是」的第三种状态。`empty()` 是 `{+inf, -inf}`，`unbounded()` 是 `{-inf, +inf}`。
+  **为什么这一条特别重要**：`expanded` 与 `clipped` 都是靠 `result.is_empty() ? empty() : result` 做规范化的。于是「`is_empty` 对 NaN 说谎」会让 `Interval::empty().expanded(+inf)` 返回 `{NaN, NaN}`（因为 `+inf - (+inf)` 是 NaN）—— 既不是 `empty()`、也不是倒置，而 `is_empty()` 还报 false，正好撞在本项目「绝不交出一个看似成功却含 NaN 的结果」那条原则上。把谓词改全之后，这一格自动落回 `empty()`，无需在 `expanded` 里加特判。
 - `merged` 是 `{min(a.min,b.min), max(a.max,b.max)}` —— 对空区间自然成立，无需特判（这正是选这个空表示的理由）。
 - `intersects` 是 `max(min) <= min(max)`（闭区间，端点相接算相交），**返回 bool 而非区间**。空区间无需特判：`[+inf,-inf]` 会把 `max(min)` 顶到 `+inf`、把 `min(max)` 压到 `-inf`，比较必然为假 —— 这正是选这个空表示的理由。`clipped` 则不同，它必须显式判空并规范化。
 - `clipped` 取交；结果若为空则**返回 `Interval::empty()`**。
@@ -1326,6 +1349,55 @@ TEST_CASE("from_corners accepts the two corners in either order",
     CHECK(forward.min == Point3{0.0, 0.0, 0.0});
     CHECK(forward.max == Point3{1.0, 2.0, 4.0});
 }
+
+TEST_CASE("box equality has evidence in every component",
+          "[linear][box3]") {
+    // `==` 要比较**六个**标量（min/max 各三个），每一个都要有独立的不同证据。
+    // 只写一条「整体相等」是不够的：漏掉任何一个分量都看不出来。
+    // （Task 4 的教训：相等断言不能替不相等断言提供证据，反之亦然。）
+    const Box3 base{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}};
+
+    CHECK(base == Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}});
+
+    CHECK(base != Box3{Point3{9.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}});  // min.x
+    CHECK(base != Box3{Point3{1.0, 9.0, 3.0}, Point3{4.0, 5.0, 6.0}});  // min.y
+    CHECK(base != Box3{Point3{1.0, 2.0, 9.0}, Point3{4.0, 5.0, 6.0}});  // min.z
+    CHECK(base != Box3{Point3{1.0, 2.0, 3.0}, Point3{9.0, 5.0, 6.0}});  // max.x
+    CHECK(base != Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 9.0, 6.0}});  // max.y
+    CHECK(base != Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 9.0}});  // max.z
+}
+
+TEST_CASE("box copy assignment carries both corners", "[linear][box3]") {
+    // 隐式拷贝赋值也要被真的用一次，否则它从未被实例化 —— Task 4 实测过：
+    // obj 里连拷贝赋值的符号都不存在，一个只赋 min 的手写 operator= 完全静默。
+    const Box3 source{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}};
+    Box3 target{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}};
+    target = source;
+
+    CHECK(target.min == Point3{1.0, 2.0, 3.0});
+    CHECK(target.max == Point3{4.0, 5.0, 6.0});
+}
+
+TEST_CASE("the empty predicate is total, including on non-finite input",
+          "[linear][box3][degenerate]") {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    // `min > max` 对 NaN 返回 false，等于谎称这是一个正常的非空盒；
+    // `!(min <= max)` 才是全函数。
+    CHECK(Box3{Point3{nan, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}}.is_empty());
+
+    // 部分倒置也算空。
+    CHECK(Box3{Point3{5.0, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}}.is_empty());
+
+    // 空盒被 +inf 膨胀：`+inf - (+inf)` 是 NaN。谓词改全之后自动落回 empty()。
+    CHECK(Box3::empty().expanded(infinity) == Box3::empty());
+
+    // 有限盒被 +inf 膨胀得到整个空间，**不是**空盒。
+    CHECK_FALSE(Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}}
+                    .expanded(infinity)
+                    .is_empty());
+}
 ```
 
 创建 `tests/linear/box2_test.cpp`。二维**不共享**三维的测试文件，同一条不变量在这里要独立断言一次 —— 两个头文件是分开写的，3D 对了不代表 2D 也对。把上面 `box3_test.cpp` 的用例按二维改写一遍：`Point2`/`Vector2`/`Box2`，`corner` 只有 4 个（索引的 bit0/bit1 选 x/y），去掉 z 分量，非均匀盒用 `(1, 2)` 这样的边长以便暴露轴位互换，`extent`/`center`/`expanded`/`from_corners`/空盒的规则完全照搬。**`center` 的溢出用例保留**（`{1e308,0}`–`{1e308,0}` 与 `{-1e308,0}`–`{1e308,0}`）。
@@ -1364,8 +1436,13 @@ template <typename Scalar>
 template <typename Scalar>
 [[nodiscard]] constexpr Box3T<Scalar> from_corners(Point3T<Scalar> a, Point3T<Scalar> b) noexcept;
 
+/// **全函数**：`!(min <= max)` 而不是 `min > max`。后者对 NaN 返回 false，
+/// 等于谎称这是一个正常的非空盒。Task 5 在 Interval 上实测过这一格：
+/// `empty().expanded(+inf)` 会算出 {NaN, NaN} 并被 `min > max` 判为「非空」，
+/// 于是一个含 NaN 的结果看起来一切正常 —— 正是本项目那条原则要禁止的。
+/// 任何盒要么空、要么满足 min <= max，不允许有第三种状态。
 [[nodiscard]] constexpr bool is_empty() const noexcept {
-    return min.x > max.x || min.y > max.y || min.z > max.z;
+    return !(min.x <= max.x) || !(min.y <= max.y) || !(min.z <= max.z);
 }
 
 /// 空盒返回零向量：空集的测度是 0，而 max - min 会给出 -inf。
@@ -1380,9 +1457,16 @@ template <typename Scalar>
 /// 也不是 min+(max-min)*0.5（在 [-1e308,1e308] 上溢出）。端点无穷时自然得到 NaN。
 [[nodiscard]] constexpr Point3T<Scalar> center() const noexcept;
 
-/// 向两侧各扩 k。收缩过头（结果倒置）时返回规范空盒，
+/// 向两侧各扩 k。**用 `result.is_empty()` 判、不要用 `min > max` 判** ——
+/// 前者是全函数（含 NaN），后者会让 `empty().expanded(+inf)` 这种算出 NaN 的
+/// 结果冒充非空盒（Task 5 在 Interval 上实测到的那一格）。
 /// 空盒膨胀后仍是空盒（**不要**退化成整个空间）。
-[[nodiscard]] constexpr Box3T<Scalar> expanded(Scalar amount) const noexcept;
+[[nodiscard]] constexpr Box3T<Scalar> expanded(Scalar amount) const noexcept {
+    const Box3T<Scalar> result{
+        Point3T<Scalar>{min.x - amount, min.y - amount, min.z - amount},
+        Point3T<Scalar>{max.x + amount, max.y + amount, max.z + amount}};
+    return result.is_empty() ? empty() : result;
+}
 ```
 
 **`contains(Box3T)` 里「任一方为空盒返回 `false`」必须显式写出来**，不能指望朴素比较：
@@ -1902,6 +1986,17 @@ STATIC_REQUIRE(std::is_same_v<Matrix3f, MatrixT<float, 3>>);
 `Vector4f` / `Matrix2f` / `Matrix3f` / `Matrix4f` → `vector4_test.cpp` / `matrix_test.cpp`；`UnitVector2f` / `UnitVector3f` → 各自文件；`Quaternionf` → `quaternion_test.cpp`；`Transform2f` / `Transform3f` → 各自文件。
 
 **别用「构造一个 float 值再比较」的写法** —— 上面刚说明它抓不住误绑定。必须是 `is_same_v`，它才是对**绑定本身**的断言。记得 `struct MatrixT` 之类是两参数模板，别名对应的模板实参要写全。
+
+**顺带把 `PointNT` 其余 7 处 `noexcept` 也钉上。** Task 4 收尾时把它们裁定为「记录后放行的显式取舍」—— 理由是那个文件已经 55 条断言。但 Task 5 给 `Interval` 把 11 处 `noexcept` 全钉了（成本近零，且 `noexcept` 是 Interfaces 的明文承诺），于是两个任务的产物在同一个属性上不一致。**以一致为先**：给 `Point2T`/`Point3T` 补上，让全库的 `noexcept` 承诺都有证据。
+
+做法是在已有的用例旁边加，例如：
+
+```cpp
+STATIC_REQUIRE(noexcept(Point3{}.to_array()));
+STATIC_REQUIRE(noexcept(Point3{}.operator[](0)));
+```
+
+**并且给每一条新断言一个死亡证明**（删掉对应的 `noexcept` 它必须失败）—— 否则又是「声称覆盖但恒真」的老问题：`noexcept` 断言写在本来就恒 `noexcept` 的表达式上就是恒真的，写之前先确认删掉声明上的 `noexcept` 它会炸。
 
 改完请自己 grep 复核，确认 14 个别名（本阶段的 5 个 + 阶段 1 的 9 个）都已出现在 `tests/` 里：
 
