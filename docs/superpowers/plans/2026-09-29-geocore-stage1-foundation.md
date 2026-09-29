@@ -868,7 +868,7 @@ cmake --build build/windows-vs --config Debug
 ctest --test-dir build/windows-vs -C Debug --output-on-failure
 ```
 
-Expected: 全部测试通过（冒烟 1 个 + numeric 4 个 + tolerance 4 个）。
+Expected: 全部测试通过（冒烟 1 个 + numeric 4 个 + tolerance 6 个，共 11 个）。
 
 ```bash
 git add include/GeoCore tests/core
