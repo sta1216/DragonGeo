@@ -1298,7 +1298,8 @@ TEST_CASE("the consumers agree with the total empty predicate",
   `intersects` 开头那句**自判空在结果上是冗余的**（结构上「自己空、对方非空」时朴素比较必假；已用 121×121 组含 NaN / ±inf / 非规范空的差分探针实测：与去掉它逐字节相同）。**仍然保留**，理由是它与 `clipped`/`merged` 的写法对称、可读，且万一将来比较式改动它会重新变得必要。**但要在注释里写明它是防御性的、不是必需的** —— 否则下一位读者会以为它在承担正确性，而删掉它的变异体是**等价变异体**（不改变任何结果），后续轮次不必再去追。
 
   **注意把这三处文档注释里「无需特判」的说法一并删掉** —— 它们现在是假的，而本项目已两次裁定「指向已不存在事实的注释比没有注释更糟」。
-- `expanded(k)` 是 `{min - k, max + k}`；结果若 `is_empty()` 则**返回 `Interval::empty()`**；空区间膨胀后仍是 `Interval::empty()`（**不要**退化成 `unbounded()`）。
+- `expanded(k)` 是 `{min - k, max + k}`；**开头先判输入**：`if (is_empty()) return empty();` —— **空进必须空出**，对**规范空与非规范空都要成立**。然后结果若 `is_empty()` 再规范化为 `Interval::empty()`（**不要**退化成 `unbounded()`）。
+  **为什么开头那次判定是必需的**：计划的本意（本任务测试注释里那句「空区间膨胀后仍是空区间」）就是空进空出，但只写「结果若倒置则规范化」只在**规范**空上兑现 —— 非规范空 `{1, 0}` 膨胀 1 会得到 `{0, 1}`，一个**看起来完全正常的非空区间**。而且这暴露了一条被隐式建立的设计性质：**每个消费输入的操作都会对输入查 `is_empty()`**（`intersects` / `merged` / `clipped` 全都查），`expanded` 是唯一的例外。把例外去掉，这条性质才成立。`Box` 与 `OrientedBox` 同理。
 - `length()` 与 `center()` 按上面 Interfaces 里的规则实现。**另外**：`{+inf, +inf}` 这类「非空但没有有限长度」的区间，`length()` 会算出 NaN —— 那是与 `center()` 同类的哨兵值，**文档写明并配测试**，不要让它悄悄是 NaN。
 
 **别在实现里硬编码容差阈值** —— `Interval` 的谓词全部是精确比较，本类型不需要 `Tolerance` 参数（与 `Box` 不同，盒的构造可能需要容差来判退化，那在 Task 6 处理）。
@@ -1611,11 +1612,21 @@ template <typename Scalar>
 /// 也不是 min+(max-min)*0.5（在 [-1e308,1e308] 上溢出）。端点无穷时自然得到 NaN。
 [[nodiscard]] constexpr Point3T<Scalar> center() const noexcept;
 
-/// 向两侧各扩 k。**用 `result.is_empty()` 判、不要用 `min > max` 判** ——
+/// 向两侧各扩 k。
+///
+/// **开头先判输入**：`if (is_empty()) return empty();` —— 空进必须空出，
+/// 对规范空与非规范空都要成立。只靠下面那句「结果为空则规范化」只在**规范**空上
+/// 兑现：非规范空 `{0,0,0}–{-1,-1,-1}` 膨胀 1 会得到 `{-1,-1,-1}–{0,0,0}`，
+/// 一个看起来完全正常的非空盒。而且每个消费输入的操作都该查一次 `is_empty()`
+/// （`intersects` / `merged` / `clipped` 都查），`expanded` 不该是例外。
+///
+/// 结果那一步**用 `result.is_empty()` 判、不要用 `min > max` 判** ——
 /// 前者是全函数（含 NaN），后者会让 `empty().expanded(+inf)` 这种算出 NaN 的
-/// 结果冒充非空盒（Task 5 在 Interval 上实测到的那一格）。
-/// 空盒膨胀后仍是空盒（**不要**退化成整个空间）。
+/// 结果冒充非空盒。空盒膨胀后仍是空盒（**不要**退化成整个空间）。
 [[nodiscard]] constexpr Box3T<Scalar> expanded(Scalar amount) const noexcept {
+    if (is_empty()) {
+        return empty();
+    }
     const Box3T<Scalar> result{
         Point3T<Scalar>{min.x - amount, min.y - amount, min.z - amount},
         Point3T<Scalar>{max.x + amount, max.y + amount, max.z + amount}};
