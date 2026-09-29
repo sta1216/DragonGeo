@@ -517,15 +517,15 @@ grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
 
 本任务改完后，`include/`、`examples/`、`tests/`、`ci/` 里应再无对已删名字的引用。
 
-> **已知局限（本轮实测发现，留待后续决策，不在本任务内改）**
+> **已确认的防线缺口 —— 留待用户决策，不在本任务内改**
 >
-> Task 3 的实现者在本地做了否定对照：手工用 `cl` 编译 `ci/consumer/main.cpp` 但**不给 `/utf-8`**，`/W4` 与默认警告级**两种情形都是 exit 0**，只产出 14 条 `C4819`，**0 条 `error C`**；给了 `/utf-8` 则零诊断（MSVC 14.39.33519）。
+> **结论：`consumer-smoke` 目前守不住「`/utf-8` 随 `INTERFACE_COMPILE_OPTIONS` 导出」这条回归。**这不是推测，是端到端实测：重审者把安装好的 `GeoCoreTargets.cmake` 里 `INTERFACE_COMPILE_OPTIONS` 那一行**摘掉**（`/utf-8` 的唯一来源），再完整按 `ci.yml` 的流程跑 configure → build → run，**三步全 exit 0，输出 `dot = 32 / unit = (0.6, 0.8, 0)` 全部正确**。
 >
-> 这意味着：**`consumer-smoke` 作业对「`/utf-8` 没随 `INTERFACE_COMPILE_OPTIONS` 导出」这一回归未必会变红** —— 该作业只构建、未开 `-Werror`，而本机的表现是警告而非失败。`ci.yml` 里「cp936 主机上消费方会直接编译失败」这句表述在本机不成立。
+> 机制（从 MSBuild 实际命令行读到）：`CL.exe ... /W1 /WX- ... /external:W0 /external:I "<prefix>/include" /utf-8`。`/external:I` 把安装前缀标为外部头、`/external:W0` 把外部头的警告压到 0 级（手工 `/W4` 编译时能看到的那 13 条头文件 `C4819` 在 CI 配置下根本不出现），`/WX-` 表示警告永不致失败，而作业只取退出码、不读警告。**这一点与 runner 的代码页无关** —— 即便 GitHub 的 cp1252 一个 `C4819` 都不报，结果也一样。
 >
-> 未验证的部分：GitHub 的 `windows-latest` runner 是 cp1252，它几乎映射全部字节，`C4819` 可能根本不出现 —— 那样这个作业连警告都没有。**这需要真机验证，不能靠推测。**
+> 正对照（导出完好）零诊断，`vcxproj` 的 `AdditionalOptions` 里确实有 `/utf-8` —— 所以**被测对象本身是好的，坏的是这道检验的强度**。这正是阶段 1 C1 依赖的那道防线。
 >
-> 这是阶段 1 C1 依赖的那道防线。若确认它不可靠，可选的补法（**都不属于本计划任何任务**，需单独决策）：给 `ci/consumer` 加 `/WX`（它不设置任何**编码**选项，因此「诊断只能指向 GeoCore 头文件」这个前提仍然成立，但 C4819 会变成硬失败）。**不要在本任务里顺手改 CI。**
+> **建议的补法（一行，实测有效）：给 `ci/consumer` 加 `/WX`。** 它不设置任何**编码**选项，因此「本工程刻意不设编码选项，诊断只能指向 GeoCore 的头文件」这个前提完好；而 `C4819` 会变成硬失败（实测 `/W1 /WX` 缺 `/utf-8` 时 exit 2）。**这不属于本计划任何任务，请先与用户确认再动。**
 
 - [ ] **Step 3d: 补 `Transform2T::identity()` 的覆盖**
 
