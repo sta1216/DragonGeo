@@ -1218,6 +1218,17 @@ TEST_CASE("the consumers agree with the total empty predicate",
     CHECK(nan_interval.merged(normal) == normal);
     CHECK(normal.merged(nan_interval) == normal);
 
+    // **两个「空」的表示不同时，规范化优先于恒等律。**
+    // `{NaN,NaN}` 与 `{1,0}` 都是空集，但表示不同。若第一支写成
+    // `if (is_empty()) return other;`，两侧会各自返回「另一个」——
+    // 结果都是空集，`==` 却因为比表示而判不等，于是 `merged` 不对称
+    // （实测 4140/14641 组输入）。correct 的第一支是
+    // `return other.is_empty() ? empty() : other;`。
+    const Interval non_canonical_empty{1.0, 0.0};
+    CHECK(non_canonical_empty.is_empty());
+    CHECK(nan_interval.merged(non_canonical_empty) == Interval::empty());
+    CHECK(non_canonical_empty.merged(nan_interval) == Interval::empty());
+
     // `length()` 的 `is_empty()` 守卫也要走全函数谓词 —— 否则退化成
     // `min > max` 就会算出 NaN，而这一格没有任何别的断言看得见。
     CHECK(nan_interval.length() == 0.0);
@@ -1260,12 +1271,20 @@ TEST_CASE("the consumers agree with the total empty predicate",
       return result.is_empty() ? empty() : result;
   }
 
-  /// 最小包含两者的区间。**要显式判空以恢复交换律** —— 朴素写法对
-  /// 规范空成立（`min(…, +inf)` 恰好取回自身），但对 `{NaN, NaN}` 不成立：
+  /// 最小包含两者的区间。**要显式判空** —— 朴素写法对规范空成立
+  /// （`min(…, +inf)` 恰好取回自身），但对 `{NaN, NaN}` 不成立：
   /// 比较碰上 NaN 返回 false，于是取到的是自己的 NaN。
+  ///
+  /// 注意第一支里的 `other.is_empty() ? empty() : other`：**规范化优先于恒等律**。
+  /// 两者在**非规范空**上冲突 —— 恒等律说 `merged(∅, x) = x`，规范化说产出空就必须
+  /// 是 `empty()`。本项目明写的规则是后者（「凡是产出空区间的运算都必须给出这个
+  /// 规范形式」，理由是一个数学量不该有两种表示），恒等律只是该表示对**规范输入**
+  /// 的推论，不是能压过它的公理。实测：不做这一步时 `merged` 在 4140/14641 组
+  /// 输入上不对称（两侧都返回「另一个」，两者都是空集但 `==` 比表示）；
+  /// 做了之后归零，且整套测试全绿。
   [[nodiscard]] constexpr IntervalT merged(IntervalT other) const noexcept {
       if (is_empty()) {
-          return other;
+          return other.is_empty() ? empty() : other;
       }
       if (other.is_empty()) {
           return *this;
@@ -1275,6 +1294,8 @@ TEST_CASE("the consumers agree with the total empty predicate",
       return {lower, upper};
   }
   ```
+
+  `intersects` 开头那句**自判空在结果上是冗余的**（结构上「自己空、对方非空」时朴素比较必假；已用 121×121 组含 NaN / ±inf / 非规范空的差分探针实测：与去掉它逐字节相同）。**仍然保留**，理由是它与 `clipped`/`merged` 的写法对称、可读，且万一将来比较式改动它会重新变得必要。**但要在注释里写明它是防御性的、不是必需的** —— 否则下一位读者会以为它在承担正确性，而删掉它的变异体是**等价变异体**（不改变任何结果），后续轮次不必再去追。
 
   **注意把这三处文档注释里「无需特判」的说法一并删掉** —— 它们现在是假的，而本项目已两次裁定「指向已不存在事实的注释比没有注释更糟」。
 - `expanded(k)` 是 `{min - k, max + k}`；结果若 `is_empty()` 则**返回 `Interval::empty()`**；空区间膨胀后仍是 `Interval::empty()`（**不要**退化成 `unbounded()`）。
@@ -1318,7 +1339,8 @@ git commit -m "feat(linear): add IntervalT"
   **注意这里不能直写 `min * 0.5 + max * 0.5`** —— `min`/`max` 是 `Point3T`，而 Task 4 刻意**没有**给 `Point` 提供 `operator*(Point, Scalar)`，也**没有** `Point + Point`（`p * 2.0` 与 `-p` 都编译不过，已实测）。必须写成逐分量的标量运算：`min.x * 0.5 + max.x * 0.5` 等等。`extent()` 的 `max - min` 则可以直写（`Point - Point -> Vector` 已提供）。
 - **`contains(Box3T)`：任一方为空盒时返回 `false`。** 数学上 `∅ ⊆ B` 是空真，但那会让 `if (a.contains(b))` 在 `b` 为空时通过，是每个调用者都会踩的坑；`intersects` 已经采用「空盒与任何盒都不相交」，`contains` 保持同向。**这是刻意的约定，必须在文档里写明理由**，否则下一个人会把它当 bug 改掉。
 - **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内）。**规范空盒**确实无需特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。**但含 NaN 的盒需要显式判定**：Task 5 在 `Interval` 上实测过，比较碰上 NaN 的返回值取决于操作数顺序，于是同一对参数换方向给出不同答案（`{1,5}.intersects({NaN,NaN})` 真、反方向假）。所以 `intersects` 与 `merged` 开头都要加 `if (is_empty() || other.is_empty())` 那一类判定 —— 与 `contains(Box3T)` 已经采用的做法一致。**并且把注释里「无需特判」的说法一并删掉**，它现在是假的。
-- **`merged` 同样要显式判空以恢复交换律**：朴素写法对规范空成立（`min(…, +inf)` 恰好取回自身），但对含 NaN 分量的盒不成立。写成 `if (is_empty()) return other; if (other.is_empty()) return *this;` 再逐分量合并。
+- **`merged` 同样要显式判空**：朴素写法对规范空成立（`min(…, +inf)` 恰好取回自身），但对含 NaN 分量的盒不成立。写成 `if (is_empty()) return other.is_empty() ? empty() : other; if (other.is_empty()) return *this;` 再逐分量合并。
+  **第一支那个 `other.is_empty() ? empty() : other` 不能省 —— 规范化优先于恒等律。** 两者只在**非规范空**上冲突（恒等律说 `merged(∅,x)=x`，规范化说产出空必须是 `empty()`），而本项目明写的规则是后者。省掉它会让 `merged` 在两个「空」表示不同时**不对称**（两侧各自返回「另一个」，都是空集但 `==` 比表示）—— Task 5 实测 4140/14641 组输入不对称，补上后归零。这条冲突在 Task 6 上完全同形。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1512,6 +1534,12 @@ TEST_CASE("the consumers agree with the total empty predicate",
     // 合并：换方向答案相同（交换律）。
     CHECK(nan_box.merged(normal) == normal);
     CHECK(normal.merged(nan_box) == normal);
+
+    // 两个「空」的表示不同时，**规范化优先于恒等律**（同 Interval）。
+    const Box3 non_canonical_empty{Point3{0.0, 0.0, 0.0}, Point3{-1.0, -1.0, -1.0}};
+    CHECK(non_canonical_empty.is_empty());
+    CHECK(nan_box.merged(non_canonical_empty) == Box3::empty());
+    CHECK(non_canonical_empty.merged(nan_box) == Box3::empty());
 }
 ```
 
