@@ -763,7 +763,7 @@ template <typename Scalar>
         reference = Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}};
     }
 
-    const auto x = cross(reference, z.as_vector()).normalized(tolerance);
+    const auto x = reference.cross(z.as_vector()).normalized(tolerance);
     if (!x.has_value()) {
         return std::nullopt;
     }
