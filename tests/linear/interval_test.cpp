@@ -167,6 +167,22 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
 
     // 无界区间膨胀后仍然无界。
     CHECK(Interval::unbounded().expanded(1.0) == Interval::unbounded());
+
+    // >>> sweep-add
+    // 非规范空也是空（`Interval{1.0, 0.0}` 一个聚合初始化就造得出来）。「空进空出」
+    // 必须在**两种表示**上都成立 —— 旧实现只在规范空上兑现：它只靠末尾那次
+    // 「结果为空则规范化」，而 `{1, 0}.expanded(1)` 的结果是 `{0, 1}`，
+    // **一个看起来完全正常的非空区间，从一个空输入产生**。
+    //
+    // 下面两条**各管一段，不是重复**：
+    //   第一条只要求「还是空」—— 「开头先判输入」整块去掉时它就失败（结果非空）；
+    //   第二条要求「是**规范**空」—— 把开头那句写成 `return *this;` 时，
+    //   第一条**照样通过**（它确实是空的），只有这一条抓得到：非规范表示被原样返回。
+    const Interval non_canonical_empty_for_expand{1.0, 0.0};
+    CHECK(non_canonical_empty_for_expand.is_empty());
+    CHECK(non_canonical_empty_for_expand.expanded(1.0).is_empty());
+    CHECK(non_canonical_empty_for_expand.expanded(1.0) == Interval::empty());
+    // <<< sweep-add
 }
 
 TEST_CASE("the empty predicate is total, including on non-finite input",
