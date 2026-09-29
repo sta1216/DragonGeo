@@ -79,3 +79,9 @@ TEST_CASE("inverse of a degenerate 2D transform is nullopt",
 
     CHECK_FALSE(flatten.inverse().has_value());
 }
+
+TEST_CASE("Transform2 identity leaves a position unchanged", "[linear][transform2]") {
+    const Transform2 unit = Transform2::identity();
+
+    CHECK(unit.apply(Vector2{1.0, 2.0}) == Vector2{1.0, 2.0});
+}

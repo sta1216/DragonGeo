@@ -15,17 +15,17 @@ int main() {
     const Vector3 a{1.0, 2.0, 3.0};
     const Vector3 b{4.0, 5.0, 6.0};
 
-    std::cout << "dot = " << dot(a, b) << '\n';
+    std::cout << "dot = " << a.dot(b) << '\n';
 
-    const auto unit = normalize(Vector3{3.0, 4.0, 0.0});
+    const auto unit = Vector3{3.0, 4.0, 0.0}.normalized();
     if (!unit.has_value()) {
-        std::cout << "normalize returned nullopt\n";
+        std::cout << "normalized returned nullopt\n";
         return 1;
     }
     std::cout << "unit = (" << unit->x() << ", " << unit->y() << ", " << unit->z() << ")\n";
 
-    const Transform3 pipeline = translation_3d(Vector3{1.0, 2.0, 3.0}) * scaling_3d(2.0);
-    const Vector3 moved = apply(pipeline, Vector3{1.0, 1.0, 1.0});
+    const Transform3 pipeline = Transform3::translation(Vector3{1.0, 2.0, 3.0}) * Transform3::scaling(2.0);
+    const Vector3 moved = pipeline.apply(Vector3{1.0, 1.0, 1.0});
     std::cout << "moved = (" << moved.x << ", " << moved.y << ", " << moved.z << ")\n";
 
     return moved == Vector3{3.0, 4.0, 5.0} ? 0 : 2;
