@@ -4,4 +4,7 @@
 ///
 /// 本头文件聚合全部公开接口。也可以只包含需要的子头以减少编译时间。
 
+#include <GeoCore/core/Constants.hpp>
+#include <GeoCore/core/Numeric.hpp>
+#include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/core/Version.hpp>
