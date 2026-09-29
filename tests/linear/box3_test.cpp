@@ -170,6 +170,18 @@ TEST_CASE("merged and expanded keep the canonical empty box",
     // 或把 `- amount` 写成 `+ amount`，都会在下面这一条上现形。
     CHECK(Box3{Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}}.expanded(-0.25) ==
           Box3{Point3{0.25, 0.25, 0.25}, Point3{0.75, 0.75, 0.75}});
+
+    // **非规范**空盒是 `is_empty()` 为真的合法输入，但它的端点没有几何意义：
+    // `expanded` 逐端点外扩，于是它扩展后变成一个**非空**盒。文档原先那句
+    // 「空盒扩展后仍是空盒」按字面**不成立**（只对规范空盒与含 NaN 的盒成立），
+    // 已按下面这个实测结果订正。这一格钉住的是**文档边界的下沿**：
+    // 任何「见到空输入就原样返回或返回 empty()」的写法（那是一类听起来很合理的
+    // 优化）都会在这里现形，而在此之前**没有任何用例把非规范空盒喂给 expanded**。
+    const Box3 non_canonical_empty{Point3{0.0, 0.0, 0.0}, Point3{-1.0, -1.0, -1.0}};
+    REQUIRE(non_canonical_empty.is_empty());
+    const Box3 grown_empty = non_canonical_empty.expanded(1.0);
+    CHECK(grown_empty == Box3{Point3{-1.0, -1.0, -1.0}, Point3{0.0, 0.0, 0.0}});
+    CHECK_FALSE(grown_empty.is_empty());
     // <<< sweep-add
 }
 
@@ -276,6 +288,12 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 这条路的断言（`empty().expanded(inf)` 走的是另一个入口）。
     CHECK(Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}}.expanded(nan) ==
           Box3::empty());
+
+    // 交叉格：**空盒** + NaN 增量。上面两格分别是（有限盒, NaN）与（空盒, +inf），
+    // 这一格是两者的交叉，走的是同一条规范化出口。它单独需要一条断言：
+    // 一个只在「空输入 + NaN 增量」这一格上偏离的实现（例如在那里直接 return
+    // 未规范化的中间结果）在其余各格上与正确实现**逐位相同**，只有这里看得见。
+    CHECK(Box3::empty().expanded(nan) == Box3::empty());
     // <<< sweep-add
 }
 

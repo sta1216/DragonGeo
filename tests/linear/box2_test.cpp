@@ -164,6 +164,16 @@ TEST_CASE("merged and expanded keep the canonical empty box",
     // 或把 `- amount` 写成 `+ amount`，都会在下面这一条上现形。
     CHECK(Box2{Point2{0.0, 0.0}, Point2{1.0, 1.0}}.expanded(-0.25) ==
           Box2{Point2{0.25, 0.25}, Point2{0.75, 0.75}});
+
+    // **非规范**空盒是 `is_empty()` 为真的合法输入，但它的端点没有几何意义：
+    // `expanded` 逐端点外扩，于是它扩展后变成一个**非空**盒。文档原先那句
+    // 「空盒扩展后仍是空盒」按字面**不成立**（只对规范空盒与含 NaN 的盒成立），
+    // 已按下面这个实测结果订正。二维与三维同形（两个头文件分开写，各自钉）。
+    const Box2 non_canonical_empty{Point2{0.0, 0.0}, Point2{-1.0, -1.0}};
+    REQUIRE(non_canonical_empty.is_empty());
+    const Box2 grown_empty = non_canonical_empty.expanded(1.0);
+    CHECK(grown_empty == Box2{Point2{-1.0, -1.0}, Point2{0.0, 0.0}});
+    CHECK_FALSE(grown_empty.is_empty());
     // <<< sweep-add
 }
 
@@ -263,6 +273,12 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 同一条规范化出口」的推论。下面这条是本文件里唯一走「有限盒 + NaN 增量」
     // 这条路的断言（`empty().expanded(inf)` 走的是另一个入口）。
     CHECK(Box2{Point2{1.0, 2.0}, Point2{3.0, 4.0}}.expanded(nan) == Box2::empty());
+
+    // 交叉格：**空盒** + NaN 增量。上面两格分别是（有限盒, NaN）与（空盒, +inf），
+    // 这一格是两者的交叉，走的是同一条规范化出口。它单独需要一条断言：
+    // 一个只在「空输入 + NaN 增量」这一格上偏离的实现在其余各格上与正确实现
+    // **逐位相同**，只有这里看得见。
+    CHECK(Box2::empty().expanded(nan) == Box2::empty());
     // <<< sweep-add
 }
 
