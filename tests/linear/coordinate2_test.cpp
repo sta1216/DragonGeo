@@ -125,8 +125,10 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
 
 TEST_CASE("coordinate frame round-trips a point", "[linear][coordinate2]") {
     const auto frame = Coordinate2::from_x_axis(Point2{10.0, 0.0}, x_axis);
+    REQUIRE(frame.has_value());
+
     const Point2 local{1.0, 2.0};
-    const Point2 round_trip = frame.to_local(frame.to_parent(local));
+    const Point2 round_trip = frame->to_local(frame->to_parent(local));
 
     CHECK(round_trip.x == Approx(local.x).margin(1e-12));
     CHECK(round_trip.y == Approx(local.y).margin(1e-12));
@@ -140,28 +142,55 @@ TEST_CASE("from_x_axis completes y as x rotated 90 degrees counter-clockwise",
     //
     // 期望值：x = (0.6, 0.8) ⇒ y = (-x.y, x.x) = (-0.8, 0.6)。
     const auto frame = Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(0.6, 0.8));
+    REQUIRE(frame.has_value());
 
-    CHECK(frame.x_axis().x() == Approx(0.6));
-    CHECK(frame.x_axis().y() == Approx(0.8));
-    CHECK(frame.y_axis().x() == Approx(-0.8));
-    CHECK(frame.y_axis().y() == Approx(0.6));
+    CHECK(frame->x_axis().x() == Approx(0.6));
+    CHECK(frame->x_axis().y() == Approx(0.8));
+    CHECK(frame->y_axis().x() == Approx(-0.8));
+    CHECK(frame->y_axis().y() == Approx(0.6));
 
     // 定义性质，不依赖上面那组值：x × y = +1。
-    CHECK(frame.x_axis().cross(frame.y_axis()) == Approx(1.0));
+    CHECK(frame->x_axis().cross(frame->y_axis()) == Approx(1.0));
 
     // 原点必须原样带过来（不能总是 (0,0)）。
     const auto moved = Coordinate2::from_x_axis(Point2{10.0, 20.0}, unit(1.0, 0.0));
-    CHECK(moved.origin() == Point2{10.0, 20.0});
-    CHECK(moved.y_axis().x() == Approx(0.0));
-    CHECK(moved.y_axis().y() == Approx(1.0));
+    REQUIRE(moved.has_value());
+    CHECK(moved->origin() == Point2{10.0, 20.0});
+    CHECK(moved->y_axis().x() == Approx(0.0));
+    CHECK(moved->y_axis().y() == Approx(1.0));
 
     // 由 x 轴负方向出发（x = (-1,0)）⇒ y = (0,-1)：这是「y 恒等于 (0,1)」
     // 这类实现唯一的一格反例。
     const auto flipped = Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(-1.0, 0.0));
-    CHECK(flipped.x_axis().x() == Approx(-1.0));
-    CHECK(flipped.x_axis().y() == Approx(0.0).margin(1e-15));
-    CHECK(flipped.y_axis().x() == Approx(0.0).margin(1e-15));
-    CHECK(flipped.y_axis().y() == Approx(-1.0));
+    REQUIRE(flipped.has_value());
+    CHECK(flipped->x_axis().x() == Approx(-1.0));
+    CHECK(flipped->x_axis().y() == Approx(0.0).margin(1e-15));
+    CHECK(flipped->y_axis().x() == Approx(0.0).margin(1e-15));
+    CHECK(flipped->y_axis().y() == Approx(-1.0));
+
+    // >>> sweep-add
+    // **非单位的 x 必须被拒绝。** 补全公式只用得到 x 的方向，对长度一无所知：
+    // 不放行校验，`from_normalized_unchecked({2,0})`（公开接口）就会补出一组
+    // 长度都是 2 的轴 —— 一个把几何拉伸 2 倍的「坐标系」，正是本任务要堵死的那类
+    // 路径。三维那边的 `from_z_axis` 对非单位的 z 同样拒绝（那里有一格）。
+    // 这一格是「from_x_axis 真的走了 from_axes」的唯一见证。
+    CHECK_FALSE(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(2.0, 0.0)).has_value());
+    CHECK_FALSE(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(0.0, 0.5)).has_value());
+    // 反向自证：同一组输入在放宽容差后必须被接受 —— 否则上面两格可能只是被
+    // 别的检查（比如某个过紧的阈值）拒掉的。
+    const Tolerance loose{1.0, 1.0};
+    CHECK(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(2.0, 0.0), loose).has_value());
+    CHECK(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(0.0, 0.5), loose).has_value());
+    // 容差参数确实被转发进 `from_axes` 的长度检查（默认判据下 1e-6 的偏差被拒、
+    // 放宽容差后接受）。
+    CHECK_FALSE(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(1.0 + 1e-6, 0.0)).has_value());
+    CHECK(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(1.0 + 1e-6, 0.0),
+                                   Tolerance{1e-3, 1e-3})
+              .has_value());
+    // 非有限轴同样拒绝。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK_FALSE(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(nan, 0.0)).has_value());
+    // <<< sweep-add
 }
 
 TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate2]") {
@@ -210,22 +239,23 @@ TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate2]
     // 整个删掉也看不出来。换一个四个系数都非零的标架（x = (0.6,0.8)，
     // y = (-0.8,0.6) 由补全得到，原点 (10,20)）。
     const auto dense = Coordinate2::from_x_axis(Point2{10.0, 20.0}, unit(0.6, 0.8));
+    REQUIRE(dense.has_value());
 
     // 10 + 0.6·1 + (-0.8)·2 = 9 ／ 20 + 0.8·1 + 0.6·2 = 22
-    CHECK(dense.to_parent(Point2{1.0, 2.0}).x == Approx(9.0));
-    CHECK(dense.to_parent(Point2{1.0, 2.0}).y == Approx(22.0));
+    CHECK(dense->to_parent(Point2{1.0, 2.0}).x == Approx(9.0));
+    CHECK(dense->to_parent(Point2{1.0, 2.0}).y == Approx(22.0));
     // 反方向：offset = (9,22) - (10,20) = (-1,2) ⇒ (1,2)
-    CHECK(dense.to_local(Point2{9.0, 22.0}).x == Approx(1.0));
-    CHECK(dense.to_local(Point2{9.0, 22.0}).y == Approx(2.0));
+    CHECK(dense->to_local(Point2{9.0, 22.0}).x == Approx(1.0));
+    CHECK(dense->to_local(Point2{9.0, 22.0}).y == Approx(2.0));
     // 方向重载：⊥ 平移。0.6·1 - 0.8·2 = -1 ／ 0.8·1 + 0.6·2 = 2
-    CHECK(dense.to_parent(Vector2{1.0, 2.0}).x == Approx(-1.0));
-    CHECK(dense.to_parent(Vector2{1.0, 2.0}).y == Approx(2.0));
+    CHECK(dense->to_parent(Vector2{1.0, 2.0}).x == Approx(-1.0));
+    CHECK(dense->to_parent(Vector2{1.0, 2.0}).y == Approx(2.0));
     // 0.6·9 + 0.8·22 = 23 ／ -0.8·9 + 0.6·22 = 6
-    CHECK(dense.to_local(Vector2{9.0, 22.0}).x == Approx(23.0));
-    CHECK(dense.to_local(Vector2{9.0, 22.0}).y == Approx(6.0));
+    CHECK(dense->to_local(Vector2{9.0, 22.0}).x == Approx(23.0));
+    CHECK(dense->to_local(Vector2{9.0, 22.0}).y == Approx(6.0));
     // 往返（这个标架下两个方向都要走一遍）。
-    CHECK(dense.to_parent(dense.to_local(Point2{1.0, 2.0})).x == Approx(1.0));
-    CHECK(dense.to_parent(dense.to_local(Point2{1.0, 2.0})).y == Approx(2.0));
+    CHECK(dense->to_parent(dense->to_local(Point2{1.0, 2.0})).x == Approx(1.0));
+    CHECK(dense->to_parent(dense->to_local(Point2{1.0, 2.0})).y == Approx(2.0));
     // <<< sweep-add
 }
 
@@ -313,9 +343,13 @@ TEST_CASE("from_axes and from_transform thread their tolerance through",
     CHECK_FALSE(Coordinate2::from_transform(perturbed).has_value());
     CHECK(Coordinate2::from_transform(perturbed, loose).has_value());
 
-    // `from_x_axis` 是 noexcept 返回裸值的那一个：它没有容差参数（也不需要），
-    // 任何单位向量都能补全出一组正交的 x/y —— 这里顺带钉住「它不校验也不失败」。
-    CHECK(Coordinate2::from_x_axis(o, nearly_y).origin() == o);
+    // `from_x_axis` 现在与 `from_z_axis` 同形：补全之后照样过 `from_axes`，
+    // 容差参数因此也贯穿它的长度检查（正交与定向对补全出来的轴恒成立，
+    // 唯一会用到容差的就是长度那一条）。
+    CHECK(Coordinate2::from_x_axis(o, nearly_y).has_value());
+    const auto stretched = unit(1.0 + 1e-7, 0.0);
+    CHECK_FALSE(Coordinate2::from_x_axis(o, stretched).has_value());
+    CHECK(Coordinate2::from_x_axis(o, stretched, loose).has_value());
 }
 
 TEST_CASE("a degenerate axis or a non-finite transform is rejected",
@@ -410,7 +444,9 @@ TEST_CASE("the implicitly generated special members carry the whole frame",
     CHECK(move_assigned.x_axis() == unit(0.0, 1.0));
     CHECK(move_assigned.y_axis() == unit(-1.0, 0.0));
 
-    // 五个特殊成员都必须是隐式生成的（直接陈述规格，不用类型特征代理行为）。
+    // 五个特殊成员的无行为是这一类型的规格（直接陈述规格，不用类型特征代理行为）。
+    // 措辞收紧（Minor-8）：这几条钉的是「平凡 / 可构造 / 可赋值」—— `= default`
+    // 的成员同样为真；证明「成员被逐位搬运」的是上面那四组断言（实测 J5）。
     STATIC_REQUIRE(std::is_trivially_copyable_v<Coordinate2T<double>>);
     STATIC_REQUIRE(std::is_trivially_destructible_v<Coordinate2T<double>>);
     STATIC_REQUIRE(std::is_copy_constructible_v<Coordinate2T<double>>);
@@ -445,8 +481,9 @@ TEST_CASE("the float instantiation is usable", "[linear][coordinate2]") {
 
     const auto from_x = Coordinate2T<float>::from_x_axis(
         origin, UnitVector2T<float>::from_normalized_unchecked(Vector2T<float>{1.0f, 0.0f}));
-    CHECK(from_x.x_axis().x() == 1.0f);
-    CHECK(from_x.y_axis().y() == 1.0f);
+    REQUIRE(from_x.has_value());
+    CHECK(from_x->x_axis().x() == 1.0f);
+    CHECK(from_x->y_axis().y() == 1.0f);
 
     const auto from_xform = Coordinate2T<float>::from_transform(
         Transform2T<float>::translation(Vector2T<float>{1.0f, 2.0f}));
@@ -472,8 +509,9 @@ TEST_CASE("the float instantiation is usable", "[linear][coordinate2]") {
 }
 
 TEST_CASE("every declared callable is noexcept", "[linear][coordinate2]") {
-    // 三个工厂与全部成员都是 noexcept。`from_x_axis` 是 Interfaces 明文写了
-    // noexcept 的那一个（二维没有退化情形，所以它返回裸值）。
+    // 三个工厂与全部成员都是 noexcept —— 它们只做标量算术并返回 optional，没有
+    // 任何可能抛出的操作。四个工厂里只有 `from_axes` 与 `from_transform` 在
+    // Interfaces 里被明文标注，`identity` / `from_x_axis` 是家族惯例（与三维一致）。
     const Point2 arg_origin{};
     const UnitVector2 unit_x = unit(1.0, 0.0);
     const UnitVector2 unit_y = unit(0.0, 1.0);
@@ -482,6 +520,8 @@ TEST_CASE("every declared callable is noexcept", "[linear][coordinate2]") {
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::from_axes(arg_origin, unit_x, unit_y)));
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::from_axes(arg_origin, unit_x, unit_y, Tolerance{})));
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::from_x_axis(arg_origin, unit_x)));
+    STATIC_REQUIRE(
+        noexcept(Coordinate2T<double>::from_x_axis(arg_origin, unit_x, Tolerance{})));
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::from_transform(Transform2T<double>{})));
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::from_transform(Transform2T<double>{}, Tolerance{})));
     STATIC_REQUIRE(noexcept(Coordinate2T<double>::identity().origin()));
@@ -498,8 +538,9 @@ TEST_CASE("every declared callable is noexcept", "[linear][coordinate2]") {
 
 TEST_CASE("every callable is usable in a constant expression",
           "[linear][coordinate2]") {
-    // 与三维不同，二维**没有**非 constexpr 的工厂（`from_x_axis` 不做归一化），
-    // 所以四个可调用实体全部能在常量表达式里求值。
+    // 与三维不同，二维**没有**非 constexpr 的工厂 —— `from_x_axis` 只做一次
+    // 90° 旋转（没有 `Vector::normalized` 那条非 constexpr 的路径），所以四个
+    // 工厂全部能在常量表达式里求值。
     constexpr Point2T<double> origin{1.0, 2.0};
     constexpr UnitVector2T<double> cx =
         UnitVector2T<double>::from_normalized_unchecked(Vector2T<double>{0.0, 1.0});
@@ -516,8 +557,13 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE_FALSE(refused.has_value());
 
     constexpr auto completed = Coordinate2T<double>::from_x_axis(origin, cx);
-    STATIC_REQUIRE(completed.y_axis().x() == -1.0);
-    STATIC_REQUIRE(completed.y_axis().y() == 0.0);
+    STATIC_REQUIRE(completed.has_value());
+    STATIC_REQUIRE(completed->y_axis().x() == -1.0);
+    STATIC_REQUIRE(completed->y_axis().y() == 0.0);
+    // 被拒的那一支也要在常量表达式里走一次。
+    constexpr auto refused_x = Coordinate2T<double>::from_x_axis(
+        origin, UnitVector2T<double>::from_normalized_unchecked(Vector2T<double>{2.0, 0.0}));
+    STATIC_REQUIRE_FALSE(refused_x.has_value());
 
     STATIC_REQUIRE(frame->to_parent(Point2T<double>{1.0, 2.0}) == Point2T<double>{-1.0, 3.0});
     STATIC_REQUIRE(frame->to_local(Point2T<double>{-1.0, 3.0}) == Point2T<double>{1.0, 2.0});

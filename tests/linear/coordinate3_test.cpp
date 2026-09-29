@@ -680,9 +680,12 @@ TEST_CASE("the implicitly generated special members carry the whole frame",
     CHECK(move_assigned.y_axis() == unit(-1.0, 0.0, 0.0));
     CHECK(move_assigned.z_axis() == unit(0.0, 0.0, 1.0));
 
-    // 析构、拷贝、移动的「无行为」是这一类型的规格：五个特殊成员都必须是
-    // 隐式生成的（本类型没有可观测的析构/拷贝副作用，所以这是**直接陈述规格**，
-    // 不是用特征代理行为）。手写任何一个都会打破这里的其中一条。
+    // 五个特殊成员的**无行为**是这一类型的规格：本类型没有可观测的析构/拷贝
+    // 副作用，所以这几条是**直接陈述规格**，不是用特征代理行为。
+    // 措辞收紧（Minor-8）：`= default` 的成员同样会让这几条为真，所以它们钉的是
+    // 「平凡 / 可构造 / 可赋值」，不是字面上的「隐式生成」。真正证明「成员被逐位
+    // 搬运」的是上面那四组断言；手写一个只赋 `origin_` 的拷贝赋值会被
+    // `is_trivially_copyable` 与那四组断言**两路**拦下（实测 S13/J5）。
     STATIC_REQUIRE(std::is_trivially_copyable_v<Coordinate3T<double>>);
     STATIC_REQUIRE(std::is_trivially_destructible_v<Coordinate3T<double>>);
     STATIC_REQUIRE(std::is_copy_constructible_v<Coordinate3T<double>>);
@@ -736,6 +739,13 @@ TEST_CASE("the float instantiation is usable", "[linear][coordinate3]") {
     // 默认容差是按 double 定标的：float 上算出来的旋转矩阵（长度² 偏差 ~1e-7）
     // 会被它拒绝。要用 float 标架就显式给出与该精度相称的容差 —— 容差显式传参
     // 的预期后果。这里同时证明了 from_transform 的容差确实生效。
+    //
+    // 注意下面这条**否定的**断言钉的是**库级**的容差口径（`core::Tolerance` 的
+    // 默认值是按 double 定标的），不是 `Coordinate3T` 自己的规格：它记录 1e-7
+    // 量级的重建误差落在默认阈值之外这个事实。若将来默认容差改成随标量自适应，
+    // 这条失败是**信号**（说明口径变了），不是噪声 —— 到时要改的是一整族 float
+    // 调用点，而不只是这一条。另一半（放宽容差后接受）是这一格真正要证明的
+    // 「容差被转发」。
     const UnitVector3T<float> fzw =
         UnitVector3T<float>::from_normalized_unchecked(Vector3T<float>{0.0f, 0.0f, 1.0f});
     const Transform3T<float> spin = Transform3T<float>::rotation(fzw, 1.5707963267948966f);

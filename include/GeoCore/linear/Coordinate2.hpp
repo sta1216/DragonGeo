@@ -19,7 +19,11 @@ namespace GeoCore::linear {
 ///
 ///   - `from_axes` 只有两根轴，校验两两正交、长度为 1，以及标量叉积**为正**
 ///     （二维没有第三根轴可比，右手 ⟺ 逆时针 ⟺ `x × y > 0`）；
-///   - 没有 `from_z_axis`，代之以 `from_x_axis`（见该工厂）。
+///   - 没有 `from_z_axis`，代之以 `from_x_axis`（主轴是 x，y 由 x 逆时针转 90°
+///     补全，见该工厂）。两者形态相同：`(origin, axis, Tolerance = {})` →
+///     `std::optional<Coordinate2T>`。
+///
+/// **两个工厂都不产出裸值** —— 公开接口里没有一条能绕过校验的路径。
 ///
 /// 长度校验在二维尤其不能省：定向检查只看叉积的**符号**，均匀缩放不会改变它，
 /// 于是「`{2,0}` 配 `{0,3}`」这种拉伸标架能顺利通过正交与定向两项。
@@ -62,16 +66,21 @@ public:
 
     /// 由 x 轴补全 y 轴：`y` 就是 `x` 逆时针转 90°，即 `(-x.y, x.x)`。
     ///
-    /// **返回裸值、`noexcept`** —— 与三维的 `from_z_axis` 不同，这里不存在退化
-    /// 情形：不需要参考向量，也就没有「参考向量选得不好」这回事；补全出来的
-    /// `y` 与 `x` 长度相同且必然正交，`x × y = |x|² > 0` 必然是右手系。
-    /// 任何单位向量都能补全出一组合法的轴，所以这里没有失败路径可返回。
-    [[nodiscard]] static constexpr Coordinate2T from_x_axis(Point2T<Scalar> origin,
-                                                            UnitVector2T<Scalar> x) noexcept {
-        return Coordinate2T{
-            origin, x,
-            UnitVector2T<Scalar>::from_normalized_unchecked(
-                Vector2T<Scalar>{-x.y(), x.x()})};
+    /// 与三维的 `from_z_axis` **结构一致**：补全出 y 之后交给 `from_axes` 校验
+    /// 并返回 `optional`，而不是直接返回裸值。
+    ///
+    /// 这里同样不能省掉校验 —— 补全公式只用得到 `x` 的**方向**，对长度一无所知：
+    /// `UnitVector2T` 的不变量是弱不变量，而 `from_normalized_unchecked` 是公开的，
+    /// 于是 `from_normalized_unchecked({2,0})` 会补出一组长度都是 2 的轴，
+    /// 得到一个把几何拉伸 2 倍的「坐标系」。那是本类型存在的全部意义所在，
+    /// 不能因为「正常调用者不会这么传」就放过（三维那边同样拒绝非单位的 z）。
+    /// 长度校验在 `from_axes` 里，这里不做第二次。
+    [[nodiscard]] static constexpr std::optional<Coordinate2T> from_x_axis(
+        Point2T<Scalar> origin, UnitVector2T<Scalar> x,
+        core::Tolerance tolerance = {}) noexcept {
+        const UnitVector2T<Scalar> y =
+            UnitVector2T<Scalar>::from_normalized_unchecked(Vector2T<Scalar>{-x.y(), x.x()});
+        return from_axes(origin, x, y, tolerance);
     }
 
     /// 由刚体变换（旋转 + 平移）构造标架。
