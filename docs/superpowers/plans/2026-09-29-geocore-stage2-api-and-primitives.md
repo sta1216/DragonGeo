@@ -399,6 +399,7 @@ git commit -m "refactor(linear): make matrix and quaternion operations members"
 - Modify: `include/GeoCore/linear/Transform2.hpp`、`Transform3.hpp`
 - Modify: `include/GeoCore/linear/Matrix.hpp`（**仅**三处注释里对 `translation_3d` / `scaling_3d` 的具名引用，见 Step 3）
 - Modify: `tests/linear/transform2_test.cpp`、`transform3_test.cpp`、`matrix_inverse_test.cpp`、`examples/transform_pipeline.cpp`
+- Modify: `ci/consumer/main.cpp`（CI 的 `consumer-smoke` 作业，见 Step 3c）
 
 **Interfaces:**
 - Produces:
@@ -477,21 +478,58 @@ Expected: 编译失败。
 
 **每个文件的 `using GeoCore::linear::<被删名字>;` 都要删掉** —— using 声明指向已不存在的名字是编译错误，不是警告。上一轮就有一处 `using GeoCore::linear::dot;` 属于这类。
 
-改完自己跑这三条，不要只信这张表：
+改完自己跑这三条，不要只信这张表。**注意作用域是仓库根、不只是 `include/ examples/ tests/`** —— 我前两轮都把范围写小了，结果漏掉了 `ci/consumer/main.cpp`（见下）：
 
 ```bash
-grep -rn "\bidentity_transform\|\btranslation_3d\|\bscaling_3d\|\brotation_3d\|\btranslation_2d\|\bscaling_2d\|\brotation_2d" include/ examples/ tests/
-grep -rnE "(^|[^.[:alnum:]_:>])(apply|inverse)\(" include/ examples/ tests/
-grep -rn "using GeoCore::linear::" include/ examples/ tests/ | grep -E "apply|inverse|identity_transform|translation_|scaling_|rotation_"
+# 从仓库根扫，排除构建产物
+grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
+  "\bidentity_transform\|\btranslation_3d\|\bscaling_3d\|\brotation_3d\|\btranslation_2d\|\bscaling_2d\|\brotation_2d" .
+grep -rnE --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
+  "(^|[^.[:alnum:]_:>])(apply|inverse)\(" .
+grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
+  "using GeoCore::linear::" . | grep -E "apply|inverse|identity_transform|translation_|scaling_|rotation_"
 ```
 
-预期：前两条只剩函数定义处的自引用与注释文字，没有调用点；第三条零命中。
+预期：前两条只剩成员声明与注释文字（阶段 1 的历史计划文档在 `docs/` 里，已排除），第三条零命中。
 
 - [ ] **Step 3b: 修正 `Transform3.hpp` 顶部那段已经失效的分层说明**
 
 `Transform3.hpp:17-26` 的文档注释写着「Point3 属于 prim 层，linear 不得依赖它 …… 作用于 Point3 的运算符由 prim 层提供」。**本阶段已把 `Point` 移进 `linear`**（spec 决策 15–17），这段话现在两句都是错的。请改成：`operator*` 只施加线性部分（变换方向）、`apply` 施加完整仿射变换（把 `Vector` 读作位置）这个区分仍然成立，因此保留；但删去「Point3 属于 prim 层」与「由 prim 层提供」的说法，改为说明作用于 `Point3` 的成员（`transform_point`）在同一类型上一并提供，随 `Point3` 落地（Task 9）。
 
 **不要**顺手把这段里关于「第 4 行假定为 (0,0,0,1)」的说明改掉 —— 那段仍然准确，且是 `apply`/`operator*` 不读第 4 行的依据。
+
+- [ ] **Step 3c: 修 `ci/consumer/main.cpp`（Task 1 与 Task 3 两轮共同的欠账）**
+
+`ci/consumer/` 是 `.github/workflows/ci.yml` 的 `consumer-smoke` 作业：install 到临时前缀后用 `find_package` 构建，专门验证 `/utf-8` 等 `INTERFACE_COMPILE_OPTIONS` 是否随安装包到达消费方（阶段 1 的 C1 就是这条防线抓到的）。**它现在编不过，该作业只能红**：
+
+- 第 18 行 `dot(a, b)` — Task 1 删的自由函数
+- 第 20 行 `normalize(Vector3{3.0, 4.0, 0.0})` — Task 1 删的
+- 第 27 行 `translation_3d(...)` / `scaling_3d(2.0)` — 本任务删的
+- 第 28 行 `apply(pipeline, ...)` — 本任务删的
+
+改成成员/静态工厂形式：`a.dot(b)`、`Vector3{3.0, 4.0, 0.0}.normalized()`、`Transform3::translation(...)`、`Transform3::scaling(2.0)`、`pipeline.apply(...)`。
+
+**三条硬约束，改的时候别踩：**
+
+1. **不要给这个工程加任何编译选项，也不要改它的 CMakeLists。** 它刻意不设任何编码选项 —— 那正是它的测试内容。你若加了 `/utf-8`，这项测试就失去意义了。
+2. **文件里的中文注释必须保留**（第 3–6 行）。它们同样是测试的一部分：能编过就证明 `/utf-8` 到了消费方。
+3. 第 25 行的 `unit->x()` **不要改** —— `UnitVectorNT` 的分量本来就是访问器方法，那里是对的（与 `VectorNT` 的数据成员不同）。
+
+本任务改完后，`include/`、`examples/`、`tests/`、`ci/` 里应再无对已删名字的引用。
+
+- [ ] **Step 3d: 补 `Transform2T::identity()` 的覆盖**
+
+`Transform2T::identity()` 是本任务**新建**的工厂（二维原本没有 `identity_transform` 自由函数可搬），也是这批工厂里唯一零覆盖的一个。在 `tests/linear/transform2_test.cpp` 里补一条，照 3D 那条的写法：
+
+```cpp
+TEST_CASE("Transform2 identity leaves a position unchanged", "[linear][transform2]") {
+    const Transform2 unit = Transform2::identity();
+
+    CHECK(unit.apply(Vector2{1.0, 2.0}) == Vector2{1.0, 2.0});
+}
+```
+
+**注意**：`apply` 作用在恒等变换上时「原样返回」与「真的做了一次矩阵乘法」数值相同，所以这一条**只**能证明工厂存在且不改变位置，钉不住实现细节 —— 这是可接受的（恒等阵的定义就是如此），不要为了"加强"它去编造别的期望值。
 
 - [ ] **Step 4: 运行全部并提交**
 
