@@ -1,7 +1,9 @@
 #pragma once
 
+#include <concepts>
 #include <optional>
 
+#include <GeoCore/core/Numeric.hpp>
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Vector2.hpp>
 
