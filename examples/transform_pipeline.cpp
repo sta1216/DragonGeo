@@ -10,12 +10,7 @@
 #include <GeoCore/GeoCore.hpp>
 
 using GeoCore::core::half_pi;
-using GeoCore::linear::apply;
-using GeoCore::linear::inverse;
-using GeoCore::linear::rotation_3d;
-using GeoCore::linear::scaling_3d;
 using GeoCore::linear::Transform3;
-using GeoCore::linear::translation_3d;
 using GeoCore::linear::UnitVector3;
 using GeoCore::linear::Vector3;
 
@@ -32,13 +27,13 @@ int main() {
     const UnitVector3 z_axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0});
 
     // 先缩放 2 倍，再绕 z 轴转 90°，最后平移。
-    const Transform3 model = translation_3d(Vector3{10.0, 0.0, 0.0})
-                           * rotation_3d(z_axis, half_pi)
-                           * scaling_3d(2.0);
+    const Transform3 model = Transform3::translation(Vector3{10.0, 0.0, 0.0})
+                           * Transform3::rotation(z_axis, half_pi)
+                           * Transform3::scaling(2.0);
 
     const Vector3 position{1.0, 0.0, 0.0};
     print("position          ", position);
-    print("transformed       ", apply(model, position));
+    print("transformed       ", model.apply(position));
 
     // 方向不受平移影响。
     //
@@ -50,15 +45,15 @@ int main() {
     print("transformed dir   ", model * direction);
 
     // 求逆并回代。
-    if (const auto undo = inverse(model)) {
-        const Vector3 round_trip = apply(*undo, apply(model, position));
+    if (const auto undo = model.inverse()) {
+        const Vector3 round_trip = undo->apply(model.apply(position));
         print("round trip        ", round_trip);
     }
 
     // 压扁平面的变换不可逆，inverse 返回 nullopt 而不是产出 inf。
-    const Transform3 flatten = scaling_3d(Vector3{1.0, 0.0, 1.0});
+    const Transform3 flatten = Transform3::scaling(Vector3{1.0, 0.0, 1.0});
     std::cout << "inverse(flatten) is "
-              << (inverse(flatten) ? "available" : "nullopt (as expected)")
+              << (flatten.inverse() ? "available" : "nullopt (as expected)")
               << '\n';
 
     return 0;

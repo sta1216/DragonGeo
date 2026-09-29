@@ -10,13 +10,10 @@
 using Catch::Approx;
 
 using GeoCore::core::Tolerance;
-using GeoCore::linear::apply;
-using GeoCore::linear::inverse;
 using GeoCore::linear::Matrix2;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Matrix4;
-using GeoCore::linear::scaling_3d;
-using GeoCore::linear::translation_3d;
+using GeoCore::linear::Transform3;
 using GeoCore::linear::Vector3;
 
 TEST_CASE("determinant of a 2x2 matrix", "[linear][matrix][determinant]") {
@@ -147,7 +144,7 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
     // 元素归一化」对它无效 —— 最大元素永远是 1，小尺度缩放的平衡后行列式
     // 仍是 1e-12。逐行平衡后每行各自成为 (1,0,0,0)/(0,1,0,0)/(0,0,1,0)/
     // (0,0,0,1) 这样的单位行，行列式为 1，与缩放倍数无关。
-    const auto tiny = inverse(scaling_3d(1e-4));
+    const auto tiny = Transform3::scaling(1e-4).inverse();
 
     REQUIRE(tiny.has_value());
     CHECK((*tiny).matrix(0, 0) == Approx(1e4));
@@ -155,13 +152,13 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
     CHECK((*tiny).matrix(2, 2) == Approx(1e4));
     CHECK((*tiny).matrix(3, 3) == Approx(1.0));
 
-    const auto smaller = inverse(scaling_3d(1e-5));
+    const auto smaller = Transform3::scaling(1e-5).inverse();
 
     REQUIRE(smaller.has_value());
     CHECK((*smaller).matrix(0, 0) == Approx(1e5));
 
     // 反转：det = 1e450 会在平衡之前就溢出成 inf
-    const auto huge = inverse(scaling_3d(1e150));
+    const auto huge = Transform3::scaling(1e150).inverse();
 
     REQUIRE(huge.has_value());
     CHECK((*huge).matrix(0, 0) == Approx(1e-150));
@@ -169,7 +166,7 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
 
     // 回环把它们钉在一起：两个方向的缩放互逆
     const Vector3 original{1.0, 2.0, 3.0};
-    const Vector3 round_trip = apply(*huge, apply(scaling_3d(1e150), original));
+    const Vector3 round_trip = huge->apply(Transform3::scaling(1e150).apply(original));
     CHECK(round_trip.x == Approx(original.x).margin(1e-12));
     CHECK(round_trip.y == Approx(original.y).margin(1e-12));
     CHECK(round_trip.z == Approx(original.z).margin(1e-12));
@@ -177,7 +174,7 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
 
 TEST_CASE("inverse of a large translation exists",
           "[linear][matrix][inverse]") {
-    // 逐行平衡对 translation_3d(t) 恰好是最糟的一类：第 0 行 (1,0,0,t) 被压成
+    // 逐行平衡对 Transform3T::translation(t) 恰好是最糟的一类：第 0 行 (1,0,0,t) 被压成
     // (1/t,0,0,1)，行列式恰为 1/t —— t ≥ 1e12 即在默认容差的绝对项（1e-12）
     // 上被判成奇异。可它的真逆是精确平移 -t：既存在，又在 double 里精确可表示。
     // 逐列平衡把第 0 列重新放大回 1，行列式回到 1 而与 t 无关；边界由此不再是
@@ -186,7 +183,7 @@ TEST_CASE("inverse of a large translation exists",
     // nullopt，那是还原步骤的舍入所致，不是容差判据。
     const double magnitudes[] = {1e12, 1e15, 1e20, 1e308};
     for (const double t : magnitudes) {
-        const auto inverse_of_translation = inverse(translation_3d(Vector3{t, 0.0, 0.0}));
+        const auto inverse_of_translation = Transform3::translation(Vector3{t, 0.0, 0.0}).inverse();
 
         REQUIRE(inverse_of_translation.has_value());
         // 平移量取负 —— 这才是本用例的重点，光看 has_value() 钉不住它
