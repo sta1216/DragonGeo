@@ -1658,13 +1658,14 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)   # 别把第三方的 install 规则带进我们的安装包
 FetchContent_MakeAvailable(GoogleBenchmark)
 
 add_executable(GeoCoreBenchmarks linear_benchmarks.cpp)
 target_link_libraries(GeoCoreBenchmarks PRIVATE GeoCore::GeoCore benchmark::benchmark)
 ```
 
-顶层 `CMakeLists.txt` 加选项与环境变量 `GEOCORE_BENCHMARKS_INCLUDE_DIR`（复用 `GEOCORE_SOURCE_INCLUDE_DIR`）：
+顶层 `CMakeLists.txt` 加选项：
 
 ```cmake
 option(GEOCORE_BUILD_BENCHMARKS "Build GeoCore benchmarks" OFF)
@@ -1680,6 +1681,16 @@ endif()
 
 `benchmarks/linear_benchmarks.cpp` 覆盖**高频路径**，每项都要防止被编译器优化掉（用 `benchmark::DoNotOptimize`）：
 
+**先说清楚这一节最容易搞砸的地方：输入必须是运行期不可知的。**
+
+把输入写成 `const Vector3 a{1.0, 2.0, 3.0};` 这样的字面量常量，编译器会把 `a.dot(b)`
+**整个折叠成一个常数**（这里是 32）。`DoNotOptimize` 只保证**结果**不被丢弃，它挡不住
+**输入**被常量传播。于是循环体退化成「把一个常量放进寄存器」，测出来是零点几纳秒 ——
+而那种数字看上去很漂亮。
+
+所以每个基准都：**输入用非 const 局部变量，并在循环内 `DoNotOptimize` 它们**，
+让编译器无法假设它们的值。
+
 ```cpp
 #include <benchmark/benchmark.h>
 
@@ -1689,63 +1700,83 @@ using namespace GeoCore::linear;
 
 namespace {
 
-void bench_dot(benchmark::State& state) {
-    const Vector3 a{1.0, 2.0, 3.0};
-    const Vector3 b{4.0, 5.0, 6.0};
+// 空循环基准 —— 它是这一节的「零点」，用来发现空转：若某个基准的耗时与它
+// 相差无几，那个基准就是被折叠掉了，不是「快」。
+void bench_empty(benchmark::State& state) {
+    double sink = 0.0;
     for (auto _ : state) {
+        benchmark::DoNotOptimize(sink);
+    }
+}
+BENCHMARK(bench_empty);
+
+void bench_dot(benchmark::State& state) {
+    Vector3 a{1.0, 2.0, 3.0};
+    Vector3 b{4.0, 5.0, 6.0};
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(a);
+        benchmark::DoNotOptimize(b);
         benchmark::DoNotOptimize(a.dot(b));
     }
 }
 BENCHMARK(bench_dot);
 
 void bench_cross(benchmark::State& state) {
-    const Vector3 a{1.0, 2.0, 3.0};
-    const Vector3 b{4.0, 5.0, 6.0};
+    Vector3 a{1.0, 2.0, 3.0};
+    Vector3 b{4.0, 5.0, 6.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(a);
+        benchmark::DoNotOptimize(b);
         benchmark::DoNotOptimize(a.cross(b));
     }
 }
 BENCHMARK(bench_cross);
 
 void bench_length(benchmark::State& state) {
-    const Vector3 v{3.0, 4.0, 12.0};
+    Vector3 v{3.0, 4.0, 12.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(v);
         benchmark::DoNotOptimize(v.length());
     }
 }
 BENCHMARK(bench_length);
 
 void bench_normalized(benchmark::State& state) {
-    const Vector3 v{3.0, 4.0, 12.0};
+    Vector3 v{3.0, 4.0, 12.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(v);
         benchmark::DoNotOptimize(v.normalized());
     }
 }
 BENCHMARK(bench_normalized);
 
 void bench_subscript(benchmark::State& state) {
-    const Vector3 v{3.0, 4.0, 12.0};
+    Vector3 v{3.0, 4.0, 12.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(v);
         benchmark::DoNotOptimize(v[0] + v[1] + v[2]);
     }
 }
 BENCHMARK(bench_subscript);
 
 void bench_matrix_vector(benchmark::State& state) {
-    const Matrix4 m{{{2.0, 0.0, 0.0, 1.0},
-                     {0.0, 3.0, 0.0, 2.0},
-                     {0.0, 0.0, 4.0, 3.0},
-                     {0.0, 0.0, 0.0, 1.0}}};
-    const Vector4 v{1.0, 2.0, 3.0, 4.0};
+    Matrix4 m{{{2.0, 0.0, 0.0, 1.0},
+               {0.0, 3.0, 0.0, 2.0},
+               {0.0, 0.0, 4.0, 3.0},
+               {0.0, 0.0, 0.0, 1.0}}};
+    Vector4 v{1.0, 2.0, 3.0, 4.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(m);
+        benchmark::DoNotOptimize(v);
         benchmark::DoNotOptimize(m * v);
     }
 }
 BENCHMARK(bench_matrix_vector);
 
 void bench_matrix_inverse(benchmark::State& state) {
-    const Matrix3 m{{{1.0, 2.0, 3.0}, {0.0, 1.0, 4.0}, {5.0, 6.0, 0.0}}};
+    Matrix3 m{{{1.0, 2.0, 3.0}, {0.0, 1.0, 4.0}, {5.0, 6.0, 0.0}}};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(m);
         benchmark::DoNotOptimize(m.inverse());
     }
 }
@@ -1753,13 +1784,46 @@ BENCHMARK(bench_matrix_inverse);
 
 void bench_quaternion_rotate(benchmark::State& state) {
     const auto axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0});
-    const Quaternion q = Quaternion::from_axis_angle(axis, 0.7);
-    const Vector3 v{1.0, 2.0, 3.0};
+    Quaternion q = Quaternion::from_axis_angle(axis, 0.7);
+    Vector3 v{1.0, 2.0, 3.0};
     for (auto _ : state) {
+        benchmark::DoNotOptimize(q);
+        benchmark::DoNotOptimize(v);
         benchmark::DoNotOptimize(q.rotate(v));
     }
 }
 BENCHMARK(bench_quaternion_rotate);
+
+// 本阶段新增的类型也要覆盖 —— 上层会在紧循环里反复调用它们
+// （包围盒剔除、坐标系往返变换），它们才是接下来最可能成为热点的地方。
+void bench_box_contains(benchmark::State& state) {
+    Box3 box{Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 3.0}};
+    Point3 p{0.5, 1.0, 1.5};
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(box);
+        benchmark::DoNotOptimize(p);
+        benchmark::DoNotOptimize(box.contains(p));
+    }
+}
+BENCHMARK(bench_box_contains);
+
+void bench_coordinate_to_parent(benchmark::State& state) {
+    const auto frame = Coordinate3::from_z_axis(
+        Point3{1.0, 0.0, 0.0},
+        UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}));
+    if (!frame.has_value()) {
+        state.SkipWithError("frame construction failed");
+        return;
+    }
+    Coordinate3 c = *frame;
+    Point3 p{1.0, 2.0, 3.0};
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(c);
+        benchmark::DoNotOptimize(p);
+        benchmark::DoNotOptimize(c.to_parent(p));
+    }
+}
+BENCHMARK(bench_coordinate_to_parent);
 
 } // namespace
 ```
@@ -1774,7 +1838,13 @@ cmake --build --preset windows-vs-release --target GeoCoreBenchmarks
 
 把结果写入 `benchmarks/BASELINE.md`，**标注工具链与构建配置**（MSVC 版本、Release、`/O2`）—— 基准数字脱离环境没有意义。
 
-**判定标准**：`dot`/`cross`/`subscript` 的单项耗时应在**个位数纳秒**量级；若某一项达到数十纳秒，说明内联失败，需要检查 `operator[]` 的 `switch` 是否被优化为直接寻址。这是本任务要防的唯一一件事。
+**先做反空转验证，再看数字。** 一个被常量折叠掉的基准会给出**零点几纳秒**的漂亮结果，而「越快越好」的直觉会把它当成好消息。所以：
+
+1. 看 `bench_empty` 的耗时（这是零点）。
+2. **每一个实用基准都必须明显慢于 `bench_empty`。** 若某项与之相差无几，那个基准测的就是空气 —— 回头检查它的输入是否被编译器当成了常量。
+3. 想更确定的话，做一个直接的反证：把某个基准的循环体临时改成 `benchmark::DoNotOptimize(a.x)`（一个平凡表达式），重跑。若耗时**几乎不变**，原基准就是空转的。验完撤回。
+
+**数字的判读**：`dot`/`cross`/`subscript` 大致在个位数纳秒量级属正常。**但要注意方向** —— 这一节要防的是**假快**，不是假慢。某一项若显示为数十纳秒，先怀疑 `DoNotOptimize` 的屏障开销盖过了运算本身（尤其 `dot` 这种三乘两加的操作）；某一项若显示为零点几纳秒，则先怀疑它被折叠了。**两种异常都要在 BASELINE.md 里如实记录并说明判断依据，不要把数字调成"看起来对"的样子。**
 
 - [ ] **Step 4: 提交**
 
