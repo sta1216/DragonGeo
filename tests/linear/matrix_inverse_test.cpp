@@ -11,8 +11,6 @@ using Catch::Approx;
 
 using GeoCore::core::Tolerance;
 using GeoCore::linear::apply;
-using GeoCore::linear::determinant;
-using GeoCore::linear::identity;
 using GeoCore::linear::inverse;
 using GeoCore::linear::Matrix2;
 using GeoCore::linear::Matrix3;
@@ -22,27 +20,27 @@ using GeoCore::linear::translation_3d;
 using GeoCore::linear::Vector3;
 
 TEST_CASE("determinant of a 2x2 matrix", "[linear][matrix][determinant]") {
-    CHECK(determinant(Matrix2{{{1.0, 2.0}, {3.0, 4.0}}}) == Approx(-2.0));
-    CHECK(determinant(identity<double, 2>()) == Approx(1.0));
-    CHECK(determinant(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}) == Approx(0.0));
+    CHECK(Matrix2{{{1.0, 2.0}, {3.0, 4.0}}}.determinant() == Approx(-2.0));
+    CHECK(Matrix2::identity().determinant() == Approx(1.0));
+    CHECK(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}.determinant() == Approx(0.0));
 }
 
 TEST_CASE("determinant of a 3x3 matrix", "[linear][matrix][determinant]") {
     const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 10.0}}};
-    CHECK(determinant(m) == Approx(-3.0));
+    CHECK(m.determinant() == Approx(-3.0));
 
-    CHECK(determinant(identity<double, 3>()) == Approx(1.0));
+    CHECK(Matrix3::identity().determinant() == Approx(1.0));
 }
 
 TEST_CASE("determinant of a singular 3x3 matrix is zero",
           "[linear][matrix][determinant][degenerate]") {
     // 第三行是前两行之和
     const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {5.0, 7.0, 9.0}}};
-    CHECK(determinant(m) == Approx(0.0));
+    CHECK(m.determinant() == Approx(0.0));
 }
 
 TEST_CASE("determinant of a 4x4 matrix", "[linear][matrix][determinant]") {
-    CHECK(determinant(identity<double, 4>()) == Approx(1.0));
+    CHECK(Matrix4::identity().determinant() == Approx(1.0));
 
     // 下三角矩阵的行列式是对角线之积
     const Matrix4 lower{{
@@ -51,12 +49,12 @@ TEST_CASE("determinant of a 4x4 matrix", "[linear][matrix][determinant]") {
         {5.0, 6.0, 7.0, 0.0},
         {8.0, 9.0, 10.0, 11.0},
     }};
-    CHECK(determinant(lower) == Approx(2.0 * 4.0 * 7.0 * 11.0));
+    CHECK(lower.determinant() == Approx(2.0 * 4.0 * 7.0 * 11.0));
 }
 
 TEST_CASE("inverse times original is the identity", "[linear][matrix][inverse]") {
     const Matrix2 m{{{4.0, 7.0}, {2.0, 6.0}}};
-    const auto inv = inverse(m);
+    const auto inv = m.inverse();
 
     REQUIRE(inv.has_value());
     const Matrix2 product = m * *inv;
@@ -72,11 +70,11 @@ TEST_CASE("inverse times original is the identity", "[linear][matrix][inverse]")
 
 TEST_CASE("3x3 inverse round-trips", "[linear][matrix][inverse]") {
     const Matrix3 m{{{1.0, 2.0, 3.0}, {0.0, 1.0, 4.0}, {5.0, 6.0, 0.0}}};
-    const auto inv = inverse(m);
+    const auto inv = m.inverse();
 
     REQUIRE(inv.has_value());
     const Matrix3 product = m * *inv;
-    const Matrix3 unit = identity<double, 3>();
+    const Matrix3 unit = Matrix3::identity();
 
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -90,7 +88,7 @@ TEST_CASE("inverse of a singular matrix is nullopt",
     // 第二行是第一行的两倍
     const Matrix2 singular{{{1.0, 2.0}, {2.0, 4.0}}};
 
-    const auto inv = inverse(singular);
+    const auto inv = singular.inverse();
 
     // 必须是 nullopt，而不是含 inf / NaN 的矩阵
     CHECK_FALSE(inv.has_value());
@@ -100,7 +98,7 @@ TEST_CASE("inverse of a singular matrix is nullopt",
         {2.0, 4.0, 6.0},
         {1.0, 1.0, 1.0},
     }};
-    CHECK_FALSE(inverse(singular3).has_value());
+    CHECK_FALSE(singular3.inverse().has_value());
 }
 
 TEST_CASE("inverse of a matrix containing NaN is nullopt",
@@ -111,7 +109,7 @@ TEST_CASE("inverse of a matrix containing NaN is nullopt",
     // 「结果不作保证」的说法已过时：自 d3ba158 起语义就是明确的 —— 绝不交出
     // has_value() 为真、内容却是 NaN 的矩阵。旧断言丢弃结果后直接 SUCCEED，
     // 因此它永远不会失败，也就什么也没测到。
-    CHECK_FALSE(inverse(bad).has_value());
+    CHECK_FALSE(bad.inverse().has_value());
 }
 
 TEST_CASE("inverse rescales badly scaled matrices before testing the determinant",
@@ -121,20 +119,20 @@ TEST_CASE("inverse rescales badly scaled matrices before testing the determinant
     // 1e450 会在任何比较之前就溢出成 inf。先逐行平衡再比较，两者都能得到
     // 正确答案。
     const Matrix3 tiny{{{1e-4, 0.0, 0.0}, {0.0, 1e-4, 0.0}, {0.0, 0.0, 1e-4}}};
-    const auto tiny_inverse = inverse(tiny);
+    const auto tiny_inverse = tiny.inverse();
 
     REQUIRE(tiny_inverse.has_value());
     CHECK((*tiny_inverse)(0, 0) == Approx(1e4));
     CHECK((*tiny_inverse)(2, 2) == Approx(1e4));
 
     const Matrix3 huge{{{1e150, 0.0, 0.0}, {0.0, 1e150, 0.0}, {0.0, 0.0, 1e150}}};
-    const auto huge_inverse = inverse(huge);
+    const auto huge_inverse = huge.inverse();
 
     REQUIRE(huge_inverse.has_value());
     CHECK((*huge_inverse)(0, 0) == Approx(1e-150));
 
     // 同上，逐元素回环：tiny 与 huge 互为量级上的倒数
-    const Matrix3 unit = identity<double, 3>();
+    const Matrix3 unit = Matrix3::identity();
     const Matrix3 product = tiny * *tiny_inverse;
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -216,7 +214,7 @@ TEST_CASE("inverse of a large translation exists",
         {0.0, 0.0, 1.0, 0.0},
         {0.0, 0.0, 0.0, 1.0},
     }};
-    const auto sheared_inverse = inverse(sheared);
+    const auto sheared_inverse = sheared.inverse();
 
     REQUIRE(sheared_inverse.has_value());
     CHECK((*sheared_inverse)(0, 0) == Approx(1.0).margin(1e-12));
@@ -233,11 +231,11 @@ TEST_CASE("inverse of a matrix whose rows differ in magnitude",
     // column_scale[i] 与 row_scale[j]，一旦写成 row_scale[i] / column_scale[j]，
     // 这里的非对角元立刻出错，而对称矩阵上看不出差别。
     const Matrix3 m{{{1e8, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}}};
-    const auto inv = inverse(m);
+    const auto inv = m.inverse();
 
     REQUIRE(inv.has_value());
     const Matrix3 product = m * *inv;
-    const Matrix3 unit = identity<double, 3>();
+    const Matrix3 unit = Matrix3::identity();
 
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -254,7 +252,7 @@ TEST_CASE("inverse refuses a matrix whose restored inverse would overflow",
     const Tolerance exact{0.0, 0.0};
     const Matrix2 subnormal{{{1e-310, 0.0}, {0.0, 1.0}}};
 
-    CHECK_FALSE(inverse(subnormal, exact).has_value());
+    CHECK_FALSE(subnormal.inverse(exact).has_value());
 }
 
 TEST_CASE("inverse of a singular 4x4 matrix is nullopt",
@@ -267,7 +265,7 @@ TEST_CASE("inverse of a singular 4x4 matrix is nullopt",
         {1.0, 2.0, 3.0, 4.0},
     }};
 
-    CHECK_FALSE(inverse(dependent).has_value());
+    CHECK_FALSE(dependent.inverse().has_value());
 }
 
 TEST_CASE("the tolerance argument decides near-singularity",
@@ -278,17 +276,17 @@ TEST_CASE("the tolerance argument decides near-singularity",
     const Tolerance exact{0.0, 0.0};
     const Tolerance loose{1e-3, 0.0};
 
-    CHECK(inverse(nearly_singular, exact).has_value());
-    CHECK(inverse(nearly_singular).has_value());            // 默认容差：放行
-    CHECK_FALSE(inverse(nearly_singular, loose).has_value()); // 放宽后：判为奇异
+    CHECK(nearly_singular.inverse(exact).has_value());
+    CHECK(nearly_singular.inverse().has_value());            // 默认容差：放行
+    CHECK_FALSE(nearly_singular.inverse(loose).has_value()); // 放宽后：判为奇异
 }
 
 TEST_CASE("an exact tolerance rejects only a genuinely singular matrix",
           "[linear][matrix][inverse][degenerate]") {
     const Tolerance exact{0.0, 0.0};
 
-    CHECK_FALSE(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}, exact).has_value());
-    CHECK(inverse(Matrix2{{{1.0, 2.0}, {2.0, 4.0000000001}}}, exact).has_value());
+    CHECK_FALSE(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}.inverse(exact).has_value());
+    CHECK(Matrix2{{{1.0, 2.0}, {2.0, 4.0000000001}}}.inverse(exact).has_value());
 }
 
 TEST_CASE("4x4 determinant pins the cofactor expansion",
@@ -299,7 +297,7 @@ TEST_CASE("4x4 determinant pins the cofactor expansion",
                      {1.0, 4.0, 2.0, 6.0},
                      {3.0, 1.0, 5.0, 2.0},
                      {4.0, 2.0, 3.0, 1.0}}};
-    CHECK(determinant(m) == Approx(-85.0));
+    CHECK(m.determinant() == Approx(-85.0));
 }
 
 TEST_CASE("4x4 inverse round-trips", "[linear][matrix][inverse]") {
@@ -309,11 +307,11 @@ TEST_CASE("4x4 inverse round-trips", "[linear][matrix][inverse]") {
                      {1.0, 4.0, 2.0, 6.0},
                      {3.0, 1.0, 5.0, 2.0},
                      {4.0, 2.0, 3.0, 1.0}}};
-    const auto inv = inverse(m);
+    const auto inv = m.inverse();
 
     REQUIRE(inv.has_value());
     const Matrix4 product = m * *inv;
-    const Matrix4 unit = identity<double, 4>();
+    const Matrix4 unit = Matrix4::identity();
 
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -327,11 +325,11 @@ TEST_CASE("inverse of a non-finite matrix is nullopt",
     const double infinity = std::numeric_limits<double>::infinity();
     const double not_a_number = std::numeric_limits<double>::quiet_NaN();
 
-    // 与 normalize() 同一条原则：绝不交出一个 has_value() 为真、内容却是
+    // 与 Vector3T::normalized 同一条原则：绝不交出一个 has_value() 为真、内容却是
     // NaN 的结果 —— 调用者无从察觉，而 NaN 会污染后续全部计算。
-    CHECK_FALSE(inverse(Matrix2{{{not_a_number, 1.0}, {2.0, 3.0}}}).has_value());
-    CHECK_FALSE(inverse(Matrix2{{{infinity, 1.0}, {2.0, 3.0}}}).has_value());
-    CHECK_FALSE(inverse(Matrix3{{{1.0, infinity, 3.0},
-                                 {4.0, 5.0, 6.0},
-                                 {7.0, 8.0, not_a_number}}}).has_value());
+    CHECK_FALSE(Matrix2{{{not_a_number, 1.0}, {2.0, 3.0}}}.inverse().has_value());
+    CHECK_FALSE(Matrix2{{{infinity, 1.0}, {2.0, 3.0}}}.inverse().has_value());
+    CHECK_FALSE(Matrix3{{{1.0, infinity, 3.0},
+                         {4.0, 5.0, 6.0},
+                         {7.0, 8.0, not_a_number}}}.inverse().has_value());
 }

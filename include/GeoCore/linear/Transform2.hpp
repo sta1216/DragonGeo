@@ -16,7 +16,7 @@ template <typename Scalar>
 struct Transform2T {
     using scalar_type = Scalar;
 
-    MatrixT<Scalar, 3> matrix = identity<Scalar, 3>();
+    MatrixT<Scalar, 3> matrix = MatrixT<Scalar, 3>::identity();
 
     [[nodiscard]] constexpr bool operator==(const Transform2T&) const noexcept = default;
 };
@@ -91,7 +91,7 @@ template <typename Scalar>
 template <typename Scalar>
 [[nodiscard]] std::optional<Transform2T<Scalar>> inverse(
     const Transform2T<Scalar>& t, core::Tolerance tolerance = {}) noexcept {
-    const auto inverse_matrix = inverse(t.matrix, tolerance);
+    const auto inverse_matrix = t.matrix.inverse(tolerance);
     if (!inverse_matrix.has_value()) {
         return std::nullopt;
     }

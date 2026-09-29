@@ -11,13 +11,9 @@ using Catch::Approx;
 
 using GeoCore::core::half_pi;
 using GeoCore::core::Tolerance;
-using GeoCore::linear::conjugate;
 using GeoCore::linear::dot;
-using GeoCore::linear::from_axis_angle;
-using GeoCore::linear::normalize;
+using GeoCore::linear::Matrix3;
 using GeoCore::linear::Quaternion;
-using GeoCore::linear::rotate;
-using GeoCore::linear::to_matrix;
 using GeoCore::linear::UnitVector3;
 using GeoCore::linear::Vector3;
 
@@ -35,40 +31,40 @@ TEST_CASE("default-constructed quaternion is the identity rotation",
     CHECK(q.z == 0.0);
 
     // 单位旋转不改变任何向量
-    CHECK(rotate(q, Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
+    CHECK(q.rotate(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
 }
 
 TEST_CASE("axis-angle construction produces a unit quaternion",
           "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, half_pi);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, half_pi);
 
     CHECK(q.w == Approx(std::cos(half_pi / 2.0)));
     CHECK(q.z == Approx(std::sin(half_pi / 2.0)));
-    CHECK(norm(q) == Approx(1.0));
+    CHECK(q.norm() == Approx(1.0));
 }
 
 TEST_CASE("rotation about z by 90 degrees maps x to y",
           "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, half_pi);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, half_pi);
 
-    const Vector3 rotated = rotate(q, Vector3{1.0, 0.0, 0.0});
+    const Vector3 rotated = q.rotate(Vector3{1.0, 0.0, 0.0});
     CHECK(rotated.x == Approx(0.0).margin(1e-15));
     CHECK(rotated.y == Approx(1.0));
     CHECK(rotated.z == Approx(0.0).margin(1e-15));
 }
 
 TEST_CASE("rotation preserves length", "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, 0.7);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, 0.7);
     const Vector3 v{3.0, 4.0, 0.0};
 
-    CHECK(rotate(q, v).length() == Approx(v.length()));
+    CHECK(q.rotate(v).length() == Approx(v.length()));
 }
 
 TEST_CASE("conjugate undoes the rotation", "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, 0.7);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, 0.7);
     const Vector3 v{1.0, 2.0, 3.0};
 
-    const Vector3 there_and_back = rotate(conjugate(q), rotate(q, v));
+    const Vector3 there_and_back = q.conjugate().rotate(q.rotate(v));
     CHECK(there_and_back.x == Approx(v.x));
     CHECK(there_and_back.y == Approx(v.y));
     CHECK(there_and_back.z == Approx(v.z));
@@ -76,16 +72,16 @@ TEST_CASE("conjugate undoes the rotation", "[linear][quaternion]") {
 
 TEST_CASE("quaternion multiplication composes rotations",
           "[linear][quaternion]") {
-    const Quaternion half = from_axis_angle(z_axis, half_pi / 2.0);
+    const Quaternion half = Quaternion::from_axis_angle(z_axis, half_pi / 2.0);
     const Quaternion full = half * half;
 
-    const Vector3 rotated = rotate(full, Vector3{1.0, 0.0, 0.0});
+    const Vector3 rotated = full.rotate(Vector3{1.0, 0.0, 0.0});
     CHECK(rotated.x == Approx(0.0).margin(1e-15));
     CHECK(rotated.y == Approx(1.0));
 }
 
 TEST_CASE("dot of a unit quaternion with itself is 1", "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, 0.7);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, 0.7);
     CHECK(dot(q, q) == Approx(1.0));
 }
 
@@ -93,17 +89,17 @@ TEST_CASE("normalize rejects the zero quaternion",
           "[linear][quaternion][degenerate]") {
     const Quaternion zero{0.0, 0.0, 0.0, 0.0};
 
-    CHECK_FALSE(normalize(zero).has_value());
-    CHECK(normalize(Quaternion{}).has_value());
+    CHECK_FALSE(zero.normalized().has_value());
+    CHECK(Quaternion{}.normalized().has_value());
 }
 
 TEST_CASE("to_matrix agrees with rotate", "[linear][quaternion]") {
-    const Quaternion q = from_axis_angle(z_axis, half_pi);
-    const GeoCore::linear::Matrix3 m = to_matrix(q);
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, half_pi);
+    const GeoCore::linear::Matrix3 m = q.to_matrix();
 
     const Vector3 v{1.0, 2.0, 3.0};
     const Vector3 by_matrix = m * v;
-    const Vector3 by_quaternion = rotate(q, v);
+    const Vector3 by_quaternion = q.rotate(v);
 
     CHECK(by_matrix.x == Approx(by_quaternion.x));
     CHECK(by_matrix.y == Approx(by_quaternion.y));
@@ -116,15 +112,15 @@ TEST_CASE("norm and normalize handle non-finite input consistently",
     const double not_a_number = std::numeric_limits<double>::quiet_NaN();
 
     // norm 与 Vector3T::length 语义一致：无穷输入的模长就是无穷，不是 NaN
-    CHECK(norm(Quaternion{infinity, 0.0, 0.0, 0.0}) == infinity);
-    CHECK(norm(Quaternion{0.0, 0.0, infinity, 0.0}) == infinity);
+    CHECK(Quaternion{infinity, 0.0, 0.0, 0.0}.norm() == infinity);
+    CHECK(Quaternion{0.0, 0.0, infinity, 0.0}.norm() == infinity);
 
-    // normalize 与 UnitVector::normalize / Matrix::inverse 同一条原则：
+    // normalize 与 UnitVector3T::normalized / MatrixT::inverse 同一条原则：
     // 绝不交出一个 has_value() 为真、内容却是 NaN 的结果。
-    CHECK_FALSE(normalize(Quaternion{infinity, 0.0, 0.0, 0.0}).has_value());
-    CHECK_FALSE(normalize(Quaternion{0.0, infinity, 0.0, 0.0}).has_value());
-    CHECK_FALSE(normalize(Quaternion{not_a_number, 0.0, 0.0, 0.0}).has_value());
-    CHECK_FALSE(normalize(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}).has_value());
+    CHECK_FALSE(Quaternion{infinity, 0.0, 0.0, 0.0}.normalized().has_value());
+    CHECK_FALSE(Quaternion{0.0, infinity, 0.0, 0.0}.normalized().has_value());
+    CHECK_FALSE(Quaternion{not_a_number, 0.0, 0.0, 0.0}.normalized().has_value());
+    CHECK_FALSE(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}.normalized().has_value());
 }
 
 TEST_CASE("norm gives a slot-independent answer on non-finite input",
@@ -134,17 +130,17 @@ TEST_CASE("norm gives a slot-independent answer on non-finite input",
 
     // norm 与 VectorNT::length 共用 core::max_abs_of，规则相同：
     // 任一无穷分量 ⇒ +inf；否则含 NaN ⇒ NaN。槽位不影响答案。
-    CHECK(std::isnan(norm(Quaternion{5.0, nan, 0.0, 0.0})));
-    CHECK(std::isnan(norm(Quaternion{nan, 5.0, 0.0, 0.0})));
-    CHECK(std::isnan(norm(Quaternion{0.0, 0.0, nan, 5.0})));
-    CHECK(std::isnan(norm(Quaternion{5.0, 0.0, 0.0, nan})));
+    CHECK(std::isnan(Quaternion{5.0, nan, 0.0, 0.0}.norm()));
+    CHECK(std::isnan(Quaternion{nan, 5.0, 0.0, 0.0}.norm()));
+    CHECK(std::isnan(Quaternion{0.0, 0.0, nan, 5.0}.norm()));
+    CHECK(std::isnan(Quaternion{5.0, 0.0, 0.0, nan}.norm()));
 
-    CHECK(norm(Quaternion{infinity, nan, 0.0, 0.0}) == infinity);
-    CHECK(norm(Quaternion{nan, infinity, 0.0, 0.0}) == infinity);
-    CHECK(norm(Quaternion{1.0, 1.0, nan, infinity}) == infinity);
+    CHECK(Quaternion{infinity, nan, 0.0, 0.0}.norm() == infinity);
+    CHECK(Quaternion{nan, infinity, 0.0, 0.0}.norm() == infinity);
+    CHECK(Quaternion{1.0, 1.0, nan, infinity}.norm() == infinity);
 
     // 无 NaN 的输入不受影响
-    CHECK(norm(Quaternion{5.0, 0.0, 0.0, 0.0}) == 5.0);
+    CHECK(Quaternion{5.0, 0.0, 0.0, 0.0}.norm() == 5.0);
 }
 
 TEST_CASE("normalize rejects input whose reciprocal magnitude overflows",
@@ -155,7 +151,7 @@ TEST_CASE("normalize rejects input whose reciprocal magnitude overflows",
     // 模长有限并不保证倒数有限：最小的正次正规数作模长时 1/|q| 直接溢出成
     // inf，分量乘上去即得 inf。用精确容差排除「模长视为零」这条分支，单独
     // 考察溢出这一条 —— 曾经这里会返回 has_value() 为真、w == inf 的四元数。
-    const auto result = normalize(Quaternion{smallest, 0.0, 0.0, 0.0}, exact);
+    const auto result = Quaternion{smallest, 0.0, 0.0, 0.0}.normalized(exact);
 
     CHECK_FALSE(result.has_value());
 }
@@ -164,9 +160,9 @@ TEST_CASE("rotation about x by 90 degrees maps y to z", "[linear][quaternion]") 
     // 上面所有用例都绕 z 轴，因此四元数的 x、y 分量恒为零 —— 那些分量上的
     // 符号或系数错误会在 0 = 0 里消失。换一个轴把它们逼出来。
     const UnitVector3 x_axis = UnitVector3::from_normalized_unchecked(Vector3{1.0, 0.0, 0.0});
-    const Quaternion q = from_axis_angle(x_axis, half_pi);
+    const Quaternion q = Quaternion::from_axis_angle(x_axis, half_pi);
 
-    const Vector3 rotated = rotate(q, Vector3{0.0, 1.0, 0.0});
+    const Vector3 rotated = q.rotate(Vector3{0.0, 1.0, 0.0});
     CHECK(rotated.x == Approx(0.0).margin(1e-15));
     CHECK(rotated.y == Approx(0.0).margin(1e-15));
     CHECK(rotated.z == Approx(1.0));
@@ -177,8 +173,8 @@ TEST_CASE("to_matrix and rotate agree on a general axis", "[linear][quaternion]"
     // 局限于这两块的符号错误都不可见。用一个一般轴让它们全部非零。
     const UnitVector3 axis = UnitVector3::from_normalized_unchecked(
         Vector3{1.0, 2.0, 3.0} / std::sqrt(14.0));
-    const Quaternion q = from_axis_angle(axis, 0.7);
-    const GeoCore::linear::Matrix3 m = to_matrix(q);
+    const Quaternion q = Quaternion::from_axis_angle(axis, 0.7);
+    const GeoCore::linear::Matrix3 m = q.to_matrix();
 
     // 先证明这次确实覆盖了那四个条目
     CHECK(m(0, 2) != 0.0);
@@ -189,7 +185,7 @@ TEST_CASE("to_matrix and rotate agree on a general axis", "[linear][quaternion]"
     // 两条独立推导路径必须给出同一答案
     const Vector3 v{0.3, -0.7, 1.1};
     const Vector3 by_matrix = m * v;
-    const Vector3 by_quaternion = rotate(q, v);
+    const Vector3 by_quaternion = q.rotate(v);
 
     CHECK(by_matrix.x == Approx(by_quaternion.x));
     CHECK(by_matrix.y == Approx(by_quaternion.y));
@@ -206,10 +202,10 @@ TEST_CASE("scalar multiplication and negation are available", "[linear][quaterni
     CHECK(-q == Quaternion{-1.0, -2.0, -3.0, -4.0});
 
     // q 与 -q 是同一个旋转：对同一个向量作用的结果必须一致
-    const Quaternion unit = from_axis_angle(z_axis, half_pi);
+    const Quaternion unit = Quaternion::from_axis_angle(z_axis, half_pi);
     const Vector3 v{1.0, 2.0, 3.0};
-    const Vector3 by_q = rotate(unit, v);
-    const Vector3 by_negated = rotate(-unit, v);
+    const Vector3 by_q = unit.rotate(v);
+    const Vector3 by_negated = (-unit).rotate(v);
 
     CHECK(by_negated.x == Approx(by_q.x));
     CHECK(by_negated.y == Approx(by_q.y));
@@ -219,13 +215,13 @@ TEST_CASE("scalar multiplication and negation are available", "[linear][quaterni
 TEST_CASE("normalize scales a non-unit quaternion", "[linear][quaternion]") {
     // 原用例只用 has_value() 检查 normalize，因此一个「对非零模长原样返回」
     // 的实现也能全部通过。这里数值验证缩放路径本身。
-    const auto axis_aligned = normalize(Quaternion{2.0, 0.0, 0.0, 0.0});
+    const auto axis_aligned = Quaternion{2.0, 0.0, 0.0, 0.0}.normalized();
     REQUIRE(axis_aligned.has_value());
     CHECK(axis_aligned->w == Approx(1.0));
 
-    const auto general = normalize(Quaternion{1.0, 2.0, 3.0, 4.0});
+    const auto general = Quaternion{1.0, 2.0, 3.0, 4.0}.normalized();
     REQUIRE(general.has_value());
-    CHECK(norm(*general) == Approx(1.0));
+    CHECK(general->norm() == Approx(1.0));
     CHECK(general->w == Approx(1.0 / std::sqrt(30.0)));
     CHECK(general->x == Approx(2.0 / std::sqrt(30.0)));
     CHECK(general->y == Approx(3.0 / std::sqrt(30.0)));
@@ -243,8 +239,8 @@ TEST_CASE("quaternion product composes rotations in the documented order",
     const UnitVector3 x_axis = UnitVector3::from_normalized_unchecked(Vector3{1.0, 0.0, 0.0});
     const UnitVector3 y_axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 1.0, 0.0});
 
-    const Quaternion a = from_axis_angle(x_axis, half_pi);   // 绕 x 轴 90°
-    const Quaternion b = from_axis_angle(y_axis, half_pi);   // 绕 y 轴 90°
+    const Quaternion a = Quaternion::from_axis_angle(x_axis, half_pi);   // 绕 x 轴 90°
+    const Quaternion b = Quaternion::from_axis_angle(y_axis, half_pi);   // 绕 y 轴 90°
 
     // 手算：a = (√2/2, √2/2, 0, 0)，b = (√2/2, 0, √2/2, 0)
     const Quaternion ab = a * b;
@@ -262,8 +258,8 @@ TEST_CASE("quaternion product composes rotations in the documented order",
 
     // 且必须与逐次旋转一致：a * b 表示先施加 b 再施加 a
     const Vector3 v{1.0, 2.0, 3.0};
-    const Vector3 composed = rotate(ab, v);
-    const Vector3 sequential = rotate(a, rotate(b, v));
+    const Vector3 composed = ab.rotate(v);
+    const Vector3 sequential = a.rotate(b.rotate(v));
     CHECK(composed.x == Approx(sequential.x));
     CHECK(composed.y == Approx(sequential.y));
     CHECK(composed.z == Approx(sequential.z));
@@ -279,8 +275,8 @@ TEST_CASE("quaternion product with general operands pins all sixteen terms",
     const UnitVector3 axis_b = UnitVector3::from_normalized_unchecked(
         Vector3{-2.0, 1.0, 0.5} / std::sqrt(4.0 + 1.0 + 0.25));
 
-    const Quaternion a = from_axis_angle(axis_a, 0.7);
-    const Quaternion b = from_axis_angle(axis_b, 1.1);
+    const Quaternion a = Quaternion::from_axis_angle(axis_a, 0.7);
+    const Quaternion b = Quaternion::from_axis_angle(axis_b, 1.1);
 
     // 先证明这次确实没有零分量可供退化
     CHECK(a.x != 0.0);
@@ -303,4 +299,43 @@ TEST_CASE("quaternion product with general operands pins all sixteen terms",
     CHECK(ba.x == Approx(-0.30863891228533297));
     CHECK(ba.y == Approx(0.5064319494751331));
     CHECK(ba.z == Approx(0.23700096977598095));
+}
+
+TEST_CASE("Quaternion members: norm, conjugate, rotate, to_matrix, factories",
+          "[linear][quaternion]") {
+    const Quaternion q = Quaternion::from_axis_angle(z_axis, half_pi);
+
+    CHECK(q.norm() == Approx(1.0));
+
+    // 共轭把转过的角度原路转回。q 是绕 z 轴 +90°，所以 (0,1,0) 应落到 (1,0,0)。
+    // 注意不要照抄文件末尾 x 轴用例里的 `.x == 0` —— 那条是绕 x 轴转，x 才恰好为 0；
+    // 绕 z 轴转的 x 分量是 ±1。
+    const Vector3 undone = q.conjugate().rotate(Vector3{0.0, 1.0, 0.0});
+    CHECK(undone.x == Approx(1.0));
+    CHECK(undone.y == Approx(0.0).margin(1e-15));
+
+    CHECK(Quaternion::identity().rotate(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
+
+    // 四个分量都非零且互不相同 —— 只用 w 非零的输入，一个「只缩放 w」的
+    // 实现也能通过。模长 sqrt(1+4+9+16) = sqrt(30)。
+    const auto unit = Quaternion{1.0, 2.0, 3.0, 4.0}.normalized();
+    REQUIRE(unit.has_value());
+    CHECK(unit->w == Approx(1.0 / std::sqrt(30.0)));
+    CHECK(unit->x == Approx(2.0 / std::sqrt(30.0)));
+    CHECK(unit->y == Approx(3.0 / std::sqrt(30.0)));
+    CHECK(unit->z == Approx(4.0 / std::sqrt(30.0)));
+
+    // 手算值：绕 z 轴转 90° 把 (1,2,3) 送到 (-2,1,3)。这与「和 rotate 比」是
+    // 两回事 —— 后者只能证明两者自洽，共同的符号约定错误照样通过。
+    const Matrix3 m = q.to_matrix();
+    const Vector3 v{1.0, 2.0, 3.0};
+    const Vector3 by_matrix = m * v;
+    CHECK(by_matrix.x == Approx(-2.0));
+    CHECK(by_matrix.y == Approx(1.0));
+    CHECK(by_matrix.z == Approx(3.0));
+
+    const Vector3 by_quaternion = q.rotate(v);
+    CHECK(by_matrix.x == Approx(by_quaternion.x));
+    CHECK(by_matrix.y == Approx(by_quaternion.y));
+    CHECK(by_matrix.z == Approx(by_quaternion.z));
 }

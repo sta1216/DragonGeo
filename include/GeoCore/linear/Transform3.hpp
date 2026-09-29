@@ -26,7 +26,7 @@ template <typename Scalar>
 struct Transform3T {
     using scalar_type = Scalar;
 
-    MatrixT<Scalar, 4> matrix = identity<Scalar, 4>();
+    MatrixT<Scalar, 4> matrix = MatrixT<Scalar, 4>::identity();
 
     [[nodiscard]] constexpr bool operator==(const Transform3T&) const noexcept = default;
 };
@@ -74,8 +74,8 @@ template <std::floating_point Scalar>
 template <typename Scalar>
 [[nodiscard]] Transform3T<Scalar> rotation_3d(
     UnitVector3T<Scalar> axis, Scalar angle_radians) noexcept {
-    const QuaternionT<Scalar> q = from_axis_angle(axis, angle_radians);
-    const MatrixT<Scalar, 3> rotation = to_matrix(q);
+    const QuaternionT<Scalar> q = QuaternionT<Scalar>::from_axis_angle(axis, angle_radians);
+    const MatrixT<Scalar, 3> rotation = q.to_matrix();
 
     Transform3T<Scalar> result{};
     for (int i = 0; i < 3; ++i) {
@@ -123,7 +123,7 @@ template <typename Scalar>
 template <typename Scalar>
 [[nodiscard]] std::optional<Transform3T<Scalar>> inverse(
     const Transform3T<Scalar>& t, core::Tolerance tolerance = {}) noexcept {
-    const auto inverse_matrix = inverse(t.matrix, tolerance);
+    const auto inverse_matrix = t.matrix.inverse(tolerance);
     if (!inverse_matrix.has_value()) {
         return std::nullopt;
     }

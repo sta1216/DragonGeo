@@ -1,12 +1,13 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <GeoCore/linear/Matrix.hpp>
 
-using GeoCore::linear::identity;
+using Catch::Approx;
+
 using GeoCore::linear::Matrix2;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Matrix4;
-using GeoCore::linear::transpose;
 using GeoCore::linear::Vector2;
 using GeoCore::linear::Vector3;
 
@@ -24,7 +25,7 @@ TEST_CASE("MatrixT is zero-initialized and supports aggregate init",
 }
 
 TEST_CASE("identity is the multiplicative unit", "[linear][matrix]") {
-    const Matrix3 unit = identity<double, 3>();
+    const Matrix3 unit = Matrix3::identity();
 
     const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}}};
     CHECK(unit * m == m);
@@ -66,14 +67,14 @@ TEST_CASE("matrix multiplication is not commutative", "[linear][matrix]") {
 
 TEST_CASE("transpose swaps rows and columns", "[linear][matrix]") {
     const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
-    CHECK(transpose(m) == Matrix2{{{1.0, 3.0}, {2.0, 4.0}}});
+    CHECK(m.transposed() == Matrix2{{{1.0, 3.0}, {2.0, 4.0}}});
 
     // 转置两次回到自身
-    CHECK(transpose(transpose(m)) == m);
+    CHECK(m.transposed().transposed() == m);
 
     // 转置与乘法反交换
     const Matrix2 n{{{5.0, 6.0}, {7.0, 8.0}}};
-    CHECK(transpose(m * n) == transpose(n) * transpose(m));
+    CHECK((m * n).transposed() == n.transposed() * m.transposed());
 }
 
 TEST_CASE("matrix addition and subtraction are component-wise",
@@ -96,7 +97,7 @@ TEST_CASE("matrix times vector applies the row-column rule",
 }
 
 TEST_CASE("4x4 matrix times 4D vector", "[linear][matrix]") {
-    const Matrix4 unit = identity<double, 4>();
+    const Matrix4 unit = Matrix4::identity();
     const GeoCore::linear::Vector4 v{1.0, 2.0, 3.0, 4.0};
 
     CHECK(unit * v == v);
@@ -129,7 +130,7 @@ TEST_CASE("3x3 matrix times vector pins every term", "[linear][matrix]") {
 }
 
 TEST_CASE("4x4 matrix times vector pins every term", "[linear][matrix]") {
-    // 上一条用 identity<4>()：单位阵对称，一个完全转置的 4×4 实现也能通过，
+    // 上一条用 Matrix4::identity()：单位阵对称，一个完全转置的 4×4 实现也能通过，
     // 且非对角项全为零使系数错位无从暴露。这里同样逐项钉死。
     const Matrix4 m{{{1.0, 2.0, 3.0, 4.0},
                      {5.0, 6.0, 7.0, 8.0},
@@ -142,4 +143,17 @@ TEST_CASE("4x4 matrix times vector pins every term", "[linear][matrix]") {
     // C[2] = 9 + 20 + 33 + 48 = 110
     // C[3] = 13 + 28 + 45 + 68 = 154
     CHECK(m * v == GeoCore::linear::Vector4{30.0, 70.0, 110.0, 154.0});
+}
+
+TEST_CASE("Matrix members: determinant, transposed, inverse, identity",
+          "[linear][matrix]") {
+    const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
+
+    CHECK(m.determinant() == -2.0);
+    CHECK(m.transposed() == Matrix2{{{1.0, 3.0}, {2.0, 4.0}}});
+    CHECK(Matrix2::identity() == Matrix2{{{1.0, 0.0}, {0.0, 1.0}}});
+
+    const auto inv = m.inverse();
+    REQUIRE(inv.has_value());
+    CHECK(inv->determinant() == Approx(-0.5));
 }
