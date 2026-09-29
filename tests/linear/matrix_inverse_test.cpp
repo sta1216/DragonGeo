@@ -18,6 +18,7 @@ using GeoCore::linear::Matrix2;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Matrix4;
 using GeoCore::linear::scaling_3d;
+using GeoCore::linear::translation_3d;
 using GeoCore::linear::Vector3;
 
 TEST_CASE("determinant of a 2x2 matrix", "[linear][matrix][determinant]") {
@@ -174,6 +175,75 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
     CHECK(round_trip.x == Approx(original.x).margin(1e-12));
     CHECK(round_trip.y == Approx(original.y).margin(1e-12));
     CHECK(round_trip.z == Approx(original.z).margin(1e-12));
+}
+
+TEST_CASE("inverse of a large translation exists",
+          "[linear][matrix][inverse]") {
+    // 逐行平衡对 translation_3d(t) 恰好是最糟的一类：第 0 行 (1,0,0,t) 被压成
+    // (1/t,0,0,1)，行列式恰为 1/t —— t ≥ 1e12 即在默认容差的绝对项（1e-12）
+    // 上被判成奇异。可它的真逆是精确平移 -t：既存在，又在 double 里精确可表示。
+    // 逐列平衡把第 0 列重新放大回 1，行列式回到 1 而与 t 无关；边界由此不再是
+    // 容差判据，而是 double 本身 —— t = 1e308 仍能精确往返，只有最靠近 DBL_MAX
+    // 的那两个 double（1/t 落到次正规数，其倒数再舍入回 DBL_MAX 之上）才返回
+    // nullopt，那是还原步骤的舍入所致，不是容差判据。
+    const double magnitudes[] = {1e12, 1e15, 1e20, 1e308};
+    for (const double t : magnitudes) {
+        const auto inverse_of_translation = inverse(translation_3d(Vector3{t, 0.0, 0.0}));
+
+        REQUIRE(inverse_of_translation.has_value());
+        // 平移量取负 —— 这才是本用例的重点，光看 has_value() 钉不住它
+        CHECK((*inverse_of_translation).matrix(0, 3) == Approx(-t).epsilon(1e-12));
+
+        // 平移之外仍是单位阵
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                if (i == 0 && j == 3) {
+                    continue;
+                }
+                const double expected = (i == j) ? 1.0 : 0.0;
+                CHECK((*inverse_of_translation).matrix(i, j)
+                      == Approx(expected).margin(1e-12).epsilon(1e-12));
+            }
+        }
+    }
+
+    // 剪切 + 大平移：第 0 行同时含 O(1) 的剪切项与 1e12 的平移项，行 0 的最大
+    // 元素是平移项，平衡后第 0 列的最大元素却是 1e-12 —— 行尺度与列尺度都参与。
+    // A^-1 = S^-1·T^-1 在这里精确可表示，所以逐项对照而不是只看回环。
+    const Matrix4 sheared{{
+        {1.0, 2.0, 0.0, 1e12},
+        {0.0, 1.0, 0.0, 0.0},
+        {0.0, 0.0, 1.0, 0.0},
+        {0.0, 0.0, 0.0, 1.0},
+    }};
+    const auto sheared_inverse = inverse(sheared);
+
+    REQUIRE(sheared_inverse.has_value());
+    CHECK((*sheared_inverse)(0, 0) == Approx(1.0).margin(1e-12));
+    CHECK((*sheared_inverse)(0, 1) == Approx(-2.0).epsilon(1e-12));
+    CHECK((*sheared_inverse)(0, 3) == Approx(-1e12).epsilon(1e-12));
+    CHECK((*sheared_inverse)(3, 0) == Approx(0.0).margin(1e-12));
+    CHECK((*sheared_inverse)(3, 3) == Approx(1.0).margin(1e-12));
+}
+
+TEST_CASE("inverse of a matrix whose rows differ in magnitude",
+          "[linear][matrix][inverse]") {
+    // 非对称，且行与行相差 7 个数量级 —— 双侧平衡存在的理由正是这一类（而不是
+    // 对称的对角 / 齐次特例）。它同时钉住还原步骤的下标：元素 (i, j) 除以
+    // column_scale[i] 与 row_scale[j]，一旦写成 row_scale[i] / column_scale[j]，
+    // 这里的非对角元立刻出错，而对称矩阵上看不出差别。
+    const Matrix3 m{{{1e8, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}}};
+    const auto inv = inverse(m);
+
+    REQUIRE(inv.has_value());
+    const Matrix3 product = m * *inv;
+    const Matrix3 unit = identity<double, 3>();
+
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            CHECK(product(i, j) == Approx(unit(i, j)).margin(1e-12));
+        }
+    }
 }
 
 TEST_CASE("inverse refuses a matrix whose restored inverse would overflow",

@@ -192,7 +192,7 @@ template <typename Scalar, int N>
 // ---- 求逆 ----
 
 /// 逆矩阵。行列式在给定容差下可视为零（即奇异）时返回 std::nullopt ——
-/// 参与比较的是逐行平衡后的行列式，理由见函数体首段注释。
+/// 参与比较的是双侧平衡后的行列式，理由见函数体首段注释。
 ///
 /// 用 optional 而非抛出异常：奇异矩阵是数学事实，不是程序错误，调用者
 /// 有责任处理这个分支。返回 std::nullopt 也让调用者不可能拿到一个含
@@ -208,11 +208,30 @@ template <typename Scalar, int N>
     // 行列式是 N 阶量，直接与长度容差比较是量纲错误：s = 1e-4 时 det = 1e-12
     // 会被默认容差的绝对项判为奇异，而 s = 1e150 时 det 会先溢出成 ±inf。
     //
-    // 逐行平衡：每行除以该行自己的最大绝对元素。「按整个矩阵的最大元素归一化」
-    // 在这里不成立 —— scaling_3d 返回的是齐次矩阵，其第 4 行恒为 (0,0,0,1)，
-    // 最大元素永远是 1，于是小尺度缩放的 det 依旧是 1e-12。逐行平衡不假设
-    // 各行元素同量级，正合此处；平衡后的行列式落在由 N 决定的小常数之内，
-    // 既不会溢出，也不会因量纲而与一阶容差不可比。
+    // 双侧平衡：先逐行、再逐列，各除以本行 / 本列的最大绝对元素。
+    //
+    // 记 R = diag(row_scale)、C = diag(column_scale)，则
+    //     B = R⁻¹·A        （第 i 行除以 row_scale[i]）
+    //     N = B·C⁻¹        （B 的第 j 列除以 column_scale[j]）
+    // 于是
+    //     A = R·N·C        且        A⁻¹ = C⁻¹·N⁻¹·R⁻¹
+    // 即还原时元素 (i, j) 要除以 column_scale[i] 与 row_scale[j] —— **行号取
+    // 列尺度、列号取行尺度**。两个对角因子一左一右，下标极易写反，而对称矩阵
+    // 上的测试看不出这个错误。
+    //
+    // 为什么必须两侧都做：只做逐行平衡时，translation_3d(t) 的第 0 行 (1,0,0,t)
+    // 变成 (1/t,0,0,1)，行列式恰为 1/t，t ≥ 1e12 就被默认容差的绝对项（1e-12）
+    // 判成奇异 —— 可它的真逆是精确平移 -t，既存在又精确可表示。逐列平衡把第 0
+    // 列重新放大回 1，行列式回到 1，与 t 无关。这正是本函数该有的语义：可逆性
+    // 由条件数（即平衡后行列式与 0 的距离）决定，而不是由矩阵的整体尺度决定 ——
+    // 否则 scaling_3d(1e150)（条件数 1e150）可逆，而 translation_3d(1e12)
+    // （条件数 1e12）反倒「奇异」，自相矛盾。
+    //
+    // 「按整个矩阵的最大元素归一化」同样不成立 —— scaling_3d 返回的是齐次矩阵，
+    // 其第 4 行恒为 (0,0,0,1)，最大元素永远是 1，于是小尺度缩放的 det 依旧是
+    // 1e-12。逐行 / 逐列平衡不假设各行、各列元素同量级，正合此处；平衡后的
+    // 行列式落在由 N 决定的小常数之内，既不会溢出，也不会因量纲而与一阶容差
+    // 不可比。
     //
     // 折叠用滚动比较而非 max_abs_of：这里与 length() 不同，非有限分量不需要
     // 在折叠里显式保留 —— 它要么被跳过（与 row_max 的比较恒为 false），要么
@@ -233,10 +252,36 @@ template <typename Scalar, int N>
         row_scale[i] = row_max;
     }
 
+    // 列平衡作用在**已完成行平衡的** B 上，而不是原始矩阵：两级平衡必须依次
+    // 施加，后一级的量尺要在前一级的结果上量。若在原始元素上取列尺度，行与行
+    // 的量级差会重新混进列里 —— 此时 N 的列最大元素是 1/r_i（而非 1），行、列
+    // 都没有归一化到 1，行列式「落在由 N 决定的小常数之内」这条保证随之失效。
     MatrixT<Scalar, N> balanced{};
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
             balanced.data[i][j] = m.data[i][j] / row_scale[i];
+        }
+    }
+
+    Scalar column_scale[N];
+    for (int j = 0; j < N; ++j) {
+        Scalar column_max = Scalar{0};
+        for (int i = 0; i < N; ++i) {
+            const Scalar magnitude = core::absolute_value(balanced.data[i][j]);
+            if (magnitude > column_max) {
+                column_max = magnitude;
+            }
+        }
+        // 行尺度非零，故 B 的整列为零当且仅当 A 的该列整列为零 ⇒ 必然奇异。
+        if (column_max == Scalar{0}) {
+            return std::nullopt;
+        }
+        column_scale[j] = column_max;
+    }
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            balanced.data[i][j] /= column_scale[j];
         }
     }
 
@@ -296,15 +341,22 @@ template <typename Scalar, int N>
         }
     }
 
-    // A = diag(s_i)·N ⇒ A^-1 = N^-1·diag(1/s_i)：第 j 列除以 s_j。对角因子乘在
-    // 右侧，所以这里的下标是**列号**，与上面两个循环里的行号不是同一个 —— 写成
-    // row_scale[i] 会让非对角元出错，而对称矩阵上的测试未必看得出来。
+    // A = R·N·C ⇒ A^-1 = C^-1·N^-1·R^-1，即元素 (i, j) 除以 column_scale[i] 与
+    // row_scale[j]：**行号配列尺度、列号配行尺度**，与直觉相反。result 里装的
+    // 是 N^-1，两个尺度一左一右夹着它；写成 row_scale[i] / column_scale[j] 会
+    // 让非对角元出错，而对称矩阵上的测试未必看得出来。
+    //
+    // 两次除法分开写，而不是先乘出 1/(column_scale[i] · row_scale[j])：尺度量级
+    // 相差悬殊时，这个中间乘积是唯一会脱离 double 范围的量（一侧可以极小、
+    // 另一侧可以极大），先算出它会在结果本身完全可表示时就提前上溢或下溢成
+    // 0 / ±inf。分两步除，是否溢出只取决于最终元素，那才是真实逆矩阵的固有性质。
     //
     // 还原尺度后元素可能重新溢出（真实逆确实可能巨大），必须再检查一次，否则
     // 又会交出一个 has_value() 为真、内容却是 inf 的矩阵 —— 那正是先前裁定
     // 禁止的形态。
     for (int i = 0; i < N; ++i) {
         for (int j = 0; j < N; ++j) {
+            result.data[i][j] /= column_scale[i];
             result.data[i][j] /= row_scale[j];
             if (!core::is_finite(static_cast<double>(result.data[i][j]))) {
                 return std::nullopt;
