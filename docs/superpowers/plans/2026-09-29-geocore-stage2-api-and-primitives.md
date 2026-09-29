@@ -32,6 +32,7 @@
 3. **`Box` 与 `OrientedBox` 的空盒语义** —— 空盒（`min > max`）的 `contains`/`intersects`/`merged` 必须有定义，且 `OrientedBox::to_axis_aligned()` 对已旋转的盒子必须真的变大而不是返回原盒。（Task 6、Task 8）
 4. **成员化后的语义零漂移** —— `v.dot(w)` 必须与旧 `dot(v, w)` **逐位相同**（含 NaN/inf 传播），不允许在搬运过程中改变求值顺序。（Task 1–3）
 5. **下标访问的越界与常量性** —— `operator[]` 必须提供 const 与非 const 两个重载，越界行为必须有文档（不静默返回垃圾）。（Task 1）
+6. **成员化改变了表达式的解析** —— 自由函数 `apply(t, v)` 改成 `t.apply(v)` 之后，`apply(a * b, v)` 的直译 `a * b.apply(v)` 不再等价：`operator*` 会先接住 `b.apply(v)`（`operator*(Transform, Vector)` 存在），于是算的是「`a` 的线性部分作用在 `b` 变换后的结果上」，而不是「先复合再施加完整仿射」。**两种写法都能编译**，编译器不会帮忙。必须写成 `(a * b).apply(v)`。Task 3 已实测到这一点，且其中一例因数值巧合而**假通过** —— 即测试套件对此无检出能力。（Task 3、Task 8、Task 9）
 
 ---
 
@@ -403,7 +404,8 @@ git commit -m "refactor(linear): make matrix and quaternion operations members"
 - Produces:
   - `static Transform3T Transform3T::identity() noexcept`
   - `static Transform3T Transform3T::translation(Vector3T) noexcept`
-  - `static Transform3T Transform3T::scaling(Vector3T) noexcept` / `scaling(Scalar)`
+  - `static Transform3T Transform3T::scaling(Vector3T) noexcept`
+  - `template <std::floating_point Factor> static Transform3T Transform3T::scaling(Factor) noexcept` —— **不是** `scaling(Scalar)`。原自由函数 `scaling_3d` 的 `Scalar` 是**从实参推导**的模板参数并带 `floating_point` 约束，这正是「`scaling(2)` 传整数字面量必须编译失败」那条文档承诺的实现方式（`Transform3.hpp` 该函数的注释里写着）。写成取类标量的 `scaling(Scalar)` 会让 `Transform3::scaling(2)` 静默通过 —— 那是行为变更，不是成员化。类内不能复用 `Scalar` 这个名字，故模板参数改名 `Factor`。`Transform2T::scaling` 同理。
   - `static Transform3T Transform3T::rotation(UnitVector3T, Scalar) noexcept`
   - `Vector3T Transform3T::apply(Vector3T) const noexcept`
   - `std::optional<Transform3T> Transform3T::inverse(core::Tolerance = {}) const noexcept`
