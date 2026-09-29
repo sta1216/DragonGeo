@@ -61,6 +61,12 @@ template <typename Scalar>
     if (scale == Scalar{0}) {
         return Scalar{0};
     }
+    if (!core::is_finite(scale)) {
+        // 与 Vector3T::length 保持一致：含 ±inf 分量时模长就是 ±inf，而不是
+        // inf/inf 算出的 NaN。两条路径的语义必须一致，否则调用方在模长的
+        // 两个来源上会得到互相矛盾的结果。
+        return scale;
+    }
     const Scalar sw = q.w / scale;
     const Scalar sx = q.x / scale;
     const Scalar sy = q.y / scale;
@@ -68,12 +74,16 @@ template <typename Scalar>
     return scale * std::sqrt(sw * sw + sx * sx + sy * sy + sz * sz);
 }
 
-/// 归一化。模长在给定容差下可视为零时返回 std::nullopt。
+/// 归一化。模长在给定容差下可视为零、或本身不是有限值时返回 std::nullopt。
 template <typename Scalar>
 [[nodiscard]] std::optional<QuaternionT<Scalar>> normalize(
     QuaternionT<Scalar> q, core::Tolerance tolerance = {}) noexcept {
     const Scalar magnitude = norm(q);
-    if (tolerance.is_zero(static_cast<double>(magnitude))) {
+    // 与 UnitVector::normalize / Matrix::inverse 同一条原则：绝不交出一个
+    // has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会
+    // 污染后续全部计算。
+    if (!core::is_finite(static_cast<double>(magnitude))
+        || tolerance.is_zero(static_cast<double>(magnitude))) {
         return std::nullopt;
     }
     const Scalar inverse_magnitude = Scalar{1} / magnitude;

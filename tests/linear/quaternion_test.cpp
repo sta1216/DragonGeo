@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
@@ -106,4 +107,21 @@ TEST_CASE("to_matrix agrees with rotate", "[linear][quaternion]") {
     CHECK(by_matrix.x == Approx(by_quaternion.x));
     CHECK(by_matrix.y == Approx(by_quaternion.y));
     CHECK(by_matrix.z == Approx(by_quaternion.z));
+}
+
+TEST_CASE("norm and normalize handle non-finite input consistently",
+          "[linear][quaternion][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // norm 与 Vector3T::length 语义一致：无穷输入的模长就是无穷，不是 NaN
+    CHECK(norm(Quaternion{infinity, 0.0, 0.0, 0.0}) == infinity);
+    CHECK(norm(Quaternion{0.0, 0.0, infinity, 0.0}) == infinity);
+
+    // normalize 与 UnitVector::normalize / Matrix::inverse 同一条原则：
+    // 绝不交出一个 has_value() 为真、内容却是 NaN 的结果。
+    CHECK_FALSE(normalize(Quaternion{infinity, 0.0, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{0.0, infinity, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{not_a_number, 0.0, 0.0, 0.0}).has_value());
+    CHECK_FALSE(normalize(Quaternion{not_a_number, not_a_number, not_a_number, not_a_number}).has_value());
 }
