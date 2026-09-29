@@ -1033,7 +1033,7 @@ git commit -m "feat(linear): add Point2T and Point3T"
 
 ### Task 5: `Interval`
 
-一维区间。空区间用 `[+inf, -inf]` 表示（`min > max`），这是该表示的常规约定，使 `merged`/`intersects` 无需特判。
+一维区间。空区间用 `[+inf, -inf]` 表示，空判定是 `!(min <= max)`（**全函数**，见下）。这个表示让**规范空**在多数运算里无需特判；但谓词改全之后，含 NaN 的区间也算空，而它**需要**显式判定 —— 详见下面「三个消费者必须跟着改」一节。
 
 **Files:**
 - Create: `include/GeoCore/linear/Interval.hpp`
@@ -1187,6 +1187,44 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 有限区间的这两种极端膨胀都有正确的归宿。
     CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
     CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
+
+    // `{+inf, +inf}` **不是**空区间（它含 +inf 一个点），但它的长度是
+    // `inf - inf` = NaN。这是「非空却没有有限长度」的哨兵值，与 center 同类，
+    // 文档写明并在此钉住 —— 不要让一个看似成功的长度悄悄是 NaN。
+    CHECK_FALSE(Interval{infinity, infinity}.is_empty());
+    CHECK(std::isnan(Interval{infinity, infinity}.length()));
+}
+
+TEST_CASE("the consumers agree with the total empty predicate",
+          "[linear][interval][degenerate]") {
+    // `is_empty()` 说 {NaN,NaN} 是空 —— 这是对的，它不含任何点。
+    // 但三个消费者必须跟着这么认为，否则谓词只是装饰，而且同一对参数
+    // 换方向会给出不同答案。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Interval nan_interval{nan, nan};
+    const Interval normal{1.0, 5.0};
+
+    REQUIRE(nan_interval.is_empty());
+
+    // 相交：两个方向都必须为假（对称性）。
+    CHECK_FALSE(normal.intersects(nan_interval));
+    CHECK_FALSE(nan_interval.intersects(normal));
+
+    // 被空区间裁剪，返回的是规范空区间，不是「全部」。
+    CHECK(normal.clipped(nan_interval) == Interval::empty());
+    CHECK(nan_interval.clipped(normal) == Interval::empty());
+
+    // 合并：换方向答案相同（交换律）。
+    CHECK(nan_interval.merged(normal) == normal);
+    CHECK(normal.merged(nan_interval) == normal);
+
+    // `length()` 的 `is_empty()` 守卫也要走全函数谓词 —— 否则退化成
+    // `min > max` 就会算出 NaN，而这一格没有任何别的断言看得见。
+    CHECK(nan_interval.length() == 0.0);
+
+    // 聚合性是头文件明写的承诺（「不声明任何构造函数，以保持聚合性」），
+    // 加一个构造函数就会悄悄丢掉它。
+    STATIC_REQUIRE(std::is_aggregate_v<IntervalT<double>>);
 }
 ```
 
@@ -1197,11 +1235,50 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
 - `contains` 用**闭区间**（`value >= min && value <= max`），不引入容差 —— 区间包含是精确谓词，带容差的包含会让「这个点是否在区间内」随上下文变化。
 - `is_empty()` 实现为 **`!(min <= max)`**，**不是** `min > max`。差别只在非有限值上，但正好是要命的地方：`min > max` 对 `{NaN, NaN}` 返回 **false**，也就是**谎称自己是一个正常的非空区间**；而 `!(min <= max)` 对 NaN、对倒置、对规范空三种情形都返回真。**空判定必须是全函数** —— 任何区间要么空、要么满足 `min <= max`，不允许存在「两个都不是」的第三种状态。`empty()` 是 `{+inf, -inf}`，`unbounded()` 是 `{-inf, +inf}`。
   **为什么这一条特别重要**：`expanded` 与 `clipped` 都是靠 `result.is_empty() ? empty() : result` 做规范化的。于是「`is_empty` 对 NaN 说谎」会让 `Interval::empty().expanded(+inf)` 返回 `{NaN, NaN}`（因为 `+inf - (+inf)` 是 NaN）—— 既不是 `empty()`、也不是倒置，而 `is_empty()` 还报 false，正好撞在本项目「绝不交出一个看似成功却含 NaN 的结果」那条原则上。把谓词改全之后，这一格自动落回 `empty()`，无需在 `expanded` 里加特判。
-- `merged` 是 `{min(a.min,b.min), max(a.max,b.max)}` —— 对空区间自然成立，无需特判（这正是选这个空表示的理由）。
-- `intersects` 是 `max(min) <= min(max)`（闭区间，端点相接算相交），**返回 bool 而非区间**。空区间无需特判：`[+inf,-inf]` 会把 `max(min)` 顶到 `+inf`、把 `min(max)` 压到 `-inf`，比较必然为假 —— 这正是选这个空表示的理由。`clipped` 则不同，它必须显式判空并规范化。
-- `clipped` 取交；结果若为空则**返回 `Interval::empty()`**。
-- `expanded(k)` 是 `{min - k, max + k}`；结果若倒置则**返回 `Interval::empty()`**；空区间膨胀后仍是 `Interval::empty()`（**不要**退化成 `unbounded()`）。
-- `length()` 与 `center()` 按上面 Interfaces 里的规则实现。
+- **谓词改全之后，三个消费者必须跟着改 —— 否则谓词只是装饰。** `{NaN, NaN}` 不含任何点，`is_empty()` 说它空是**对的**；但 `merged` / `intersects` / `clipped` 仍按「非空」处理它，于是同一对参数换方向会给出不同答案（实测：`{1,5}.intersects({NaN,NaN})` 为真、反方向为假；`{NaN,NaN}.merged({1,5})` 给自己、反方向给 `{1,5}`；`{1,5}.clipped({NaN,NaN})` 返回整个 `{1,5}`）。所以三者各补一道显式的空判定：
+
+  ```cpp
+  // 两个操作数都要非空才算相交。`is_empty()` 是全函数，
+  // 所以这一句同时挡住「规范空」与「NaN 空」两种，并且恢复对称性。
+  [[nodiscard]] constexpr bool intersects(IntervalT other) const noexcept {
+      if (is_empty() || other.is_empty()) {
+          return false;
+      }
+      const Scalar lower = other.min > min ? other.min : min;
+      const Scalar upper = other.max < max ? other.max : max;
+      return lower <= upper;
+  }
+
+  /// 与 other 的交集。任一为空则返回**规范空区间**。
+  [[nodiscard]] constexpr IntervalT clipped(IntervalT other) const noexcept {
+      if (is_empty() || other.is_empty()) {
+          return empty();
+      }
+      const Scalar lower = other.min > min ? other.min : min;
+      const Scalar upper = other.max < max ? other.max : max;
+      const IntervalT result{lower, upper};
+      return result.is_empty() ? empty() : result;
+  }
+
+  /// 最小包含两者的区间。**要显式判空以恢复交换律** —— 朴素写法对
+  /// 规范空成立（`min(…, +inf)` 恰好取回自身），但对 `{NaN, NaN}` 不成立：
+  /// 比较碰上 NaN 返回 false，于是取到的是自己的 NaN。
+  [[nodiscard]] constexpr IntervalT merged(IntervalT other) const noexcept {
+      if (is_empty()) {
+          return other;
+      }
+      if (other.is_empty()) {
+          return *this;
+      }
+      const Scalar lower = other.min < min ? other.min : min;
+      const Scalar upper = other.max > max ? other.max : max;
+      return {lower, upper};
+  }
+  ```
+
+  **注意把这三处文档注释里「无需特判」的说法一并删掉** —— 它们现在是假的，而本项目已两次裁定「指向已不存在事实的注释比没有注释更糟」。
+- `expanded(k)` 是 `{min - k, max + k}`；结果若 `is_empty()` 则**返回 `Interval::empty()`**；空区间膨胀后仍是 `Interval::empty()`（**不要**退化成 `unbounded()`）。
+- `length()` 与 `center()` 按上面 Interfaces 里的规则实现。**另外**：`{+inf, +inf}` 这类「非空但没有有限长度」的区间，`length()` 会算出 NaN —— 那是与 `center()` 同类的哨兵值，**文档写明并配测试**，不要让它悄悄是 NaN。
 
 **别在实现里硬编码容差阈值** —— `Interval` 的谓词全部是精确比较，本类型不需要 `Tolerance` 参数（与 `Box` 不同，盒的构造可能需要容差来判退化，那在 Task 6 处理）。
 
@@ -1240,7 +1317,8 @@ git commit -m "feat(linear): add IntervalT"
 - **`center()`**：用 `min * 0.5 + max * 0.5` 逐分量实现（不是 `(min+max)*0.5`，那是 Interval 那边已经裁定的溢出陷阱）。空盒与任一无穷端点都自然得到 NaN —— 这是「没有中心」的诚实答案，文档写明并配测试。
   **注意这里不能直写 `min * 0.5 + max * 0.5`** —— `min`/`max` 是 `Point3T`，而 Task 4 刻意**没有**给 `Point` 提供 `operator*(Point, Scalar)`，也**没有** `Point + Point`（`p * 2.0` 与 `-p` 都编译不过，已实测）。必须写成逐分量的标量运算：`min.x * 0.5 + max.x * 0.5` 等等。`extent()` 的 `max - min` 则可以直写（`Point - Point -> Vector` 已提供）。
 - **`contains(Box3T)`：任一方为空盒时返回 `false`。** 数学上 `∅ ⊆ B` 是空真，但那会让 `if (a.contains(b))` 在 `b` 为空时通过，是每个调用者都会踩的坑；`intersects` 已经采用「空盒与任何盒都不相交」，`contains` 保持同向。**这是刻意的约定，必须在文档里写明理由**，否则下一个人会把它当 bug 改掉。
-- **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内），且都无需对空盒特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。
+- **`contains(Point3T)` 与 `intersects` 用闭区间**（边界算在内）。**规范空盒**确实无需特判：`+inf <= x` 与 `x <= -inf` 必然为假，比较自然失败 —— 这正是选这个表示的理由。**但含 NaN 的盒需要显式判定**：Task 5 在 `Interval` 上实测过，比较碰上 NaN 的返回值取决于操作数顺序，于是同一对参数换方向给出不同答案（`{1,5}.intersects({NaN,NaN})` 真、反方向假）。所以 `intersects` 与 `merged` 开头都要加 `if (is_empty() || other.is_empty())` 那一类判定 —— 与 `contains(Box3T)` 已经采用的做法一致。**并且把注释里「无需特判」的说法一并删掉**，它现在是假的。
+- **`merged` 同样要显式判空以恢复交换律**：朴素写法对规范空成立（`min(…, +inf)` 恰好取回自身），但对含 NaN 分量的盒不成立。写成 `if (is_empty()) return other; if (other.is_empty()) return *this;` 再逐分量合并。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1404,6 +1482,36 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     CHECK_FALSE(Box3{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}}
                     .expanded(infinity)
                     .is_empty());
+
+    // `{+inf}³` 不是空盒（它含 +inf 一个点），但 extent 是 `inf - inf` = NaN。
+    // 与 Interval 的 length 同类，是「非空却没有有限尺寸」的哨兵，文档写明并钉住。
+    const Box3 at_infinity{Point3{infinity, infinity, infinity},
+                           Point3{infinity, infinity, infinity}};
+    CHECK_FALSE(at_infinity.is_empty());
+    CHECK(std::isnan(at_infinity.extent().x));
+}
+
+TEST_CASE("the consumers agree with the total empty predicate",
+          "[linear][box3][degenerate]") {
+    // `is_empty()` 说含 NaN 的盒是空 —— 这是对的，它不含任何点。
+    // 三个消费者必须跟着这么认为，否则谓词只是装饰，而且换方向答案会翻面。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Box3 nan_box{Point3{nan, 0.0, 0.0}, Point3{nan, 0.0, 0.0}};
+    const Box3 normal{Point3{1.0, 2.0, 3.0}, Point3{4.0, 5.0, 6.0}};
+
+    REQUIRE(nan_box.is_empty());
+
+    // 相交：两个方向都必须为假（对称性）。
+    CHECK_FALSE(normal.intersects(nan_box));
+    CHECK_FALSE(nan_box.intersects(normal));
+
+    // 包含：空盒不被任何盒包含，也不包含任何盒。
+    CHECK_FALSE(normal.contains(nan_box));
+    CHECK_FALSE(nan_box.contains(normal));
+
+    // 合并：换方向答案相同（交换律）。
+    CHECK(nan_box.merged(normal) == normal);
+    CHECK(normal.merged(nan_box) == normal);
 }
 ```
 
