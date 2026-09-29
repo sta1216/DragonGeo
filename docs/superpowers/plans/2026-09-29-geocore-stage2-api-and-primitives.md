@@ -1687,12 +1687,46 @@ git commit -m "feat(linear): let Transform carry points"
 - Modify: `README.md`
 - Modify: `examples/vector_basics.cpp`（成员化后的调用点）
 - Modify: `include/GeoCore/linear/Vector2.hpp`（**仅**一处已失效的注释，见 Step 1b）
+- Modify: `tests/linear/vector4_test.cpp`、`matrix_test.cpp`、`unit_vector2_test.cpp`、`unit_vector3_test.cpp`、`quaternion_test.cpp`、`transform2_test.cpp`、`transform3_test.cpp`（**仅**各加一条别名绑定断言，见 Step 1c）
 
 - [ ] **Step 1: 更新 README 与示例**
 
 README 的 quick start 改用成员形式（`a.dot(b)`、`a.normalized()`），并在"What works today"表里加入本轮新增的五个类型。示例同样改用成员形式，重跑并核对输出。
 
 **顺带修**（Task 1 的复核留下的）：`examples/vector_basics.cpp:39` 打印的字符串 `"normalize(zero) correctly returned nullopt"` 里那个函数名已不存在，改成 `normalized`。
+
+- [ ] **Step 1c: 给全库每一个类型别名补一条绑定断言（含阶段 1 的）**
+
+**背景（已实测，不是推测）**：把 `Point3f` 绑成 `Point3T<double>`，全库 134 个用例全绿、退出码 0。原因是别名若未被任何测试**命名**，其成员连一次实例化都不会发生。全库审计结果：
+
+| 别名 | 是否被测试命名 |
+|---|---|
+| `Vector2f`、`Vector3f` | 被命名（各 1 处 `TEST_CASE("... usable with float")`） |
+| `Vector4f`、`Matrix2f`、`Matrix3f`、`Matrix4f`、`UnitVector2f`、`UnitVector3f`、`Quaternionf`、`Transform2f`、`Transform3f`、`Point2f`、`Point3f` | **零命中** |
+
+**而且连被命名的那两个也抓不住误绑定**：`Vector3f{1.0f, 2.0f, 2.0f}.length() == 3.0f` —— `Vector3T<float>` 与 `Vector3T<double>` 在这里都得 `3.0`，float 字面量与 double 比较时会提升，所以断言照样通过。**这两个别名只是被用到了，没有被钉住。**
+
+Task 4 已为 `Point2f`/`Point3f` 加了断言，Tasks 5–8 的代码块里也已各加一条。**本步负责剩下这 11 个（含阶段 1 的 9 个）** —— 它们现在归本任务收尾，因为**没有别的任务会碰它们**。
+
+做法：在每个类型对应的测试文件里各加一条，放在该文件靠前的位置：
+
+```cpp
+STATIC_REQUIRE(std::is_same_v<Matrix3f, MatrixT<float, 3>>);
+```
+
+`Vector4f` / `Matrix2f` / `Matrix3f` / `Matrix4f` → `vector4_test.cpp` / `matrix_test.cpp`；`UnitVector2f` / `UnitVector3f` → 各自文件；`Quaternionf` → `quaternion_test.cpp`；`Transform2f` / `Transform3f` → 各自文件。
+
+**别用「构造一个 float 值再比较」的写法** —— 上面刚说明它抓不住误绑定。必须是 `is_same_v`，它才是对**绑定本身**的断言。记得 `struct MatrixT` 之类是两参数模板，别名对应的模板实参要写全。
+
+改完请自己 grep 复核，确认 14 个别名（本阶段的 5 个 + 阶段 1 的 9 个）都已出现在 `tests/` 里：
+
+```bash
+for a in Vector2f Vector3f Vector4f Matrix2f Matrix3f Matrix4f UnitVector2f UnitVector3f Quaternionf Transform2f Transform3f Point2f Point3f Intervalf Box2f Box3f Coordinate2f Coordinate3f OrientedBox2f OrientedBox3f; do
+  grep -rq "\b$a\b" tests/ || echo "MISSING: $a"
+done
+```
+
+预期无输出。
 
 - [ ] **Step 1b: 修 `Vector2.hpp` 里那句已经失效的分层说明**
 
@@ -1723,7 +1757,7 @@ Expected: 全绿，两个示例输出与 README/示例注释中的期望值一�
 - [ ] **Step 3: 提交**
 
 ```bash
-git add README.md examples/
+git add README.md examples/ include/ tests/
 git commit -m "docs: document the member API and the new base types"
 ```
 
