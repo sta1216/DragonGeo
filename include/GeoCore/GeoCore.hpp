@@ -11,3 +11,5 @@
 #include <GeoCore/linear/Vector2.hpp>
 #include <GeoCore/linear/Vector3.hpp>
 #include <GeoCore/linear/Vector4.hpp>
+#include <GeoCore/linear/UnitVector2.hpp>
+#include <GeoCore/linear/UnitVector3.hpp>
