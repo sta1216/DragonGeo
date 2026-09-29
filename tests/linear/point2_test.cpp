@@ -58,6 +58,7 @@ TEST_CASE("the mutable subscript writes the component it names",
 TEST_CASE("Point2 keeps its declaration-level guarantees",
           "[linear][point2]") {
     STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
+    STATIC_REQUIRE(std::is_same_v<Point2T<double>::scalar_type, double>);
     STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
 
     // 同 point3_test.cpp：常量求值 + **不带花括号**的默认初始化。
@@ -105,5 +106,9 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
     STATIC_REQUIRE(std::is_same_v<decltype(Point2{}.distance_to(Point2{})), double>);
 
+    // **两个操作数都不能是原点。** 用原点做操作数时，`x - other.x` 与
+    // `x + other.x` 平方后相同，把 dx 变号也能存活（实测：2D 侧存活，
+    // 3D 侧正因为下面第三条用了非原点对才被杀掉）。
     CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
+    CHECK(Point2{1.0, 2.0}.distance_to(Point2{4.0, 6.0}) == Approx(5.0));
 }
