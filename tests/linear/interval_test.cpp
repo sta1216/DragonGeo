@@ -32,6 +32,16 @@ TEST_CASE("merging with the empty interval is the identity",
     CHECK(a.merged(Interval::empty()) == a);
     CHECK(Interval::empty().merged(a) == a);
     CHECK(Interval::empty().merged(Interval::empty()) == Interval::empty());
+
+    // >>> sweep-add
+    // 「空的**非规范**表示」也是合法输入（`Interval{5.0, 1.0}` 就是个聚合初始化出来的
+    // 倒置区间，`is_empty()` 明说对任何倒置区间都安全）。任一为空就要返回另一个，
+    // 两个方向都必须如此 —— 只留自判空、不留对方判空的实现会在这一格返回
+    // 「拿自己的端点去和空区间取外扩」的结果（实测 `{0,0}.merged({5,1})` 曾给出 {0,1}）。
+    const Interval inverted_empty{5.0, 1.0};
+    CHECK(Interval{0.0, 0.0}.merged(inverted_empty) == Interval{0.0, 0.0});
+    CHECK(inverted_empty.merged(Interval{0.0, 0.0}) == Interval{0.0, 0.0});
+    // <<< sweep-add
 }
 
 TEST_CASE("a degenerate interval contains exactly one point",
@@ -163,11 +173,10 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
           "[linear][interval][degenerate]") {
     // `min > max` 对 NaN 返回 false，等于谎称这是一个正常的非空区间；
     // `!(min <= max)` 才是全函数。这一条是下面两个出口能自动规范化的前提。
-    // **与计划文本的唯一偏离**（详见 task-5-report.md）：`0.0 / 0.0` 在 MSVC 下是
-    // **编译错误** C2124（常量表达式里被零除），不是警告 —— 最小复现
-    // `const double a = 0.0 / 0.0;` 单独编译即 C2124、退出码 2。
-    // 改用 `quiet_NaN()`，值相同（都是安静 NaN），且正是计划自己在 Task 6
-    // 与库内 core/Numeric.hpp 用的写法。
+    //
+    // 用 `quiet_NaN()` 而不是 `0.0 / 0.0`：后者在常量表达式里被零除，
+    // MSVC 直接报 **C2124，是编译错误**（标准层面的非良构，不是编译器脾气；
+    // 已用四行独立 TU 复现）。库内 `core/Numeric.hpp` 本来就用 `quiet_NaN()`。
     const double nan = std::numeric_limits<double>::quiet_NaN();
     CHECK(Interval{nan, nan}.is_empty());
 
@@ -181,6 +190,44 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 有限区间的这两种极端膨胀都有正确的归宿。
     CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
     CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
+
+    // `{+inf, +inf}` **不是**空区间（它含 +inf 一个点），但它的长度是
+    // `inf - inf` = NaN。这是「非空却没有有限长度」的哨兵值，与 center 同类，
+    // 文档写明并在此钉住 —— 不要让一个看似成功的长度悄悄是 NaN。
+    CHECK_FALSE(Interval{infinity, infinity}.is_empty());
+    CHECK(std::isnan(Interval{infinity, infinity}.length()));
+}
+
+TEST_CASE("the consumers agree with the total empty predicate",
+          "[linear][interval][degenerate]") {
+    // `is_empty()` 说 {NaN,NaN} 是空 —— 这是对的，它不含任何点。
+    // 但三个消费者必须跟着这么认为，否则谓词只是装饰，而且同一对参数
+    // 换方向会给出不同答案。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Interval nan_interval{nan, nan};
+    const Interval normal{1.0, 5.0};
+
+    REQUIRE(nan_interval.is_empty());
+
+    // 相交：两个方向都必须为假（对称性）。
+    CHECK_FALSE(normal.intersects(nan_interval));
+    CHECK_FALSE(nan_interval.intersects(normal));
+
+    // 被空区间裁剪，返回的是规范空区间，不是「全部」。
+    CHECK(normal.clipped(nan_interval) == Interval::empty());
+    CHECK(nan_interval.clipped(normal) == Interval::empty());
+
+    // 合并：换方向答案相同（交换律）。
+    CHECK(nan_interval.merged(normal) == normal);
+    CHECK(normal.merged(nan_interval) == normal);
+
+    // `length()` 的 `is_empty()` 守卫也要走全函数谓词 —— 否则退化成
+    // `min > max` 就会算出 NaN，而这一格没有任何别的断言看得见。
+    CHECK(nan_interval.length() == 0.0);
+
+    // 聚合性是头文件明写的承诺（「不声明任何构造函数，以保持聚合性」），
+    // 加一个构造函数就会悄悄丢掉它。
+    STATIC_REQUIRE(std::is_aggregate_v<IntervalT<double>>);
 }
 
 
@@ -214,6 +261,16 @@ TEST_CASE("the implicitly generated special members carry both endpoints",
         IntervalT<double>::empty().merged(IntervalT<double>{1.0, 5.0});
     STATIC_REQUIRE(merged_sentinel.min == 1.0);
     STATIC_REQUIRE(merged_sentinel.max == 5.0);
+    // >>> sweep-add
+    // 修复轮 2：`merged` 加了空判定守卫之后，上面两条**不再经过取两端外扩的算术
+    // 路径**（空区间直接返回 other），`merged` 的 min/max 取错由「编译失败」变成了
+    // **存活**（实测 89/89 全绿）。非空的合并路径因此需要自己的证据：期望值的两端
+    // 都取自 other（{0,9}），任何一端取错或整体返回自身都会失败。
+    constexpr IntervalT<double> merged_finite =
+        IntervalT<double>{1.0, 5.0}.merged(IntervalT<double>{0.0, 9.0});
+    STATIC_REQUIRE(merged_finite.min == 0.0);
+    STATIC_REQUIRE(merged_finite.max == 9.0);
+    // <<< sweep-add
 
     // 隐式拷贝赋值也必须被真的用一次，否则它从未被实例化 —— 一个只赋 min 的
     // 手写 operator= 会完全静默（Task 4 实测过同族形态：从仓库测试编出的 obj

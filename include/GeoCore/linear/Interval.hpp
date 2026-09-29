@@ -15,13 +15,19 @@ namespace GeoCore::linear {
 /// 不能是 [2, 0] 这种「倒置但不规范」的区间。
 ///
 /// 理由是同一个数学量不该有两种表示：若两处都算「空」，`==`、`length()`、
-/// `center()` 都会变成「看情况」，调用者无从判断手里的是哪一种。这个选择同时
-/// 让谓词无需特判：`merged` 取两端外扩、`intersects` 比较 `max(min) <= min(max)`，
-/// 对空区间都自然给出正确答案。
+/// `center()` 都会变成「看情况」，调用者无从判断手里的是哪一种。
 ///
 /// 空判定 `is_empty()` 是 `!(min <= max)` 而**不是** `min > max`：后者在 NaN 上
 /// 说谎（见该成员函数）。谓词必须是全函数，否则上面那条「生产者一律规范化」的
 /// 不变量会在非有限输入上被绕过。
+///
+/// **注意：谓词全函数化之后，`merged` / `intersects` / `clipped` 都需要显式判空
+/// —— 「规范空的表示让它们无需特判」这句话现在是假的。** 规范空 [+inf, -inf] 确实
+/// 能在朴素比较下自然得解，但含 NaN 的空区间不行：比较碰上 NaN 一律返回 false，
+/// 于是结果会取决于操作数顺序（`intersects` 反方向翻面、`clipped` 被空集裁剪却
+/// 返回全部、`merged` 不满足交换律）。三个消费函数各有一道
+/// `is_empty()` 判定，它们是「不与空集相交」与「一个空 + 一个非空时取另一个」的
+/// 唯一保证（两个操作数都为空且表示不同时的残留不对称见 `merged`）。
 ///
 /// 谓词（`is_empty` / `contains` / `intersects`）全部是**精确比较**，不含容差 ——
 /// 带容差的包含会让「这个点是否在区间内」随上下文变化。需要容差的比较应由调用方
@@ -67,17 +73,25 @@ struct IntervalT {
 
     /// 闭区间包含：两端都算在内，精确比较。
     ///
-    /// 空区间不含任何点（`min = +inf` 让比较自然为假），无需特判。
+    /// 两种空区间（规范空与含 NaN 的空）都不含任何点，且都不需要特判：
+    /// `value >= min` 对 `min = +inf` 为假、对 `min = NaN` 也为假。
     [[nodiscard]] constexpr bool contains(Scalar value) const noexcept {
         return value >= min && value <= max;
     }
 
     /// 闭区间相交：端点相接算相交（[1, 5] 与 [5, 9] 相交于单点 5）。
     ///
-    /// 返回 bool 而非区间 —— 需要交集本身请用 clipped()。空区间无需特判：
-    /// [+inf, -inf] 会把 max(min) 顶到 +inf、把 min(max) 压到 -inf，
-    /// 比较必然为假。
+    /// 返回 bool 而非区间 —— 需要交集本身请用 clipped()。
+    ///
+    /// **两个操作数都要非空才算相交，必须显式判空。** 只靠下面那两行比较是不够的：
+    /// 规范空 [+inf, -inf] 确实会被顶成假，但含 NaN 的空区间不会 —— 比较碰上 NaN
+    /// 一律返回 false，于是结果的真假取决于**操作数顺序**
+    /// （实测：`{1,5}.intersects({NaN,NaN})` 曾为真、反方向为假）。
+    /// `is_empty()` 是全函数，一句判断同时挡住两种空，并恢复对称性。
     [[nodiscard]] constexpr bool intersects(IntervalT other) const noexcept {
+        if (is_empty() || other.is_empty()) {
+            return false;
+        }
         const Scalar lower = other.min > min ? other.min : min;
         const Scalar upper = other.max < max ? other.max : max;
         return lower <= upper;
@@ -88,6 +102,12 @@ struct IntervalT {
     /// **空区间返回 0**：空集的测度是 0，而原始差 `-inf - (+inf)` 是 -inf，
     /// 一个没有意义的「长度」，还会顺着加法一路传播下去。无界（含半无界）
     /// 区间返回 +inf —— 原始差本来就是 +inf，正确。
+    ///
+    /// 但 `[+inf, +inf]` 这类**非空却没有有限长度**的区间会算出 `+inf - (+inf)`
+    /// = NaN。这是与 `center()` 同类的刻意哨兵（「没有长度」的诚实答案），
+    /// 不是漏判；调用者若需要有限长度，应先自行排除无穷端点。**不要**指望这里
+    /// 返回一个看似成功的数字。注意它随 `is_empty()` 的定义走：`is_empty()` 若退化
+    /// 成 `min > max`，`{NaN, NaN}.length()` 会从 0 变成 NaN。
     [[nodiscard]] constexpr Scalar length() const noexcept {
         return is_empty() ? Scalar{0} : max - min;
     }
@@ -107,9 +127,25 @@ struct IntervalT {
 
     /// 最小包含两者的区间。
     ///
-    /// 对空区间自然成立，无需特判：`merged(empty())` 取 min(…, +inf) 与
-    /// max(…, -inf)，结果恰好是自身。
+    /// **要显式判空。** 朴素的取两端外扩对规范空恰好成立（`min(…, +inf)` 取回
+    /// 自身），但对 `{NaN, NaN}` 不成立：比较碰上 NaN 返回 false，于是取到的是
+    /// 自己的 NaN —— 实测 `{NaN,NaN}.merged({1,5})` 曾给自己、反方向却给 `{1,5}`。
+    /// 加上这两道判断之后，**「一个空 + 一个非空」的两个方向都返回那个非空的操作数**，
+    /// 交换律在这一类输入上恢复。
+    ///
+    /// **已知的残留不对称（记录在案，未修）**：两个操作数**都**为空、但表示不同时
+    /// （例如 `{NaN, NaN}` 与倒置的 `{1.0, 0.0}`），每个方向都返回「另一个」，
+    /// 于是 `a.merged(b) != b.merged(a)` —— 两者都是空集，但 `==` 比的是表示。
+    /// 根源是两条原则在非规范输入上冲突：「恒等」要求原样返回另一个操作数，
+    /// 「规范化」要求产出空区间时必须给 `empty()`。本实现选择恒等，因此**不保证**
+    /// 两个空操作数之间对称；需要规范化请自行判空后再取。
     [[nodiscard]] constexpr IntervalT merged(IntervalT other) const noexcept {
+        if (is_empty()) {
+            return other;
+        }
+        if (other.is_empty()) {
+            return *this;
+        }
         const Scalar lower = other.min < min ? other.min : min;
         const Scalar upper = other.max > max ? other.max : max;
         return {lower, upper};
@@ -129,7 +165,15 @@ struct IntervalT {
     /// 不相交时返回**规范空区间**：不能把 [6, 5] 这种倒置结果直接返回 ——
     /// 它的 is_empty() 也为真，但 min/max 携带的是错误信息，于是同一个空集有了
     /// 两种表示。端点相接时结果是退化的单点区间 [5, 5]，不是空区间。
+    ///
+    /// **任一操作数为空则直接返回规范空区间，同样必须显式判空。** 只靠末尾那次
+    /// `result.is_empty()` 规范化不够：含 NaN 的空区间与别的区间取交时，
+    /// 比较碰上 NaN 会把结果算成对方的一个正常区间
+    /// （实测 `{1,5}.clipped({NaN,NaN})` 曾返回整个 `{1,5}` —— 被空集裁剪却得到全部）。
     [[nodiscard]] constexpr IntervalT clipped(IntervalT other) const noexcept {
+        if (is_empty() || other.is_empty()) {
+            return empty();
+        }
         const Scalar lower = other.min > min ? other.min : min;
         const Scalar upper = other.max < max ? other.max : max;
         const IntervalT result{lower, upper};
