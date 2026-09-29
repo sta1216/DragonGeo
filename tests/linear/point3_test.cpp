@@ -23,7 +23,13 @@ TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     CHECK(p[1] == 2.0);
     CHECK(p[2] == 3.0);
 
+    // 三个槽位**逐个**查。只查末槽是不够的：`{y, x, z}`、`{0, 0, z}` 这类
+    // 错位实现都能通过（已用变异测试实测存活）。to_array() 是公开的互操作
+    // 接口（喂给外部库 / GPU buffer），槽位错位就是静默的坐标错乱。
+    // 同目录的 vector3_test.cpp 正是三个下标全查的，这里与它对齐。
     const std::array<double, 3> arr = p.to_array();
+    CHECK(arr[0] == 1.0);
+    CHECK(arr[1] == 2.0);
     CHECK(arr[2] == 3.0);
 }
 

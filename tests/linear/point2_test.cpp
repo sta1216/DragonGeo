@@ -22,7 +22,10 @@ TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
     CHECK(p[0] == 1.0);
     CHECK(p[1] == 2.0);
 
+    // 同 point3_test.cpp：两个槽位逐个查，只查末槽会让 `{0, y}` 这类
+    // 错位实现静默通过。
     const std::array<double, 2> arr = p.to_array();
+    CHECK(arr[0] == 1.0);
     CHECK(arr[1] == 2.0);
 }
 
