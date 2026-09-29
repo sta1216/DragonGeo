@@ -26,7 +26,18 @@ struct Tolerance {
 
     /// 判定两个标量在该容差下是否可视为相等。
     /// 参考量级取二者绝对值中的较大者。
+    ///
+    /// 非有限输入另行处理：完全相等（含 ±inf 与自身）返回 true，其余任何
+    /// 涉及 ±inf 或 NaN 的组合一律返回 false。若不特判，`|inf - 5| <=
+    /// resolve(inf)` 会退化为 `inf <= inf` 而返回 true —— 无穷大被判成
+    /// 「与任何有限值相等」，这与本类型的存在目的恰好相反。
     [[nodiscard]] constexpr bool equal(double a, double b) const noexcept {
+        if (a == b) {
+            return true;
+        }
+        if (!is_finite(a) || !is_finite(b)) {
+            return false;
+        }
         const double scale = absolute_value(a) > absolute_value(b)
                                  ? absolute_value(a)
                                  : absolute_value(b);
@@ -37,7 +48,13 @@ struct Tolerance {
     ///
     /// 注意参考量级取的是 x 自身，故判定条件等价于
     /// |x| <= abs / (1 - rel)，在 rel 远小于 1 时约等于 abs。
+    ///
+    /// 非有限值一律不视为零：把溢出成 ±inf 或变成 NaN 的量静默归类为
+    /// 「可忽略」，正是调用者最需要被示警时却得到放行的情形。
     [[nodiscard]] constexpr bool is_zero(double x) const noexcept {
+        if (!is_finite(x)) {
+            return false;
+        }
         return absolute_value(x) <= resolve(x);
     }
 };
