@@ -8,12 +8,21 @@
 
 using Catch::Approx;
 using GeoCore::linear::Point2;
+using GeoCore::linear::Point2T;
+using GeoCore::linear::Point2f;
 using GeoCore::linear::Vector2;
 
 namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+}
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][point2]") {
+    // 同 point3_test.cpp。二维的「绑定写错」在列表初始化收窄检查下会编译失败，
+    // 但那条**偶然**的防线不该被依赖 —— 断言本身才是承诺。
+    STATIC_REQUIRE(std::is_same_v<Point2f, Point2T<float>>);
 }
 
 TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {

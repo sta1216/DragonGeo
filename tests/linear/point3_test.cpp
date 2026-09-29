@@ -8,12 +8,22 @@
 
 using Catch::Approx;
 using GeoCore::linear::Point3;
+using GeoCore::linear::Point3T;
+using GeoCore::linear::Point3f;
 using GeoCore::linear::Vector3;
 
 namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+}
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][point3]") {
+    // 别名若从未被任何测试命名过，绑定写错时成员连一次实例化都不会发生 ——
+    // 实测：把 Point3f 绑成 Point3T<double>，全库 134 个用例全绿、退出码 0。
+    // float 用户会静默拿到 double 存储，精度与内存占用都不是承诺的样子。
+    STATIC_REQUIRE(std::is_same_v<Point3f, Point3T<float>>);
 }
 
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
