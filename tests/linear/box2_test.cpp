@@ -165,15 +165,16 @@ TEST_CASE("merged and expanded keep the canonical empty box",
     CHECK(Box2{Point2{0.0, 0.0}, Point2{1.0, 1.0}}.expanded(-0.25) ==
           Box2{Point2{0.25, 0.25}, Point2{0.75, 0.75}});
 
-    // **非规范**空盒是 `is_empty()` 为真的合法输入，但它的端点没有几何意义：
-    // `expanded` 逐端点外扩，于是它扩展后变成一个**非空**盒。文档原先那句
-    // 「空盒扩展后仍是空盒」按字面**不成立**（只对规范空盒与含 NaN 的盒成立），
-    // 已按下面这个实测结果订正。二维与三维同形（两个头文件分开写，各自钉）。
+    // **任何**空盒扩展后仍是规范空盒 —— 包括**非规范表示**的空盒。空集没有端点
+    // 可以往外扩：缺了 `expanded` 开头那道对**输入**的判空，逐端点外扩会把这个
+    // 倒置的盒变成一个**非空**盒（`{0,0}`–`{-1,-1}` 扩展 1.0 曾得到
+    // `{-1,-1}`–`{0,0}` —— 一个看起来完全正常、尺寸却来自无意义端点的盒）。
+    // 二维与三维同形（两个头文件分开写，各自钉）。
     const Box2 non_canonical_empty{Point2{0.0, 0.0}, Point2{-1.0, -1.0}};
     REQUIRE(non_canonical_empty.is_empty());
     const Box2 grown_empty = non_canonical_empty.expanded(1.0);
-    CHECK(grown_empty == Box2{Point2{-1.0, -1.0}, Point2{0.0, 0.0}});
-    CHECK_FALSE(grown_empty.is_empty());
+    CHECK(grown_empty.is_empty());
+    CHECK(grown_empty == Box2::empty());
     // <<< sweep-add
 }
 

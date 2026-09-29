@@ -216,15 +216,15 @@ struct Box3T {
     ///
     /// 收缩过头时返回**规范空盒**，不是分量倒置的盒。
     ///
-    /// **规范**空盒与含 NaN 的盒扩展后仍是空盒（`+inf - amount` 仍是 +inf、
-    /// `-inf + amount` 仍是 -inf，不会退化成整个空间）。
+    /// **任何空盒扩展后仍是规范空盒。** 开头那道 `is_empty()` 判定同时挡住三种空：
+    /// 规范空、含 NaN 的空、以及非规范表示的空（`{0,0,0}`–`{-1,-1,-1}`）——
+    /// 空集的测度是 0，它没有端点可以往外扩；而且 `+inf - amount` 仍是 +inf、
+    /// `-inf + amount` 仍是 -inf，不会退化成整个空间。
     ///
-    /// **非规范**空盒（`{0,0,0}`–`{-1,-1,-1}`）是 `is_empty()` 为真的合法输入，
-    /// 但它的端点没有几何意义：本函数**逐端点**外扩，结果可能是一个**非空**盒 ——
-    /// 实测 `{0,0,0}`–`{-1,-1,-1}` 扩展 1.0 得到 `{-1,-1,-1}`–`{0,0,0}`。
-    /// 也就是说「空盒扩展后仍是空盒」这句话**只对规范空盒与含 NaN 的盒成立**，
-    /// 要求「空进空出」的调用方须先自己判 `is_empty()`。该边界由测试钉住，不是偶然。
-    /// （要不要改成对**任何**空输入都返回 `empty()`，是一个尚未裁定的语义选择。）
+    /// 这道判定让 `expanded` 与 `intersects` / `contains(Box3T)` / `merged` 归入
+    /// 同一类：**消费输入的操作都先问一句 `is_empty()`**。缺了它，非规范空盒会被
+    /// 逐端点外扩成一个**非空**盒 —— `{0,0,0}`–`{-1,-1,-1}` 扩展 1.0 曾得到
+    /// `{-1,-1,-1}`–`{0,0,0}`，一个看起来完全正常、尺寸却来自无意义端点的盒。
     ///
     /// **用 `result.is_empty()` 判、不要用 `min > max` 判** —— 前者是全函数
     /// （含 NaN），后者会让 `empty().expanded(+inf)` 这种算出 NaN 的结果
@@ -240,6 +240,9 @@ struct Box3T {
     /// **注意这不等于「非有限 amount 一律产出空盒」**：有限盒 `expanded(+inf)`
     /// 得到的是整个空间 `[-inf,+inf]³`，非空 —— 中间结果为空才有上面那条出口。
     [[nodiscard]] constexpr Box3T expanded(Scalar amount) const noexcept {
+        if (is_empty()) {
+            return empty();
+        }
         const Box3T result{Point3T<Scalar>{min.x - amount, min.y - amount, min.z - amount},
                            Point3T<Scalar>{max.x + amount, max.y + amount, max.z + amount}};
         return result.is_empty() ? empty() : result;
