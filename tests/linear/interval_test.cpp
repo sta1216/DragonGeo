@@ -159,6 +159,30 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
     CHECK(Interval::unbounded().expanded(1.0) == Interval::unbounded());
 }
 
+TEST_CASE("the empty predicate is total, including on non-finite input",
+          "[linear][interval][degenerate]") {
+    // `min > max` 对 NaN 返回 false，等于谎称这是一个正常的非空区间；
+    // `!(min <= max)` 才是全函数。这一条是下面两个出口能自动规范化的前提。
+    // **与计划文本的唯一偏离**（详见 task-5-report.md）：`0.0 / 0.0` 在 MSVC 下是
+    // **编译错误** C2124（常量表达式里被零除），不是警告 —— 最小复现
+    // `const double a = 0.0 / 0.0;` 单独编译即 C2124、退出码 2。
+    // 改用 `quiet_NaN()`，值相同（都是安静 NaN），且正是计划自己在 Task 6
+    // 与库内 core/Numeric.hpp 用的写法。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK(Interval{nan, nan}.is_empty());
+
+    // 空区间被 +inf 膨胀：`+inf - (+inf)` 是 NaN，若不把谓词改全，
+    // 这里会返回 {NaN, NaN} 且 is_empty() 报 false —— 一个看似成功、
+    // 实则含 NaN 的「区间」，正是本项目那条原则要禁止的东西。
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Interval::empty().expanded(infinity) == Interval::empty());
+    CHECK(Interval::empty().expanded(-infinity) == Interval::empty());
+
+    // 有限区间的这两种极端膨胀都有正确的归宿。
+    CHECK(Interval{1.0, 5.0}.expanded(-infinity) == Interval::empty());
+    CHECK(Interval{1.0, 5.0}.expanded(infinity) == Interval::unbounded());
+}
+
 
 TEST_CASE("equality compares both endpoints, and != agrees",
           "[linear][interval]") {
