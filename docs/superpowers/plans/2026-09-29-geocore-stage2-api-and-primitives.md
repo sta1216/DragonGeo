@@ -88,6 +88,13 @@
 
    已有实例（Task 4 连查出三个）：float 别名从未被命名；`to_array()` 只查末槽；**非 const `operator[]` 从未被实例化**（从测试编出的 obj 里连符号都没有，分量对调全库全绿）。族内常见的漏网形态还有：从未被调用的默认实参、从未被触发的 `requires` 分支、从未被实例化的模板成员、`scalar_type` 之类的成员别名。
 
+   **清单必须覆盖「隐式生成的特殊成员」。** 这是本计划实际漏过的一类：清点时把隐式 `operator!=` 算作实体，却漏了同一类别的**隐式拷贝赋值、拷贝/移动构造、析构**。实测：一个只赋前两个分量的手写 `operator=` 完全静默 —— 从仓库测试编出的 obj 里连拷贝赋值的符号都不存在。**判据要一致**：既然把隐式生成的运算符算进来，就把它们算全。
+
+   **每一条新加的断言，都必须先证明它能对「它声称要防的那个变异体」失败。** 这是本项目付出过代价的一条：为了关闭「去掉默认成员初始化值」这个变异体，计划里写了一条
+   `STATIC_REQUIRE(!std::is_trivially_default_constructible_v<Point3T<double>>);`
+   —— 它**恒真**。去掉一个分量的 NSDMI 之后另外两个还在，构造函数依然非平凡，断言照样通过（去掉全部三个才变），而那正是它要防的情形。于是它给出了「已关闭」的假信号。**用一条恒真的断言去修一类恒真的断言**，是本阶段最该记住的一次教训。
+   正确写法用常量求值：`constexpr Point3T<double> p;`（**不带花括号**）+ `STATIC_REQUIRE(p.x == 0.0)` —— 常量表达式里读不确定值是**编译错误**（C2131 / C2737），既零 UB 又能检出任意一个分量的缺失。
+
    全库别名审计结果与补救方案见 Task 10 的 Step 1c（含阶段 1 遗留的 9 个别名）。（Task 4–8、Task 10）
 
 ---
@@ -648,6 +655,10 @@ namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+
+/// 两种**不同**类型之间能否相加 —— 用来钉住 `Vector + Point` 不存在。
+template <typename A, typename B>
+concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -698,10 +709,36 @@ TEST_CASE("Point3 keeps its declaration-level guarantees",
     // 分量别名。
     STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
 
-    // 默认成员初始化值 `Scalar x{}`。去掉那对花括号之后默认构造的分量变成
-    // 不确定值，而本条断言用**类型特征**检出 —— 不读任何值，因此无 UB。
-    // （`Point3 p{};` 会走聚合的值初始化、照样清零，所以靠读值抓不住它。）
-    STATIC_REQUIRE(!std::is_trivially_default_constructible_v<Point3T<double>>);
+    // noexcept 是 Interfaces 的明文承诺，也要有证据。
+    STATIC_REQUIRE(noexcept(Point3{}.distance_to(Point3{})));
+
+    // 默认成员初始化值 `Scalar x{}` —— **用常量求值钉，不要用类型特征**。
+    // `!is_trivially_default_constructible_v` 看着聪明，实际是**恒真**的：
+    // 去掉一个分量的 NSDMI 之后，另外两个还在，构造函数依然非平凡，断言照样
+    // 通过（已实测：去掉全部三个才变）。那正是它要防的变异体。
+    //
+    // 常量表达式里读一个不确定值**不是 UB，是编译错误**（C2131 / C2737），
+    // 所以下面这段既零 UB、又能检出**任意一个**分量的 NSDMI 缺失。
+    //
+    // 注意 `default_point` **不能写花括号**：写了就是聚合的值初始化，
+    // 有没有 NSDMI 都会清零，什么也测不出来。
+    constexpr Point3T<double> default_point;
+    STATIC_REQUIRE(default_point.x == 0.0);
+    STATIC_REQUIRE(default_point.y == 0.0);
+    STATIC_REQUIRE(default_point.z == 0.0);
+}
+
+TEST_CASE("copy assignment carries every component", "[linear][point3]") {
+    // 隐式拷贝赋值也必须被真的用一次。否则它从未被实例化，一个只赋前两个
+    // 分量的手写赋值运算符会完全静默 —— 已实测：从仓库测试编出的 obj 里
+    // 连拷贝赋值的符号（`??4`）都不存在。
+    const Point3 source{4.0, 5.0, 6.0};
+    Point3 target{0.0, 0.0, 0.0};
+    target = source;
+
+    CHECK(target.x == 4.0);
+    CHECK(target.y == 5.0);
+    CHECK(target.z == 6.0);
 }
 
 TEST_CASE("point and vector arithmetic follows affine rules",
@@ -741,6 +778,11 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     // 匿名命名空间的 `addable`。这一点与 Catch2 无关，也与用不用
     // STATIC_REQUIRE 无关。
     static_assert(!addable<Point3>, "Point + Point must not be well-formed");
+
+    // `Vector + Point` 同样必须不存在 —— spec 的运算符清单里没有它，
+    // 本计划的 Interfaces 也明令不加。它同样只能由编译器判定。
+    static_assert(!addable_pair<Vector3, Point3>,
+                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
@@ -779,6 +821,9 @@ namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
+
+template <typename A, typename B>
+concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -818,7 +863,21 @@ TEST_CASE("the mutable subscript writes the component it names",
 TEST_CASE("Point2 keeps its declaration-level guarantees",
           "[linear][point2]") {
     STATIC_REQUIRE(std::is_same_v<Point2T<float>::scalar_type, float>);
-    STATIC_REQUIRE(!std::is_trivially_default_constructible_v<Point2T<double>>);
+    STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
+
+    // 同 point3_test.cpp：常量求值 + **不带花括号**的默认初始化。
+    constexpr Point2T<double> default_point;
+    STATIC_REQUIRE(default_point.x == 0.0);
+    STATIC_REQUIRE(default_point.y == 0.0);
+}
+
+TEST_CASE("copy assignment carries every component", "[linear][point2]") {
+    const Point2 source{4.0, 5.0};
+    Point2 target{0.0, 0.0};
+    target = source;
+
+    CHECK(target.x == 4.0);
+    CHECK(target.y == 5.0);
 }
 
 TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
@@ -836,12 +895,16 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector2>);
     CHECK(b - a == Vector2{3.0, 4.0});
 
-    // 同 point3_test.cpp：== 的 y 分量必须有独立证据，否则一个「只比较 x」
-    // 的实现会让本文件全部断言静默通过。
-    CHECK(Point2{1.0, 2.0} != Point2{1.0, 9.0});
+    // 两个分量**各要一条**不同方向的证据。只钉 y 是不够的：一个
+    // 「只比较 y」的 operator== 会让本文件全绿（已实测存活），
+    // 于是 Point2{1,2} == Point2{5,2} 被静默判为相等。
+    CHECK(Point2{1.0, 2.0} != Point2{1.0, 9.0});   // y 不同
+    CHECK(Point2{1.0, 2.0} != Point2{9.0, 2.0});   // x 不同
     CHECK(Point2{1.0, 2.0} == Point2{1.0, 2.0});
 
     static_assert(!addable<Point2>, "Point + Point must not be well-formed");
+    static_assert(!addable_pair<Vector2, Point2>,
+                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
