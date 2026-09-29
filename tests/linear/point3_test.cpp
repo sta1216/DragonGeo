@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <type_traits>
 
 #include <GeoCore/linear/Point3.hpp>
@@ -10,23 +11,10 @@ using GeoCore::linear::Point3;
 using GeoCore::linear::Vector3;
 
 namespace {
-
-/// `T + T` 是否良构？用来把「不存在 Point + Point」这条不变量写成编译期断言。
-///
-/// 为什么包一层概念、而不直接写
-/// `static_assert(!requires(Point3 p, Point3 q) { p + q; }, ...)`：
-/// 按 [expr.prim.req.general] 的 Note，requirements 中出现非法表达式、而该
-/// requires-expression 又不在「模板化实体」的声明中时，**程序本身即非良构**
-/// （MSVC 报 C2676 no operator found），而不是求值为 false —— 直写会连测试
-/// 都编不过，且诊断发生在断言之外的地方。
-///
-/// 放进概念后，`Point3` 代入产生的失败是寻常的替换失败，概念取值为 false，
-/// `static_assert` 才真正拿到它要断言的那个 false。这仍然是编译期、由编译器
-/// 亲自判定的检查 —— 不是「目测没问题」。
+/// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
-
-} // namespace
+}
 
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     const Point3 p{1.0, 2.0, 3.0};
@@ -57,18 +45,33 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector3>);
     CHECK(b - a == Vector3{3.0, 4.0, 5.0});
 
+    // 两个点只要有一个分量不同就必须不相等。**这一条不能省** ——
+    // 上面所有期望值的 x 分量都恰好与左操作数相同（11、-9 都是从 a.x=1 算出来的），
+    // 于是一个「只比较 x」的 operator== 会让本文件全部断言静默通过（已用变异测试
+    // 实测：把 == 改成只比 x，21 条断言全过）。
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 9.0, 3.0});
+    CHECK(Point3{1.0, 2.0, 3.0} != Point3{1.0, 2.0, 9.0});
+    CHECK(Point3{1.0, 2.0, 3.0} == Point3{1.0, 2.0, 3.0});
+
     // 点 + 点不存在 —— 这是本任务的核心不变量（Review Focus 第 1 条）：
     // 写错了不会报错，只会静默给出错误语义。必须真的断言，不能只注释掉。
     //
-    // 用普通 static_assert 而非 Catch2 的 STATIC_REQUIRE：后者要把表达式分解成
-    // 左右操作数，而 concept 没有可分解的运算符。块作用域的 static_assert 无此问题。
-    //
-    // `addable` 见文件顶部的匿名命名空间 —— 包一层概念是**编译期**要求，
-    // 不是风格偏好，原因见那里的注释。
-    static_assert(!addable<Point3>,
-                  "Point + Point must not be well-formed");
+    // 不能直接写 `static_assert(!requires(Point3 p, Point3 q) { p + q; });`
+    // —— 那不是「求值为假」，而是**非良构的 C++**。requirements 里的非法表达式
+    // 只有在「替换模板实参」的语境下才求值为 false；`Point3` 是具体类型，
+    // `p + q` 不依赖任何模板参数，因此是硬错误（MSVC 报 C2676，编译器不会
+    // 给你 false）。必须包一层概念，让失败发生在替换上下文里 —— 见文件顶部
+    // 匿名命名空间的 `addable`。这一点与 Catch2 无关，也与用不用
+    // STATIC_REQUIRE 无关。
+    static_assert(!addable<Point3>, "Point + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));
+
+    // 上一条的 Δz 是 0，一个「只算 x/y」的实现照样通过（已用变异测试实测：
+    // 丢掉 z 之后本文件 11 条断言全过）。补一条三个分量都非零的，
+    // 并把 z 单独钉一次。
+    CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{0.0, 0.0, 5.0}) == Approx(5.0));
+    CHECK(Point3{1.0, 2.0, 3.0}.distance_to(Point3{2.0, 4.0, 5.0}) == Approx(3.0));
 }
