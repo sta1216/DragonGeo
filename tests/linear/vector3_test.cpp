@@ -42,6 +42,15 @@ TEST_CASE("cross is anticommutative and right-handed", "[linear][vector3]") {
     const Vector3 a{1.0, 2.0, 3.0};
     const Vector3 b{4.0, 5.0, 6.0};
     CHECK(cross(a, b) == -cross(b, a));
+
+    // 上面这些断言全是输出的线性性质，任何固定线性映射都能满足它们 ——
+    // 反交换性对任意 S 都成立（S(b×a) = -S(a×b)），零结果对线性映射也
+    // 仍是零。因此形如 diag(s1, s2, 1)·(a×b) 的实现能通过全部断言，
+    // 包括 s1 = s2 = 0（x、y 分量恒为零）。下面用三个轴的循环和一个
+    // 一般对，把每个分量各自钉死。
+    CHECK(cross(y_axis, z_axis) == x_axis);
+    CHECK(cross(z_axis, x_axis) == y_axis);
+    CHECK(cross(a, b) == Vector3{-3.0, 6.0, -3.0});
 }
 
 TEST_CASE("cross of parallel vectors is the zero vector", "[linear][vector3]") {
