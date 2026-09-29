@@ -19,6 +19,7 @@
 - **命名：** 类型 PascalCase 且优先完整拼写（全库仅 `BSpline`、`BVH` 两个缩写例外）；函数与变量 `snake_case`；私有数据成员尾随下划线；常量 `snake_case`；宏 `GEOCORE_UPPER_SNAKE`；顶层 namespace `GeoCore`，子模块 namespace 小写。
 - **容差显式传参**，默认值来自 `GeoCore::core::Tolerance`，不得在任何函数体内硬编码阈值。
 - **Point / Vector / UnitVector 类型分离**（Point 属于 `prim` 层，不在本计划范围内）。
+- **分量访问的形式取决于类型，且两者会在同一段代码里并存：** `VectorNT` 是聚合，其 `x`/`y`/`z`/`w` 是**数据成员**；`UnitVectorNT` 是不变量类型，其 `x()`/`y()`/`z()` 是**访问器方法**。凡接收集合函数返回值的表达式（如 `cross(u, v)`、`dot` 的两参返回值路径），其分量一律用数据成员形式 —— 写成 `cross(...).z()` 会得到 `error C2064`。
 - **未实现的方法一律抛 `std::logic_error`**，消息含函数名与原因。
 - **测试文件与被测头文件目录结构镜像**，用 Catch2 的 `TEST_CASE` + 标签。
 - **Catch2 v3 的 `Approx` 需要两件事，缺一不可：** 包含 `<catch2/catch_approx.hpp>`，**并且** `using Catch::Approx;`。v3 把 `Approx` 放在 `Catch` 命名空间内，且 Catch2 自身不提供任何 `using Catch::Approx;` —— 只包含头文件会让调用处报 `error C3861: "Approx": 找不到标识符`。断言宏（`TEST_CASE`、`CHECK`、`REQUIRE`、`STATIC_REQUIRE`、`SUCCEED`）来自 `<catch2/catch_test_macros.hpp>`，它们是宏，不受命名空间影响，无需 using。
@@ -1728,7 +1729,7 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
     // 数学上叉积仍是单位向量，但两向量接近平行时长度会退化到 0，
     // 无法维持不变量，故返回类型刻意是 Vector3。
     STATIC_REQUIRE(std::is_same_v<decltype(cross(*x, *y)), Vector3>);
-    CHECK(cross(*x, *y).z() == Approx(1.0));
+    CHECK(cross(*x, *y).z == Approx(1.0));
 
     const auto parallel = normalize(Vector3{1.0, 0.0, 0.0});
     REQUIRE(parallel.has_value());
