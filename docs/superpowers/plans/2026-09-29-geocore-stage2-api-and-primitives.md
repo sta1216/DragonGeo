@@ -65,9 +65,11 @@
 **Interfaces:**
 - Consumes: `core::Tolerance`、`core::absolute_value`
 - Produces:
-  - `Scalar VectorNT::dot(VectorNT) const noexcept`
+  - `Scalar VectorNT::dot(VectorNT) const noexcept`（2D/3D/4D 都有）
   - `Scalar Vector2T::cross(Vector2T) const noexcept`；`Vector3T Vector3T::cross(Vector3T) const noexcept`
-  - `std::optional<UnitVectorNT> VectorNT::normalized(core::Tolerance = {}) const noexcept`
+  - `std::optional<UnitVector2T> Vector2T::normalized(core::Tolerance = {}) const noexcept`
+  - `std::optional<UnitVector3T> Vector3T::normalized(core::Tolerance = {}) const noexcept`
+  - **`Vector4T` 不提供 `normalized()`** —— 库里不存在 `UnitVector4T`，而 `normalized` 的返回类型就是它。四维单位向量没有几何用途，不为此新增类型。该决定在 `Vector4.hpp` 里以注释记录。
   - `Scalar& VectorNT::operator[](int) noexcept` / `const Scalar& operator[](int) const noexcept`
   - `std::array<Scalar, N> VectorNT::to_array() const noexcept`
   - `Scalar UnitVectorNT::dot(UnitVectorNT) const noexcept`
@@ -75,7 +77,12 @@
 
 - [ ] **Step 1: 写失败测试**
 
-在 `tests/linear/vector3_test.cpp` 追加：
+在 `tests/linear/vector3_test.cpp` 追加（**该文件需要新增 `#include <GeoCore/linear/UnitVector3.hpp>`** —— `normalized()` 的返回类型在那里才完整；这是循环依赖处理方式的固有义务，见下）。
+
+```cpp
+#include <GeoCore/linear/UnitVector3.hpp>   // normalized() 的返回类型
+```
+
 
 ```cpp
 TEST_CASE("Vector3 members: dot, cross, subscript and array export",
@@ -188,19 +195,27 @@ template <typename Scalar> class UnitVector2T;
 
 同法处理 `Vector3T`（`operator[]` 用 `index == 0 ? x : (index == 1 ? y : z)`，`dot`/`cross` 为三维版本，`cross` 返回 `Vector3T`）与 `Vector4T`（无 `cross`）。
 
-在 `UnitVector3.hpp` 末尾承接定义：
+在 `UnitVector3.hpp` 末尾承接定义（**注释必须保留** —— 它记的是"为什么拒绝非有限值"，是阶段 1 三轮裁定的结论，丢掉就要重新推导）：
 
 ```cpp
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector3T<Scalar>> Vector3T<Scalar>::normalized(
     core::Tolerance tolerance) const noexcept {
     const Scalar length = this->length();
+    // 非有限长度同样返回 nullopt。容差判断对 ±inf 与 NaN 一律返回 false
+    // （`is_zero` 刻意不把溢出量静默归类为零），若就此放行，本函数会交出一个
+    // has_value() 为真、内容却是 NaN 的「单位向量」：调用者无从察觉，而 NaN
+    // 会一路污染 dot / cross 与每一个容差比较 —— 那些比较对 NaN 都返回 false，
+    // 下游几何代码会静默走「否」分支。NaN 输入比无穷更常见：任何上游的
+    // 0/0 或 inf - inf 都会落到这里。
     if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
         return std::nullopt;
     }
     return UnitVector3T<Scalar>::from_normalized_unchecked(*this / length);
 }
 ```
+
+**顺带一条文档义务**：调用 `normalized()` 的使用者需要**额外包含** `<GeoCore/linear/UnitVector3.hpp>` 才能用到返回类型 —— 这是「声明在 Vector 头、定义在 UnitVector 头」这一循环依赖处理方式的固有代价。在 `Vector2.hpp` / `Vector3.hpp` 的 `normalized` 声明处注明这一点。
 
 `UnitVector2T` / `UnitVector3T` 内加入 `dot` 与 `cross` 成员：
 
