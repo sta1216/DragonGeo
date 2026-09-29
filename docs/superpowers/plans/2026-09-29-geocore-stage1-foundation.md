@@ -2914,7 +2914,7 @@ TEST_CASE("to_matrix and rotate agree on a general axis", "[linear][quaternion]"
     const UnitVector3 axis = UnitVector3::from_normalized_unchecked(
         Vector3{1.0, 2.0, 3.0} / std::sqrt(14.0));
     const Quaternion q = from_axis_angle(axis, 0.7);
-    const Matrix3 m = to_matrix(q);
+    const GeoCore::linear::Matrix3 m = to_matrix(q);
 
     // 先证明这次确实覆盖了那四个条目
     CHECK(m(0, 2) != 0.0);
