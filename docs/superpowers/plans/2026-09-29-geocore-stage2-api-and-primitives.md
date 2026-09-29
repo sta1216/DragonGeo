@@ -396,7 +396,8 @@ git commit -m "refactor(linear): make matrix and quaternion operations members"
 
 **Files:**
 - Modify: `include/GeoCore/linear/Transform2.hpp`、`Transform3.hpp`
-- Modify: `tests/linear/transform2_test.cpp`、`transform3_test.cpp`、`examples/transform_pipeline.cpp`
+- Modify: `include/GeoCore/linear/Matrix.hpp`（**仅**三处注释里对 `translation_3d` / `scaling_3d` 的具名引用，见 Step 3）
+- Modify: `tests/linear/transform2_test.cpp`、`transform3_test.cpp`、`matrix_inverse_test.cpp`、`examples/transform_pipeline.cpp`
 
 **Interfaces:**
 - Produces:
@@ -422,11 +423,19 @@ TEST_CASE("Transform3 members and static factories", "[linear][transform3]") {
     const Transform3 unit = Transform3::identity();
     CHECK(unit.apply(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
 
+    // 逆走的是行列平衡 + 除法还原，这条路径不承诺精确舍入；本文件既有的
+    // "inverse undoes the transform" 用的就是 margin(1e-12)。沿用同一强度 ——
+    // 断言精确相等会把正常的浮点舍入当成缺陷，换个编译器/libm 就会碎。
     const auto inv = t.inverse();
     REQUIRE(inv.has_value());
-    CHECK(inv->apply(Vector3{11.0, 22.0, 33.0}) == Vector3{1.0, 2.0, 3.0});
+    const Vector3 back = inv->apply(Vector3{11.0, 22.0, 33.0});
+    CHECK(back.x == Approx(1.0).margin(1e-12));
+    CHECK(back.y == Approx(2.0).margin(1e-12));
+    CHECK(back.z == Approx(3.0).margin(1e-12));
 }
 ```
+
+（前三行用精确相等是对的：平移的分量相加、以及 `operator*` 只施加线性部分（平移的线性部分是恒等），都逐位精确。只有逆那一段要放 margin。）
 
 - [ ] **Step 2: 运行，确认失败**
 
@@ -438,7 +447,42 @@ Expected: 编译失败。
 
 - [ ] **Step 3: 实现**
 
-把 `identity_transform<S>()` / `translation_3d` / `scaling_3d` / `rotation_3d` / `apply(t,v)` / `inverse(t,tol)` 搬进 `TransformNT` 成为静态工厂或成员，删除旧自由函数，更新两个测试文件与 `examples/transform_pipeline.cpp` 的调用点。
+把 `identity_transform<S>()` / `translation_3d` / `scaling_3d` / `rotation_3d` / `apply(t,v)` / `inverse(t,tol)` 搬进 `TransformNT` 成为静态工厂或成员，删除旧自由函数。
+
+**注意二维与三维不同构的地方：**
+
+- `identity_transform<S>()` **只有三维有**。`Transform2T::identity()` 是**新建**的静态工厂，没有自由函数可搬（`Transform2.hpp` 目前用成员默认值 `MatrixT<Scalar, 3>::identity()`）。
+- 旋转的签名本就不同：`rotation_3d(UnitVector3T, Scalar)` vs `rotation_2d(Scalar)`（二维没有转轴）。Interfaces 里的「同构」指的是命名，不是参数表。
+- 两个带标量的重载（`scaling_3d(Scalar)`、`scaling_2d(Scalar)`）内部调用各自的向量版本，改写时是成员调用自家静态工厂。
+
+**要一并改掉的调用点**（已全库扫描确认；阶段 2 已两次栽在漏掉调用点上，其中一次就是漏掉 examples）：
+
+| 文件 | 命中 | 改法 |
+|---|---|---|
+| `Transform2.hpp` | `scaling_2d(Scalar)` 体内调 `scaling_2d(Vector2T)` | 静态工厂成员调用 |
+| `Transform3.hpp` | `scaling_3d(Scalar)` 体内调 `scaling_3d(Vector3T)` | 同上 |
+| `tests/linear/transform2_test.cpp` | `translation_2d`/`rotation_2d`/`scaling_2d`/`apply(` 共 12 处 | 静态工厂与成员形式 |
+| `tests/linear/transform3_test.cpp` | `identity_transform`/`translation_3d`/`rotation_3d`/`scaling_3d`/`apply(` 共 14 处 | 同上 |
+| `tests/linear/matrix_inverse_test.cpp` | `scaling_3d` 5 处、`translation_3d` 2 处、自由 `apply(` 1 处 | 同上 |
+| `examples/transform_pipeline.cpp` | `using` 三条 + 工厂 4 处 + `apply(` 2 处 | 同上 |
+| `Matrix.hpp` | 第 119/124/127 行注释里的 `translation_3d(t)` / `scaling_3d(...)` 具名引用 | 改指新的静态工厂名 |
+
+**`matrix_inverse_test.cpp` 不在原 Files 列表里，但必须改** —— 它用 `scaling_3d`/`translation_3d` 构造变换来测 Matrix 的逆，这些自由函数一删它就编译不过。这也是 Task 2 的实现者踩到的同一个坑。
+
+改完自己 grep 一遍，不要只信这张表：
+
+```bash
+grep -rn "\bidentity_transform\|\btranslation_3d\|\bscaling_3d\|\brotation_3d\|\btranslation_2d\|\bscaling_2d\|\brotation_2d" include/ examples/ tests/
+grep -rn "[^._a-zA-Z]apply(" include/ examples/ tests/
+```
+
+预期：只剩函数定义处的自引用与注释文字，没有调用点。
+
+- [ ] **Step 3b: 修正 `Transform3.hpp` 顶部那段已经失效的分层说明**
+
+`Transform3.hpp:17-26` 的文档注释写着「Point3 属于 prim 层，linear 不得依赖它 …… 作用于 Point3 的运算符由 prim 层提供」。**本阶段已把 `Point` 移进 `linear`**（spec 决策 15–17），这段话现在两句都是错的。请改成：`operator*` 只施加线性部分（变换方向）、`apply` 施加完整仿射变换（把 `Vector` 读作位置）这个区分仍然成立，因此保留；但删去「Point3 属于 prim 层」与「由 prim 层提供」的说法，改为说明作用于 `Point3` 的成员（`transform_point`）在同一类型上一并提供，随 `Point3` 落地（Task 9）。
+
+**不要**顺手把这段里关于「第 4 行假定为 (0,0,0,1)」的说明改掉 —— 那段仍然准确，且是 `apply`/`operator*` 不读第 4 行的依据。
 
 - [ ] **Step 4: 运行全部并提交**
 
