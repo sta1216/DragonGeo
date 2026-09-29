@@ -21,7 +21,7 @@
 - **Point / Vector / UnitVector 类型分离**（Point 属于 `prim` 层，不在本计划范围内）。
 - **未实现的方法一律抛 `std::logic_error`**，消息含函数名与原因。
 - **测试文件与被测头文件目录结构镜像**，用 Catch2 的 `TEST_CASE` + 标签。
-- **Catch2 v3 的头文件按需包含且互不传递：** 断言宏来自 `<catch2/catch_test_macros.hpp>`，`Approx` 来自 `<catch2/catch_approx.hpp>`。用到 `Approx` 的测试文件必须显式包含后者，否则编译失败。
+- **Catch2 v3 的 `Approx` 需要两件事，缺一不可：** 包含 `<catch2/catch_approx.hpp>`，**并且** `using Catch::Approx;`。v3 把 `Approx` 放在 `Catch` 命名空间内，且 Catch2 自身不提供任何 `using Catch::Approx;` —— 只包含头文件会让调用处报 `error C3861: "Approx": 找不到标识符`。断言宏（`TEST_CASE`、`CHECK`、`REQUIRE`、`STATIC_REQUIRE`、`SUCCEED`）来自 `<catch2/catch_test_macros.hpp>`，它们是宏，不受命名空间影响，无需 using。
 - **本机为 Windows + Visual Studio 2022，未安装 Ninja。** 本地命令一律用 `windows-vs` 预设；CI 在 Linux/macOS 上用 `ninja-debug`。
 
 ## Review Focus
@@ -910,6 +910,8 @@ git commit -m "feat(core): add constants, numeric utilities and the tolerance mo
 
 #include <GeoCore/linear/Vector2.hpp>
 
+using Catch::Approx;
+
 using GeoCore::linear::Vector2;
 using GeoCore::linear::Vector2f;
 
@@ -1174,6 +1176,8 @@ git commit -m "feat(linear): add Vector2T with overflow-safe length"
 #include <cmath>
 
 #include <GeoCore/linear/Vector3.hpp>
+
+using Catch::Approx;
 
 using GeoCore::linear::Vector3;
 using GeoCore::linear::Vector3f;
@@ -1562,6 +1566,8 @@ git commit -m "feat(linear): add Vector3T and Vector4T"
 
 #include <GeoCore/linear/UnitVector3.hpp>
 
+using Catch::Approx;
+
 using GeoCore::core::Tolerance;
 using GeoCore::linear::normalize;
 using GeoCore::linear::UnitVector3;
@@ -1680,6 +1686,8 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
 #include <cmath>
 
 #include <GeoCore/linear/UnitVector2.hpp>
+
+using Catch::Approx;
 
 using GeoCore::linear::normalize;
 using GeoCore::linear::Vector2;
@@ -2301,6 +2309,8 @@ git commit -m "feat(linear): add MatrixT with multiplication, transpose and matr
 
 #include <GeoCore/linear/Matrix.hpp>
 
+using Catch::Approx;
+
 using GeoCore::core::Tolerance;
 using GeoCore::linear::determinant;
 using GeoCore::linear::identity;
@@ -2583,6 +2593,8 @@ git commit -m "feat(linear): add determinant and optional-returning inverse"
 
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
+
+using Catch::Approx;
 
 using GeoCore::core::half_pi;
 using GeoCore::linear::conjugate;
@@ -2926,6 +2938,8 @@ git commit -m "feat(linear): add QuaternionT with axis-angle construction and ro
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Transform3.hpp>
 
+using Catch::Approx;
+
 using GeoCore::core::half_pi;
 using GeoCore::linear::apply;
 using GeoCore::linear::inverse;
@@ -3032,6 +3046,8 @@ TEST_CASE("inverse of a degenerate transform is nullopt",
 
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Transform2.hpp>
+
+using Catch::Approx;
 
 using GeoCore::core::half_pi;
 using GeoCore::linear::apply;
