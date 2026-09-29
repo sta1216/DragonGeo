@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+
+#include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Vector2.hpp>
 #include <GeoCore/linear/Vector3.hpp>
 #include <GeoCore/linear/Vector4.hpp>
@@ -121,6 +124,119 @@ template <typename Scalar, int N>
         }
     }
     return true;
+}
+
+// ---- 行列式 ----
+
+/// 2×2 / 3×3 / 4×4 的行列式。
+///
+/// 用 if constexpr 写成单一实现，而不是为每个尺寸提供一个重载：单一
+/// 实现能借 static_assert 给出「只支持 2/3/4」这样明确的编译期诊断，
+/// 也免去维护三份几乎相同的签名。
+///
+/// 展开为闭式解（4×4 用第一行余子式展开）而非通用 LU 分解：固定尺寸的
+/// 展开式没有循环开销，编译器也能完全内联。
+template <typename Scalar, int N>
+[[nodiscard]] constexpr Scalar determinant(const MatrixT<Scalar, N>& m) noexcept {
+    static_assert(N == 2 || N == 3 || N == 4,
+                  "determinant is implemented for 2x2, 3x3 and 4x4 matrices only");
+
+    if constexpr (N == 2) {
+        return m.data[0][0] * m.data[1][1] - m.data[0][1] * m.data[1][0];
+    } else if constexpr (N == 3) {
+        return m.data[0][0] * (m.data[1][1] * m.data[2][2] - m.data[1][2] * m.data[2][1])
+             - m.data[0][1] * (m.data[1][0] * m.data[2][2] - m.data[1][2] * m.data[2][0])
+             + m.data[0][2] * (m.data[1][0] * m.data[2][1] - m.data[1][1] * m.data[2][0]);
+    } else {
+        const Scalar sub_00 = m.data[1][1] * (m.data[2][2] * m.data[3][3] - m.data[2][3] * m.data[3][2])
+                            - m.data[1][2] * (m.data[2][1] * m.data[3][3] - m.data[2][3] * m.data[3][1])
+                            + m.data[1][3] * (m.data[2][1] * m.data[3][2] - m.data[2][2] * m.data[3][1]);
+        const Scalar sub_01 = m.data[1][0] * (m.data[2][2] * m.data[3][3] - m.data[2][3] * m.data[3][2])
+                            - m.data[1][2] * (m.data[2][0] * m.data[3][3] - m.data[2][3] * m.data[3][0])
+                            + m.data[1][3] * (m.data[2][0] * m.data[3][2] - m.data[2][2] * m.data[3][0]);
+        const Scalar sub_02 = m.data[1][0] * (m.data[2][1] * m.data[3][3] - m.data[2][3] * m.data[3][1])
+                            - m.data[1][1] * (m.data[2][0] * m.data[3][3] - m.data[2][3] * m.data[3][0])
+                            + m.data[1][3] * (m.data[2][0] * m.data[3][1] - m.data[2][1] * m.data[3][0]);
+        const Scalar sub_03 = m.data[1][0] * (m.data[2][1] * m.data[3][2] - m.data[2][2] * m.data[3][1])
+                            - m.data[1][1] * (m.data[2][0] * m.data[3][2] - m.data[2][2] * m.data[3][0])
+                            + m.data[1][2] * (m.data[2][0] * m.data[3][1] - m.data[2][1] * m.data[3][0]);
+
+        return m.data[0][0] * sub_00 - m.data[0][1] * sub_01
+             + m.data[0][2] * sub_02 - m.data[0][3] * sub_03;
+    }
+}
+
+// ---- 求逆 ----
+
+/// 逆矩阵。矩阵在给定容差下行列式可视为零（即奇异）时返回 std::nullopt。
+///
+/// 用 optional 而非抛出异常：奇异矩阵是数学事实，不是程序错误，调用者
+/// 有责任处理这个分支。返回 std::nullopt 也让调用者不可能拿到一个含
+/// inf / NaN 的矩阵。
+///
+/// 与 determinant 一样用 if constexpr 写成单一实现。
+template <typename Scalar, int N>
+[[nodiscard]] constexpr std::optional<MatrixT<Scalar, N>> inverse(
+    const MatrixT<Scalar, N>& m, core::Tolerance tolerance = {}) noexcept {
+    static_assert(N == 2 || N == 3 || N == 4,
+                  "inverse is implemented for 2x2, 3x3 and 4x4 matrices only");
+
+    const Scalar det = determinant(m);
+    if (tolerance.is_zero(static_cast<double>(det))) {
+        return std::nullopt;
+    }
+    const Scalar inv_det = Scalar{1} / det;
+
+    if constexpr (N == 2) {
+        MatrixT<Scalar, 2> result{};
+        result.data[0][0] =  m.data[1][1] * inv_det;
+        result.data[0][1] = -m.data[0][1] * inv_det;
+        result.data[1][0] = -m.data[1][0] * inv_det;
+        result.data[1][1] =  m.data[0][0] * inv_det;
+        return result;
+    } else if constexpr (N == 3) {
+        MatrixT<Scalar, 3> result{};
+        result.data[0][0] = (m.data[1][1] * m.data[2][2] - m.data[1][2] * m.data[2][1]) * inv_det;
+        result.data[0][1] = (m.data[0][2] * m.data[2][1] - m.data[0][1] * m.data[2][2]) * inv_det;
+        result.data[0][2] = (m.data[0][1] * m.data[1][2] - m.data[0][2] * m.data[1][1]) * inv_det;
+        result.data[1][0] = (m.data[1][2] * m.data[2][0] - m.data[1][0] * m.data[2][2]) * inv_det;
+        result.data[1][1] = (m.data[0][0] * m.data[2][2] - m.data[0][2] * m.data[2][0]) * inv_det;
+        result.data[1][2] = (m.data[0][2] * m.data[1][0] - m.data[0][0] * m.data[1][2]) * inv_det;
+        result.data[2][0] = (m.data[1][0] * m.data[2][1] - m.data[1][1] * m.data[2][0]) * inv_det;
+        result.data[2][1] = (m.data[0][1] * m.data[2][0] - m.data[0][0] * m.data[2][1]) * inv_det;
+        result.data[2][2] = (m.data[0][0] * m.data[1][1] - m.data[0][1] * m.data[1][0]) * inv_det;
+        return result;
+    } else {
+        // 4×4 按伴随矩阵求逆：result(i, j) = cofactor(j, i) / det。
+        // 先用 2×2 子式算出每个 3×3 余子式，再按符号填入转置位置。
+        const auto minor3 = [&m](int skip_row, int skip_column) noexcept -> Scalar {
+            Scalar block[3][3];
+            int r = 0;
+            for (int i = 0; i < 4; ++i) {
+                if (i == skip_row) { continue; }
+                int c = 0;
+                for (int j = 0; j < 4; ++j) {
+                    if (j == skip_column) { continue; }
+                    block[r][c] = m.data[i][j];
+                    ++c;
+                }
+                ++r;
+            }
+            return block[0][0] * (block[1][1] * block[2][2] - block[1][2] * block[2][1])
+                 - block[0][1] * (block[1][0] * block[2][2] - block[1][2] * block[2][0])
+                 + block[0][2] * (block[1][0] * block[2][1] - block[1][1] * block[2][0]);
+        };
+
+        MatrixT<Scalar, 4> result{};
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                const Scalar cofactor = minor3(j, i);
+                const Scalar sign = ((i + j) % 2 == 0) ? Scalar{1} : Scalar{-1};
+                result.data[i][j] = sign * cofactor * inv_det;
+            }
+        }
+        return result;
+    }
 }
 
 // ---- 矩阵 × 向量 ----
