@@ -21,6 +21,7 @@
 - **Point / Vector / UnitVector 类型分离**（Point 属于 `prim` 层，不在本计划范围内）。
 - **未实现的方法一律抛 `std::logic_error`**，消息含函数名与原因。
 - **测试文件与被测头文件目录结构镜像**，用 Catch2 的 `TEST_CASE` + 标签。
+- **Catch2 v3 的头文件按需包含且互不传递：** 断言宏来自 `<catch2/catch_test_macros.hpp>`，`Approx` 来自 `<catch2/catch_approx.hpp>`。用到 `Approx` 的测试文件必须显式包含后者，否则编译失败。
 - **本机为 Windows + Visual Studio 2022，未安装 Ninja。** 本地命令一律用 `windows-vs` 预设；CI 在 Linux/macOS 上用 `ninja-debug`。
 
 ## Review Focus
@@ -826,6 +827,7 @@ git commit -m "feat(core): add constants, numeric utilities and the tolerance mo
 创建 `tests/linear/vector2_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -947,6 +949,9 @@ template <typename Scalar>
 struct Vector2T {
     using scalar_type = Scalar;
 
+    // 刻意不声明任何构造函数。C++20 起「用户声明的构造函数」——哪怕只是
+    // `= default` —— 都会让类型不再是聚合，进而使 `Vector2{3.0, 4.0}` 这类
+    // 聚合初始化失效。默认成员初始化器已经提供了零初始化，无需额外构造函数。
     Scalar x{};
     Scalar y{};
 
@@ -1088,6 +1093,7 @@ git commit -m "feat(linear): add Vector2T with overflow-safe length"
 创建 `tests/linear/vector3_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -1222,6 +1228,7 @@ template <typename Scalar>
 struct Vector3T {
     using scalar_type = Scalar;
 
+    // 同 Vector2T：不声明任何构造函数，以保持聚合性。
     Scalar x{};
     Scalar y{};
     Scalar z{};
@@ -1331,6 +1338,7 @@ template <typename Scalar>
 struct Vector4T {
     using scalar_type = Scalar;
 
+    // 同 Vector2T：不声明任何构造函数，以保持聚合性。
     Scalar x{};
     Scalar y{};
     Scalar z{};
@@ -1470,6 +1478,7 @@ git commit -m "feat(linear): add Vector3T and Vector4T"
 创建 `tests/linear/unit_vector3_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -1590,6 +1599,7 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
 创建 `tests/linear/unit_vector2_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -2208,6 +2218,7 @@ git commit -m "feat(linear): add MatrixT with multiplication, transpose and matr
 创建 `tests/linear/matrix_inverse_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -2490,6 +2501,7 @@ git commit -m "feat(linear): add determinant and optional-returning inverse"
 创建 `tests/linear/quaternion_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -2831,6 +2843,7 @@ git commit -m "feat(linear): add QuaternionT with axis-angle construction and ro
 创建 `tests/linear/transform3_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -2939,6 +2952,7 @@ TEST_CASE("inverse of a degenerate transform is nullopt",
 创建 `tests/linear/transform2_test.cpp`：
 
 ```cpp
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <GeoCore/core/Constants.hpp>
