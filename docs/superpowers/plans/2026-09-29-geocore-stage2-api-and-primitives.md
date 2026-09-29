@@ -665,6 +665,24 @@ TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     CHECK(arr[2] == 3.0);
 }
 
+TEST_CASE("the mutable subscript writes the component it names",
+          "[linear][point3]") {
+    // **非 const 重载必须被真的用一次。** 本任务此前所有下标访问都作用在
+    // const 对象上，因此 `Scalar& operator[](int)` 从未被实例化 —— 实测把它
+    // 写成分量对调后，全库 136 个用例全绿、零警告，甚至从测试编出的 obj 里
+    // 连这个重载的符号都不存在。后果是经由可变下标写入会静默落进别的分量，
+    // 那是几何数据损坏，不是精度问题。
+    // 同目录的 vector3_test.cpp 正是这样用 Vector 的可变下标的，与它对齐。
+    Point3 p{0.0, 0.0, 0.0};
+    p[0] = 1.0;
+    p[1] = 2.0;
+    p[2] = 3.0;
+
+    CHECK(p.x == 1.0);
+    CHECK(p.y == 2.0);
+    CHECK(p.z == 3.0);
+}
+
 TEST_CASE("point and vector arithmetic follows affine rules",
           "[linear][point3]") {
     const Point3 a{1.0, 2.0, 3.0};
@@ -740,8 +758,10 @@ concept addable = requires(T p, T q) { p + q; };
 
 TEST_CASE("the float alias really is the float instantiation",
           "[linear][point2]") {
-    // 同 point3_test.cpp。二维的「绑定写错」在列表初始化收窄检查下会编译失败，
-    // 但那条**偶然**的防线不该被依赖 —— 断言本身才是承诺。
+    // 同 point3_test.cpp。二维此前**同样没有任何防线**：实测只把别名 using
+    // 进来（不补断言）、把 Point2f 绑成 Point2T<double>，编译通过、13 条断言
+    // 全过、退出码 0。所以下面这条不是「加固一道已有的防线」，它是这里**唯一**
+    // 的证据。
     STATIC_REQUIRE(std::is_same_v<Point2f, Point2T<float>>);
 }
 
@@ -756,6 +776,18 @@ TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
     const std::array<double, 2> arr = p.to_array();
     CHECK(arr[0] == 1.0);
     CHECK(arr[1] == 2.0);
+}
+
+TEST_CASE("the mutable subscript writes the component it names",
+          "[linear][point2]") {
+    // 同 point3_test.cpp：非 const 重载必须被真的用一次，否则它从未被实例化，
+    // 分量对调也无人察觉。
+    Point2 p{0.0, 0.0};
+    p[0] = 4.0;
+    p[1] = 5.0;
+
+    CHECK(p.x == 4.0);
+    CHECK(p.y == 5.0);
 }
 
 TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
