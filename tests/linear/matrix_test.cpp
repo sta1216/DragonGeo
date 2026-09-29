@@ -31,6 +31,22 @@ TEST_CASE("identity is the multiplicative unit", "[linear][matrix]") {
     CHECK(m * unit == m);
 }
 
+TEST_CASE("scalar multiplication is available in both orders", "[linear][matrix]") {
+    const Matrix2 m{{{1.0, 2.0}, {3.0, 4.0}}};
+
+    // 与 Vector / UnitVector 的接口保持一致：两种写法都要成立
+    CHECK(m * 2.0 == Matrix2{{{2.0, 4.0}, {6.0, 8.0}}});
+    CHECK(2.0 * m == Matrix2{{{2.0, 4.0}, {6.0, 8.0}}});
+    CHECK(m * 2 == Matrix2{{{2.0, 4.0}, {6.0, 8.0}}});
+}
+
+TEST_CASE("unary minus negates every element", "[linear][matrix]") {
+    const Matrix2 m{{{1.0, -2.0}, {3.0, 4.0}}};
+
+    CHECK(-m == Matrix2{{{-1.0, 2.0}, {-3.0, -4.0}}});
+    CHECK(m + (-m) == Matrix2{});
+}
+
 TEST_CASE("matrix multiplication follows the row-column rule",
           "[linear][matrix]") {
     const Matrix2 a{{{1.0, 2.0}, {3.0, 4.0}}};

@@ -196,6 +196,26 @@ TEST_CASE("to_matrix and rotate agree on a general axis", "[linear][quaternion]"
     CHECK(by_matrix.z == Approx(by_quaternion.z));
 }
 
+TEST_CASE("scalar multiplication and negation are available", "[linear][quaternion]") {
+    const Quaternion q{1.0, 2.0, 3.0, 4.0};
+
+    // 与 Vector / Matrix 的接口保持一致：两种写法都要成立
+    CHECK(q * 2.0 == Quaternion{2.0, 4.0, 6.0, 8.0});
+    CHECK(2.0 * q == Quaternion{2.0, 4.0, 6.0, 8.0});
+
+    CHECK(-q == Quaternion{-1.0, -2.0, -3.0, -4.0});
+
+    // q 与 -q 是同一个旋转：对同一个向量作用的结果必须一致
+    const Quaternion unit = from_axis_angle(z_axis, half_pi);
+    const Vector3 v{1.0, 2.0, 3.0};
+    const Vector3 by_q = rotate(unit, v);
+    const Vector3 by_negated = rotate(-unit, v);
+
+    CHECK(by_negated.x == Approx(by_q.x));
+    CHECK(by_negated.y == Approx(by_q.y));
+    CHECK(by_negated.z == Approx(by_q.z));
+}
+
 TEST_CASE("normalize scales a non-unit quaternion", "[linear][quaternion]") {
     // 原用例只用 has_value() 检查 normalize，因此一个「对非零模长原样返回」
     // 的实现也能全部通过。这里数值验证缩放路径本身。

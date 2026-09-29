@@ -115,6 +115,27 @@ template <typename Scalar, int N, typename Factor>
     return result;
 }
 
+/// 标量 × 矩阵。与 operator*(matrix, factor) 对称 —— 缺了它 `2.0 * m`
+/// 会编译失败，而 Vector 与 UnitVector 都提供两种写法。
+template <typename Scalar, int N, typename Factor>
+    requires std::convertible_to<Factor, Scalar>
+[[nodiscard]] constexpr MatrixT<Scalar, N> operator*(
+    Factor factor, const MatrixT<Scalar, N>& m) noexcept {
+    return m * factor;
+}
+
+/// 逐元素取负。
+template <typename Scalar, int N>
+[[nodiscard]] constexpr MatrixT<Scalar, N> operator-(const MatrixT<Scalar, N>& m) noexcept {
+    MatrixT<Scalar, N> result{};
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            result.data[i][j] = -m.data[i][j];
+        }
+    }
+    return result;
+}
+
 template <typename Scalar, int N>
 [[nodiscard]] constexpr bool operator==(
     const MatrixT<Scalar, N>& a, const MatrixT<Scalar, N>& b) noexcept {

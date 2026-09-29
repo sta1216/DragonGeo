@@ -124,6 +124,21 @@ template <typename Scalar, typename Factor>
     return QuaternionT<Scalar>{q.w * scale, q.x * scale, q.y * scale, q.z * scale};
 }
 
+/// 标量 × 四元数。与 operator*(quaternion, factor) 对称 —— 缺了它
+/// `2.0 * q` 会编译失败，而 Vector 与 UnitVector 都提供两种写法。
+template <typename Scalar, typename Factor>
+    requires std::convertible_to<Factor, Scalar>
+[[nodiscard]] constexpr QuaternionT<Scalar> operator*(
+    Factor factor, QuaternionT<Scalar> q) noexcept {
+    return q * factor;
+}
+
+/// 逐分量取负。q 与 -q 表示同一个旋转，故取负不影响旋转语义。
+template <typename Scalar>
+[[nodiscard]] constexpr QuaternionT<Scalar> operator-(QuaternionT<Scalar> q) noexcept {
+    return QuaternionT<Scalar>{-q.w, -q.x, -q.y, -q.z};
+}
+
 /// 由单位轴与弧度角构造旋转。
 ///
 /// 轴参数刻意接受 UnitVector3T 而非 Vector3T：非单位轴会让结果不再是
