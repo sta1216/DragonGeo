@@ -757,10 +757,18 @@ git commit -m "feat(linear): add Point2T and Point3T"
   - `bool is_empty() const`、`bool contains(Scalar) const`、`bool intersects(IntervalT) const`
   - `Scalar length() const`、`Scalar center() const`
   - `IntervalT merged(IntervalT) const`、`IntervalT expanded(Scalar) const`、`IntervalT clipped(IntervalT) const`（交集）
+  - `bool operator==(IntervalT, IntervalT) noexcept`（自由函数，与 `Vector`/`Point` 的约定一致；`!=` 由 C++20 生成）
+
+**空区间的规范表示（本任务的关键约定）。** 空区间一律用 `[+inf, -inf]` 表示，且**凡是产出空区间的运算都必须给出这个规范形式**，不能给 `[2, 0]` 这种「倒置但不规范」的区间。理由是 spec 决策 17 那条原则的延伸：同一个数学量不该有两种语义 —— 若 `is_empty()` 接受两种表示，那么 `==`、`length()`、`center()` 都会变成「看情况」，调用者无从判断。`is_empty()` 仍然实现为 `min > max`（对两种表示都安全），但**生产者一律规范化**。
+
+**两个哨兵区间的 `length()` 与 `center()` 必须定义**，否则它们会静默给出非有限值：
+
+- `length()`：`is_empty() ? 0 : max - min`。空区间的原始差是 `-inf - (+inf) = -inf`，一个没有任何意义的「长度」，还会一路传播下去；空集的测度是 0。无界区间（含半无界）的原始差本来就是 `+inf`，正确。
+- `center()`：用 `min * 0.5 + max * 0.5` 实现，**不要**用 `(min + max) * 0.5` 或 `min + (max - min) * 0.5` —— 前者在 `[1e308, 1e308]` 上溢出成 `+inf`，后者在 `[-1e308, 1e308]` 上溢出成 `+inf`，而 `min*0.5 + max*0.5` 两种都正确。任一端点无穷时它自然是 `NaN`（`(+inf) + (-inf)`），这正是「没有中点」的诚实答案：**文档里写明这是哨兵值、并配测试钉住**，不要为了「避免 NaN」而返回某个看似成功的数字。
 
 - [ ] **Step 1: 写失败测试**
 
-覆盖：构造、`empty`/`unbounded`、包含（含端点）、相交、合并（含与空区间合并）、长度/中心、膨胀/收缩、与空区间求交、退化区间（`min == max`）。关键用例：
+创建 `tests/linear/interval_test.cpp`（需要 `<cmath>` 与 `<limits>`）：
 
 ```cpp
 TEST_CASE("merging with the empty interval is the identity",
@@ -768,7 +776,7 @@ TEST_CASE("merging with the empty interval is the identity",
     const Interval a{1.0, 5.0};
     CHECK(a.merged(Interval::empty()) == a);
     CHECK(Interval::empty().merged(a) == a);
-    CHECK(Interval::empty().merged(Interval::empty()).is_empty());
+    CHECK(Interval::empty().merged(Interval::empty()) == Interval::empty());
 }
 
 TEST_CASE("a degenerate interval contains exactly one point",
@@ -780,11 +788,96 @@ TEST_CASE("a degenerate interval contains exactly one point",
     CHECK_FALSE(point.contains(3.0 + 1e-15));
     CHECK(point.length() == 0.0);
 }
+
+TEST_CASE("contains is closed at both ends", "[linear][interval]") {
+    const Interval a{1.0, 5.0};
+
+    CHECK(a.contains(1.0));
+    CHECK(a.contains(5.0));
+    CHECK(a.contains(3.0));
+    CHECK_FALSE(a.contains(0.999));
+    CHECK_FALSE(a.contains(5.001));
+}
+
+TEST_CASE("length and center are defined on the sentinel intervals",
+          "[linear][interval]") {
+    // 空区间的测度是 0；max - min 会给出 -inf，那是没有意义的长度。
+    CHECK(Interval::empty().length() == 0.0);
+
+    // 无界区间的测度确实是 +inf。
+    CHECK(Interval::unbounded().length() ==
+          std::numeric_limits<double>::infinity());
+
+    CHECK(Interval{1.0, 5.0}.length() == 4.0);
+    CHECK(Interval{1.0, 5.0}.center() == 3.0);
+
+    // center 用 min*0.5 + max*0.5：这两种极端值都能算对，
+    // (min+max)*0.5 与 min+(max-min)*0.5 各会在其中一个上溢出。
+    CHECK(Interval{1e308, 1e308}.center() == 1e308);
+    CHECK(Interval{-1e308, 1e308}.center() == 0.0);
+
+    // 端点无穷时没有「中点」：(+inf) + (-inf) 是 NaN。这是刻意的哨兵，
+    // 不是漏判 —— 调用者应先 is_empty() 或判端点有限性。
+    CHECK(std::isnan(Interval::empty().center()));
+    CHECK(std::isnan(Interval::unbounded().center()));
+}
+
+TEST_CASE("intersects and clipped agree, and clipped canonicalises",
+          "[linear][interval]") {
+    const Interval a{1.0, 5.0};
+    const Interval b{4.0, 8.0};
+    const Interval disjoint{6.0, 9.0};
+
+    CHECK(a.intersects(b));
+    CHECK_FALSE(a.intersects(disjoint));
+    CHECK(a.clipped(b) == Interval{4.0, 5.0});
+
+    // 不相交时必须是规范空区间，不能是 [6.0, 5.0] 那种倒置形式 ——
+    // 后者 is_empty() 也为真，但 min/max 携带的是错误信息。
+    CHECK(a.clipped(disjoint) == Interval::empty());
+    CHECK_FALSE(a.clipped(disjoint).intersects(a));
+}
+
+TEST_CASE("empty intervals stay empty under intersects and clipped",
+          "[linear][interval]") {
+    const Interval a{1.0, 5.0};
+
+    CHECK_FALSE(Interval::empty().intersects(a));
+    CHECK_FALSE(a.intersects(Interval::empty()));
+    CHECK(Interval::empty().clipped(a) == Interval::empty());
+    CHECK(a.clipped(Interval::empty()) == Interval::empty());
+    CHECK(Interval::empty().clipped(Interval::empty()) == Interval::empty());
+}
+
+TEST_CASE("expanded grows both ends, and a negative amount shrinks",
+          "[linear][interval]") {
+    CHECK(Interval{1.0, 5.0}.expanded(2.0) == Interval{-1.0, 7.0});
+    CHECK(Interval{1.0, 5.0}.expanded(-1.0) == Interval{2.0, 4.0});
+
+    // 收缩过头得到空区间 —— 同样是规范形式，不是 [4.0, 2.0]。
+    CHECK(Interval{1.0, 5.0}.expanded(-3.0) == Interval::empty());
+
+    // 空区间膨胀后仍是空区间，不会变成 [-inf, +inf]。
+    CHECK(Interval::empty().expanded(1.0) == Interval::empty());
+
+    // 无界区间膨胀后仍然无界。
+    CHECK(Interval::unbounded().expanded(1.0) == Interval::unbounded());
+}
 ```
 
 - [ ] **Step 2-4: 实现、验证、提交**
 
-`contains` 用闭区间；`intersects` 与 `clipped` 对空区间返回 `is_empty` / `empty()`；`expanded` 对空区间返回自身（不产生 `[-inf, +inf]`）。
+实现要点：
+
+- `contains` 用**闭区间**（`value >= min && value <= max`），不引入容差 —— 区间包含是精确谓词，带容差的包含会让「这个点是否在区间内」随上下文变化。
+- `is_empty()` 是 `min > max`；`empty()` 是 `{+inf, -inf}`，`unbounded()` 是 `{-inf, +inf}`。
+- `merged` 是 `{min(a.min,b.min), max(a.max,b.max)}` —— 对空区间自然成立，无需特判（这正是选这个空表示的理由）。
+- `intersects` 是 `max(min) <= min(max)`（闭区间，端点相接算相交），**返回 bool 而非区间**。空区间无需特判：`[+inf,-inf]` 会把 `max(min)` 顶到 `+inf`、把 `min(max)` 压到 `-inf`，比较必然为假 —— 这正是选这个空表示的理由。`clipped` 则不同，它必须显式判空并规范化。
+- `clipped` 取交；结果若为空则**返回 `Interval::empty()`**。
+- `expanded(k)` 是 `{min - k, max + k}`；结果若倒置则**返回 `Interval::empty()`**；空区间膨胀后仍是 `Interval::empty()`（**不要**退化成 `unbounded()`）。
+- `length()` 与 `center()` 按上面 Interfaces 里的规则实现。
+
+**别在实现里硬编码容差阈值** —— `Interval` 的谓词全部是精确比较，本类型不需要 `Tolerance` 参数（与 `Box` 不同，盒的构造可能需要容差来判退化，那在 Task 6 处理）。
 
 ```bash
 cmake --build --preset windows-vs-debug && ctest --preset windows-vs-debug
