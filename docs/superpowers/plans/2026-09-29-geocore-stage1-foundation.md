@@ -2184,6 +2184,37 @@ TEST_CASE("3x3 rotation-like matrix transforms a vector", "[linear][matrix]") {
     CHECK(rotated.y == 1.0);
     CHECK(rotated.z == 0.0);
 }
+
+TEST_CASE("3x3 matrix times vector pins every term", "[linear][matrix]") {
+    // 上一条用 v = (1,0,0)：两个零分量消灭了九项中的六项，三个期望值里又有
+    // 两个是 0，因此丢掉某一行里的 z 项、或交换任意 y/z 系数，都仍能通过。
+    // 这里改用非对称矩阵乘以全非零向量，把每一项各自钉死。
+    const Matrix3 m{{{1.0, 2.0, 3.0},
+                     {4.0, 5.0, 6.0},
+                     {7.0, 8.0, 10.0}}};
+    const Vector3 v{1.0, 2.0, 3.0};
+
+    // C[0] = 1 + 4  + 9  = 14
+    // C[1] = 4 + 10 + 18 = 32
+    // C[2] = 7 + 16 + 30 = 53
+    CHECK(m * v == Vector3{14.0, 32.0, 53.0});
+}
+
+TEST_CASE("4x4 matrix times vector pins every term", "[linear][matrix]") {
+    // 上一条用 identity<4>()：单位阵对称，一个完全转置的 4×4 实现也能通过，
+    // 且非对角项全为零使系数错位无从暴露。这里同样逐项钉死。
+    const Matrix4 m{{{1.0, 2.0, 3.0, 4.0},
+                     {5.0, 6.0, 7.0, 8.0},
+                     {9.0, 10.0, 11.0, 12.0},
+                     {13.0, 14.0, 15.0, 17.0}}};
+    const GeoCore::linear::Vector4 v{1.0, 2.0, 3.0, 4.0};
+
+    // C[0] = 1 + 4  + 9  + 16 = 30
+    // C[1] = 5 + 12 + 21 + 32 = 70
+    // C[2] = 9 + 20 + 33 + 48 = 110
+    // C[3] = 13 + 28 + 45 + 68 = 154
+    CHECK(m * v == GeoCore::linear::Vector4{30.0, 70.0, 110.0, 154.0});
+}
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
