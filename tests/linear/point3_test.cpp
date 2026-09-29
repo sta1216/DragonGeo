@@ -26,6 +26,14 @@ TEST_CASE("the float alias really is the float instantiation",
     STATIC_REQUIRE(std::is_same_v<Point3f, Point3T<float>>);
 }
 
+TEST_CASE("scalar_type is the scalar the type is instantiated with",
+          "[linear][point3]") {
+    // scalar_type 同样只是一处声明：在补这条之前它从未被任何测试命名过，
+    // 与别名绑定是同一类缺口 —— 没被命名过的实体，成员连实例化都不会发生。
+    STATIC_REQUIRE(std::is_same_v<Point3T<float>::scalar_type, float>);
+    STATIC_REQUIRE(std::is_same_v<Point3T<double>::scalar_type, double>);
+}
+
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     const Point3 p{1.0, 2.0, 3.0};
 
@@ -41,6 +49,24 @@ TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     CHECK(arr[0] == 1.0);
     CHECK(arr[1] == 2.0);
     CHECK(arr[2] == 3.0);
+}
+
+TEST_CASE("the mutable subscript writes the component it names",
+          "[linear][point3]") {
+    // **非 const 重载必须被真的用一次。** 本任务此前所有下标访问都作用在
+    // const 对象上，因此 `Scalar& operator[](int)` 从未被实例化 —— 实测把它
+    // 写成分量对调后，全库 136 个用例全绿、零警告，甚至从测试编出的 obj 里
+    // 连这个重载的符号都不存在。后果是经由可变下标写入会静默落进别的分量，
+    // 那是几何数据损坏，不是精度问题。
+    // 同目录的 vector3_test.cpp 正是这样用 Vector 的可变下标的，与它对齐。
+    Point3 p{0.0, 0.0, 0.0};
+    p[0] = 1.0;
+    p[1] = 2.0;
+    p[2] = 3.0;
+
+    CHECK(p.x == 1.0);
+    CHECK(p.y == 2.0);
+    CHECK(p.z == 3.0);
 }
 
 TEST_CASE("point and vector arithmetic follows affine rules",
@@ -83,6 +109,10 @@ TEST_CASE("point and vector arithmetic follows affine rules",
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
+    // 返回类型同样从未被任何测试命名过：把它收窄成 float，本文件照样全绿
+    // （只有 /W4 的 C4244 提示，而警告不阻断构建）。大坐标下那是静默的精度损失。
+    STATIC_REQUIRE(std::is_same_v<decltype(Point3{}.distance_to(Point3{})), double>);
+
     CHECK(Point3{0.0, 0.0, 0.0}.distance_to(Point3{3.0, 4.0, 0.0}) == Approx(5.0));
 
     // 上一条的 Δz 是 0，一个「只算 x/y」的实现照样通过（已用变异测试实测：
