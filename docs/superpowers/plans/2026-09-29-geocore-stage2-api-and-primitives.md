@@ -253,7 +253,9 @@ git commit -m "refactor(linear): make dot/cross/normalized members; add subscrip
 
 **Files:**
 - Modify: `include/GeoCore/linear/Matrix.hpp`、`Quaternion.hpp`
+- Modify: `include/GeoCore/linear/Transform2.hpp`、`Transform3.hpp`（**仅**把内部对已删自由函数的调用改成成员形式；见 Step 3 的边界说明）
 - Modify: `tests/linear/matrix_test.cpp`、`matrix_inverse_test.cpp`、`quaternion_test.cpp`
+- **不要动**：`tests/linear/transform2_test.cpp`、`transform3_test.cpp`、`examples/transform_pipeline.cpp`
 
 **Interfaces:**
 - Produces:
@@ -296,20 +298,42 @@ TEST_CASE("Quaternion members: norm, conjugate, rotate, to_matrix, factories",
     const Quaternion q = Quaternion::from_axis_angle(z_axis, half_pi);
 
     CHECK(q.norm() == Approx(1.0));
-    CHECK(q.conjugate().rotate(Vector3{0.0, 1.0, 0.0}).x == Approx(0.0).margin(1e-15));
+
+    // 共轭把转过的角度原路转回。q 是绕 z 轴 +90°，所以 (0,1,0) 应落到 (1,0,0)。
+    // 注意不要照抄文件末尾 x 轴用例里的 `.x == 0` —— 那条是绕 x 轴转，x 才恰好为 0；
+    // 绕 z 轴转的 x 分量是 ±1。
+    const Vector3 undone = q.conjugate().rotate(Vector3{0.0, 1.0, 0.0});
+    CHECK(undone.x == Approx(1.0));
+    CHECK(undone.y == Approx(0.0).margin(1e-15));
+
     CHECK(Quaternion::identity().rotate(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
 
-    const auto unit = Quaternion{2.0, 0.0, 0.0, 0.0}.normalized();
+    // 四个分量都非零且互不相同 —— 只用 w 非零的输入，一个「只缩放 w」的
+    // 实现也能通过。模长 sqrt(1+4+9+16) = sqrt(30)。
+    const auto unit = Quaternion{1.0, 2.0, 3.0, 4.0}.normalized();
     REQUIRE(unit.has_value());
-    CHECK(unit->w == Approx(1.0));
+    CHECK(unit->w == Approx(1.0 / std::sqrt(30.0)));
+    CHECK(unit->x == Approx(2.0 / std::sqrt(30.0)));
+    CHECK(unit->y == Approx(3.0 / std::sqrt(30.0)));
+    CHECK(unit->z == Approx(4.0 / std::sqrt(30.0)));
 
+    // 手算值：绕 z 轴转 90° 把 (1,2,3) 送到 (-2,1,3)。这与「和 rotate 比」是
+    // 两回事 —— 后者只能证明两者自洽，共同的符号约定错误照样通过。
     const Matrix3 m = q.to_matrix();
     const Vector3 v{1.0, 2.0, 3.0};
-    CHECK((m * v).x == Approx(q.rotate(v).x));
+    const Vector3 by_matrix = m * v;
+    CHECK(by_matrix.x == Approx(-2.0));
+    CHECK(by_matrix.y == Approx(1.0));
+    CHECK(by_matrix.z == Approx(3.0));
+
+    const Vector3 by_quaternion = q.rotate(v);
+    CHECK(by_matrix.x == Approx(by_quaternion.x));
+    CHECK(by_matrix.y == Approx(by_quaternion.y));
+    CHECK(by_matrix.z == Approx(by_quaternion.z));
 }
 ```
 
-（`z_axis` 沿用该文件已有的匿名命名空间常量。）
+（`z_axis` 沿用该文件已有的匿名命名空间常量；`<cmath>` 与 `using Catch::Approx;` 该文件已引入。）
 
 - [ ] **Step 2: 运行，确认失败**
 
@@ -321,9 +345,35 @@ Expected: 编译失败，成员不存在。
 
 - [ ] **Step 3: 实现并删除旧自由函数**
 
-把 `determinant(m)` / `transpose(m)` / `inverse(m)` / `identity<S,N>()` 的实现搬进 `MatrixT` 成为 `determinant()` / `transposed()` / `inverse()` / 静态 `identity()`；把 `norm(q)` / `conjugate(q)` / `rotate(q,v)` / `to_matrix(q)` / `from_axis_angle(a,θ)` / `identity_quaternion()` 搬进 `QuaternionT`。
+把 `determinant(m)` / `transpose(m)` / `inverse(m)` / `identity<S,N>()` 的实现搬进 `MatrixT` 成为 `determinant()` / `transposed()` / `inverse()` / 静态 `identity()`；把 `norm(q)` / `conjugate(q)` / `rotate(q,v)` / `to_matrix(q)` / `from_axis_angle(a,θ)` / `identity_quaternion()` 搬进 `QuaternionT`（后者成为静态 `QuaternionT::identity()`）。
 
 **关键：搬运时保持求值顺序逐字不变** —— 这条路径上的 NaN/inf 传播行为已有测试钉住，任何"顺手整理"都可能改变它。`transposed()` 用过去式命名以区别于原地操作，与 `normalized()` 一致。
+
+**边界：哪些 `inverse` 不归本任务。** 库里有两个同名自由函数 —— Matrix 的 `inverse(m, tol)`（本任务删）与 Transform 的 `inverse(t, tol)`（`Transform2.hpp:92`、`Transform3.hpp:124`，**Task 3 才处理**）。后者要保持原样，本任务只改它**函数体内**对前者的调用。
+
+删除自由函数会打断每一个调用点。本任务必须一并改掉的（已全库扫描确认）：
+
+| 文件 | 位置 | 改法 |
+|---|---|---|
+| `Transform2.hpp` | `identity<Scalar, 3>()` | `MatrixT<Scalar, 3>::identity()` |
+| `Transform2.hpp` | `inverse(t.matrix, tolerance)` | `t.matrix.inverse(tolerance)` |
+| `Transform3.hpp` | `identity<Scalar, 4>()` | `MatrixT<Scalar, 4>::identity()` |
+| `Transform3.hpp` | `from_axis_angle(axis, angle_radians)` | `QuaternionT<Scalar>::from_axis_angle(...)` |
+| `Transform3.hpp` | `to_matrix(q)` | `q.to_matrix()` |
+| `Transform3.hpp` | `inverse(t.matrix, tolerance)` | `t.matrix.inverse(tolerance)` |
+| `tests/linear/matrix_test.cpp` | `identity<double, 3>` / `identity<double, 4>` / `transpose(m)` 共 6 处（第 132 行注释里也提到 `identity<4>()`） | 成员形式 |
+| `tests/linear/matrix_inverse_test.cpp` | 全文：`determinant(...)` / `inverse(...)` / `identity<double, N>()` | 成员形式 |
+| `tests/linear/quaternion_test.cpp` | 全文：`norm` / `conjugate` / `rotate` / `to_matrix` / `from_axis_angle` | 成员形式 |
+
+**改完请自己再 grep 一遍**，不要只信这张表 —— 阶段 1 的教训是调用点会藏在测试与示例里：
+
+```bash
+grep -rn "\bdeterminant(\|\btranspose(\|\bnorm(\|\bconjugate(\|\brotate(\|\bto_matrix(\|\bfrom_axis_angle(\|\bidentity_quaternion(\|\bidentity<" include/ examples/ tests/
+```
+
+预期：剩下的命中只有 Transform 自己的 `inverse` 定义与调用，以及注释/文档文字。
+
+**顺带修一处过时引用**（阶段 1 复核留下的 Minor）：`Quaternion.hpp:81` 的注释写着「与 UnitVector::normalize / Matrix::inverse 同一条原则」，这两个自由函数都已不存在 —— 改为指向当前的成员形式 `UnitVector3T::normalized` / `MatrixT::inverse`。
 
 - [ ] **Step 4: 运行测试并提交**
 
@@ -332,6 +382,8 @@ cmake --build --preset windows-vs-debug && ctest --preset windows-vs-debug
 git add include/GeoCore tests/
 git commit -m "refactor(linear): make matrix and quaternion operations members"
 ```
+
+验收：既有断言的值一个都不许变（这是成员化，不是行为变更），用例数与断言数只增加 Step 1 新增的那些。
 
 ---
 
