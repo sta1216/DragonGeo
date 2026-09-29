@@ -1117,10 +1117,19 @@ git commit -m "feat(linear): add Box2T and Box3T"
   - `static Coordinate3T identity() noexcept`
   - `static std::optional<Coordinate3T> from_axes(Point3T, UnitVector3T x, UnitVector3T y, UnitVector3T z, Tolerance = {})` —— 校验正交且右手
   - `static std::optional<Coordinate3T> from_z_axis(Point3T, UnitVector3T z, Tolerance = {})` —— 自动补全一组正交的 x/y
-  - `static Coordinate3T from_transform(const Transform3T&) noexcept` —— 线性部分须为正交（由 `Transform` 的工厂保证）
+  - `static std::optional<Coordinate3T> from_transform(const Transform3T&, Tolerance = {})` —— **不是 `noexcept` 返回裸值**，理由见下
   - `Point3T origin() const`、`UnitVector3T x_axis() const` / `y_axis()` / `z_axis()`
   - `Point3T to_parent(Point3T local) const`、`Point3T to_local(Point3T parent) const`
   - `Vector3T to_parent(Vector3T local) const`、`Vector3T to_local(Vector3T parent) const`
+  - `Coordinate2T` 同构，但有两处必然不同：
+    - `static std::optional<Coordinate2T> from_axes(Point2T, UnitVector2T x, UnitVector2T y, Tolerance = {})` —— 只有两轴，校验 `x·y ≈ 0` 且二维叉积（`x.x*y.y - x.y*y.x`）为正（右手/逆时针）
+    - `static Coordinate2T from_x_axis(Point2T, UnitVector2T x) noexcept` —— **取代三维的 `from_z_axis`**。二维没有第三轴，x 是主轴，`y` 就是 `x` 逆时针转 90°：`(-x.y, x.x)`，无需参考向量、也不存在退化，因此可以 `noexcept` 返回裸值
+
+**`from_transform` 必须是 `optional`。** 计划原先写的是 `noexcept` 返回裸值，理由是「线性部分须为正交（由 `Transform` 的工厂保证）」—— **这句话是假的**。`Transform3T` 的工厂里有 `scaling(Vector3{2,3,4})`，它显然不正交；而 `translation * rotation * scaling` 这样的复合更是把非正交直接喂进来。若 `from_transform` 不校验，它就是一条**公开的、能构造出非正交坐标系的路径** —— 正好是本任务开头那句「必须无法通过公开接口构造出来」要禁止的事，也正好是 Review Focus 第 2 条点名的失败模式（静默拉伸几何）。所以它和另外两个工厂一样返回 `optional`。
+
+`from_transform` 的语义：原点取 `transform` 作用于局部原点；**线性部分必须本身是正交矩阵**（即变换是刚体变换），否则返回 `nullopt`。
+
+**判据是「线性部分本身正交」，不是「三列各自归一化之后再判它们两两正交」。** 后者有个隐蔽的洞：`diag(2,3,4)` 与 `diag(2,2,2)` 归一化之后都变成标准基，看起来完全正交 —— 非均匀缩放会静默通过，而它恰恰是最该被拒绝的那种（会把几何拉伸）。实现上直接检查 `AᵀA ≈ I`（用容差），通过之后再取三列构造轴即可，此时三列本来就已经是单位向量。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1157,7 +1166,70 @@ TEST_CASE("coordinate frame round-trips a point", "[linear][coordinate3]") {
     CHECK(round_trip.y == Approx(local.y).margin(1e-12));
     CHECK(round_trip.z == Approx(local.z).margin(1e-12));
 }
+
+TEST_CASE("from_z_axis produces a right-handed orthonormal frame",
+          "[linear][coordinate3]") {
+    // 上面那条往返用例的 z 是世界 z 轴，补全出来的恰好是标准基 ——
+    // 于是「旋转矩阵转置了」「左手系」这两种实现都能通过它。这一条改用
+    // 非轴向的 z，并把补全出来的轴逐分量钉死。
+    //
+    // 期望值是手算的：z = (1,1,1)/√3 时三个分量的绝对值并列，选择器取
+    // x 方向作参考向量，得 x = (0,-1,1)/√2、y = (2,-1,-1)/√6。
+    const auto z = Vector3{1.0, 1.0, 1.0}.normalized();
+    REQUIRE(z.has_value());
+
+    const auto frame = Coordinate3::from_z_axis(Point3{0.0, 0.0, 0.0}, *z);
+    REQUIRE(frame.has_value());
+
+    const double s2 = std::sqrt(2.0);
+    const double s3 = std::sqrt(3.0);
+    const double s6 = std::sqrt(6.0);
+
+    CHECK(frame->x_axis().x() == Approx(0.0).margin(1e-15));
+    CHECK(frame->x_axis().y() == Approx(-1.0 / s2));
+    CHECK(frame->x_axis().z() == Approx(1.0 / s2));
+
+    CHECK(frame->y_axis().x() == Approx(2.0 / s6));
+    CHECK(frame->y_axis().y() == Approx(-1.0 / s6));
+    CHECK(frame->y_axis().z() == Approx(-1.0 / s6));
+
+    CHECK(frame->z_axis().x() == Approx(1.0 / s3));
+    CHECK(frame->z_axis().y() == Approx(1.0 / s3));
+    CHECK(frame->z_axis().z() == Approx(1.0 / s3));
+
+    // 直接钉住定义性质，不依赖上面那组手算值。
+    const Vector3 xy = frame->x_axis().as_vector().cross(frame->y_axis().as_vector());
+    CHECK(xy.x == Approx(frame->z_axis().x()));
+    CHECK(xy.y == Approx(frame->z_axis().y()));
+    CHECK(xy.z == Approx(frame->z_axis().z()));
+}
+
+TEST_CASE("only a rigid transform is a coordinate frame",
+          "[linear][coordinate3][degenerate]") {
+    // from_transform 若返回裸值，这里就会静默得到一个会拉伸几何的「坐标系」。
+    CHECK_FALSE(Coordinate3::from_transform(
+                    Transform3::scaling(Vector3{2.0, 3.0, 4.0})).has_value());
+
+    // 均匀缩放同样不是标架 —— 注意不能靠「先把三列归一化再校验」来判：
+    // diag(2,3,4) 与 diag(2,2,2) 归一化之后都变成标准基，看起来完全正交，
+    // 于是非均匀缩放会静默通过。判据必须是线性部分**本身**正交，而不是
+    // 归一化之后的三个方向正交。
+    CHECK_FALSE(Coordinate3::from_transform(Transform3::scaling(2.0)).has_value());
+
+    // 刚体变换才是标架。
+    const auto rigid = Coordinate3::from_transform(
+        Transform3::translation(Vector3{1.0, 2.0, 3.0})
+        * Transform3::rotation(z_axis, half_pi));
+    REQUIRE(rigid.has_value());
+    CHECK(rigid->origin() == Point3{1.0, 2.0, 3.0});
+
+    CHECK(Coordinate3::from_transform(Transform3::identity()).has_value());
+}
 ```
+
+测试文件 `tests/linear/coordinate3_test.cpp` 需要 `<cmath>`（`std::sqrt`）、`<catch2/catch_approx.hpp` 与 `using Catch::Approx;`、`GeoCore/core/Constants.hpp`（`half_pi`），并照 `transform3_test.cpp` 的写法在匿名命名空间里放一个 `z_axis` 常量。
+
+创建 `tests/linear/coordinate2_test.cpp`。二维**不共享**三维的测试文件 —— 两个头文件分开写，3D 对了不代表 2D 也对。按二维改写：`Point2`/`Vector2`/`Coordinate2`/`UnitVector2`；`from_axes` 只有两个轴（校验两轴正交且 `x × y` 的**标量叉积为正**，二维没有第三个轴可比）；`from_z_axis` 改为 `from_x_axis(origin, x)`（`y` 就是 `x` 逆时针转 90°）。**非正交拒绝、左手系拒绝、往返、非轴向 y 的期望轴值、`from_transform` 的四条判据**都要在二维各来一份。
 
 - [ ] **Step 2: 实现**
 
