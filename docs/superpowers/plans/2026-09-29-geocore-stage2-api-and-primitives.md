@@ -457,26 +457,33 @@ Expected: 编译失败。
 
 **要一并改掉的调用点**（已全库扫描确认；阶段 2 已两次栽在漏掉调用点上，其中一次就是漏掉 examples）：
 
-| 文件 | 命中 | 改法 |
-|---|---|---|
-| `Transform2.hpp` | `scaling_2d(Scalar)` 体内调 `scaling_2d(Vector2T)` | 静态工厂成员调用 |
-| `Transform3.hpp` | `scaling_3d(Scalar)` 体内调 `scaling_3d(Vector3T)` | 同上 |
-| `tests/linear/transform2_test.cpp` | `translation_2d`/`rotation_2d`/`scaling_2d`/`apply(` 共 12 处 | 静态工厂与成员形式 |
-| `tests/linear/transform3_test.cpp` | `identity_transform`/`translation_3d`/`rotation_3d`/`scaling_3d`/`apply(` 共 14 处 | 同上 |
-| `tests/linear/matrix_inverse_test.cpp` | `scaling_3d` 5 处、`translation_3d` 2 处、自由 `apply(` 1 处 | 同上 |
-| `examples/transform_pipeline.cpp` | `using` 三条 + 工厂 4 处 + `apply(` 2 处 | 同上 |
-| `Matrix.hpp` | 第 119/124/127 行注释里的 `translation_3d(t)` / `scaling_3d(...)` 具名引用 | 改指新的静态工厂名 |
+下表按「**每个文件用到哪些将被删除的自由名**」列出，不含计数 —— 计数会被 `using` 行污染，我前两次就是数错的。请以你自己 grep 的结果为准。
 
-**`matrix_inverse_test.cpp` 不在原 Files 列表里，但必须改** —— 它用 `scaling_3d`/`translation_3d` 构造变换来测 Matrix 的逆，这些自由函数一删它就编译不过。这也是 Task 2 的实现者踩到的同一个坑。
+| 文件 | 用到的自由名 |
+|---|---|
+| `Transform2.hpp` | `scaling_2d`（`scaling_2d(Scalar)` 体内调 `scaling_2d(Vector2T)`） |
+| `Transform3.hpp` | `scaling_3d`（`scaling_3d(Scalar)` 体内调 `scaling_3d(Vector3T)`） |
+| `tests/linear/transform2_test.cpp` | `translation_2d`、`rotation_2d`、`scaling_2d`、`apply`、`inverse` |
+| `tests/linear/transform3_test.cpp` | `identity_transform`、`translation_3d`、`rotation_3d`、`scaling_3d`、`apply`、`inverse` |
+| `tests/linear/matrix_inverse_test.cpp` | `scaling_3d`、`translation_3d`、`apply`、`inverse` |
+| `examples/transform_pipeline.cpp` | `translation_3d`、`rotation_3d`、`scaling_3d`、`apply`、`inverse` |
+| `Matrix.hpp` | 第 119/124/127 行注释里对 `translation_3d(t)` / `scaling_3d(...)` 的具名引用 → 改指新静态工厂名 |
 
-改完自己 grep 一遍，不要只信这张表：
+**别漏了 `inverse`。** 上面四个 `tests`/`examples` 文件里的 `inverse(...)` 调的是 **Transform 自己的**自由 `inverse`（`Transform2.hpp:92`、`Transform3.hpp:124`）—— 它**属于本任务**，要一并改成成员 `t.inverse(tol)`。这与 Task 2 的情况正好相反（那时它不归 Task 2 管），别把上一轮的边界记混。`matrix_inverse_test.cpp` 里 `inverse(scaling_3d(1e-4))` 这类会变成 `Transform3::scaling(1e-4).inverse()`。
+
+**`matrix_inverse_test.cpp` 不在原 Files 列表里，但必须改** —— 它用 `scaling_3d`/`translation_3d` 构造变换来测 Matrix 的逆，这些自由函数一删它就编译不过。Task 2 的实现者已经踩过同一个坑。
+
+**每个文件的 `using GeoCore::linear::<被删名字>;` 都要删掉** —— using 声明指向已不存在的名字是编译错误，不是警告。上一轮就有一处 `using GeoCore::linear::dot;` 属于这类。
+
+改完自己跑这三条，不要只信这张表：
 
 ```bash
 grep -rn "\bidentity_transform\|\btranslation_3d\|\bscaling_3d\|\brotation_3d\|\btranslation_2d\|\bscaling_2d\|\brotation_2d" include/ examples/ tests/
-grep -rn "[^._a-zA-Z]apply(" include/ examples/ tests/
+grep -rnE "(^|[^.[:alnum:]_:>])(apply|inverse)\(" include/ examples/ tests/
+grep -rn "using GeoCore::linear::" include/ examples/ tests/ | grep -E "apply|inverse|identity_transform|translation_|scaling_|rotation_"
 ```
 
-预期：只剩函数定义处的自引用与注释文字，没有调用点。
+预期：前两条只剩函数定义处的自引用与注释文字，没有调用点；第三条零命中。
 
 - [ ] **Step 3b: 修正 `Transform3.hpp` 顶部那段已经失效的分层说明**
 
