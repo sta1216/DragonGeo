@@ -264,6 +264,7 @@ git commit -m "refactor(linear): make dot/cross/normalized members; add subscrip
   - `std::optional<MatrixT> MatrixT::inverse(core::Tolerance = {}) const noexcept`
   - `static MatrixT MatrixT::identity() noexcept`
   - `Scalar QuaternionT::norm() const noexcept`
+  - `Scalar QuaternionT::dot(QuaternionT) const noexcept`
   - `QuaternionT QuaternionT::conjugate() const noexcept`
   - `std::optional<QuaternionT> QuaternionT::normalized(core::Tolerance = {}) const noexcept`
   - `Vector3T QuaternionT::rotate(Vector3T) const noexcept`
@@ -362,8 +363,12 @@ Expected: 编译失败，成员不存在。
 | `Transform3.hpp` | `to_matrix(q)` | `q.to_matrix()` |
 | `Transform3.hpp` | `inverse(t.matrix, tolerance)` | `t.matrix.inverse(tolerance)` |
 | `tests/linear/matrix_test.cpp` | `identity<double, 3>` / `identity<double, 4>` / `transpose(m)` 共 6 处（第 132 行注释里也提到 `identity<4>()`） | 成员形式 |
-| `tests/linear/matrix_inverse_test.cpp` | 全文：`determinant(...)` / `inverse(...)` / `identity<double, N>()` | 成员形式 |
-| `tests/linear/quaternion_test.cpp` | 全文：`norm` / `conjugate` / `rotate` / `to_matrix` / `from_axis_angle` | 成员形式 |
+| `tests/linear/matrix_inverse_test.cpp` | `determinant(...)` / `identity<double, N>()`，以及**矩阵实参**的 `inverse(...)` | 成员形式 |
+| `tests/linear/quaternion_test.cpp` | `norm` / `conjugate` / `rotate` / `to_matrix` / `from_axis_angle` | 成员形式 |
+
+**注意 `matrix_inverse_test.cpp` 里的 `inverse` 有两类，别一刀切。** 第 152/160/166/191 行的实参是 `scaling_3d(...)` / `translation_3d(...)` 的返回值，即 `Transform3T` —— 那调的是 **Transform 自己的**自由 `inverse`，返回 `std::optional<Transform3T>`（紧随其后的 `(*tiny).matrix(0, 0)` 就是证据）。这四处**保持自由调用**，该文件的 `using GeoCore::linear::inverse;` 也保留，于是它会同时出现 `x.inverse()` 与 `inverse(t)` 直到 Task 3 —— 这是预期状态，不是遗漏。
+
+**`QuaternionT::dot` 也在本任务范围内。** 阶段 1 之后它是全库**唯一**残留的自由 `dot`（`Quaternion.hpp:149`），计划 line 20 的「具名运算一律成员函数」把 `dot` 列入其内，阶段末判据也要求自由 `dot` 不存在，而后续任务没有一个会碰 `Quaternion.hpp`。改成员后记得一并处理 `quaternion_test.cpp` 的 `using GeoCore::linear::dot;`（using 声明指向已不存在的名字是编译错误）与 `dot(q, q)` 调用点。
 
 **改完请自己再 grep 一遍**，不要只信这张表 —— 阶段 1 的教训是调用点会藏在测试与示例里：
 
