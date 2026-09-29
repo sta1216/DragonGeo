@@ -86,12 +86,22 @@ template <typename Scalar>
         return std::nullopt;
     }
     const Scalar inverse_magnitude = Scalar{1} / magnitude;
-    return QuaternionT<Scalar>{
+    const QuaternionT<Scalar> result{
         q.w * inverse_magnitude,
         q.x * inverse_magnitude,
         q.y * inverse_magnitude,
         q.z * inverse_magnitude,
     };
+    // 模长有限并不保证倒数有限：|q| 是次正规数时（例如 5e-324）1/|q| 就是
+    // inf，分量乘上去即得 inf。与 Matrix::inverse 还原尺度后的检查是同一件
+    // 事 —— 绝不交出 has_value() 为真、内容却是 inf 的结果。
+    if (!core::is_finite(static_cast<double>(result.w))
+        || !core::is_finite(static_cast<double>(result.x))
+        || !core::is_finite(static_cast<double>(result.y))
+        || !core::is_finite(static_cast<double>(result.z))) {
+        return std::nullopt;
+    }
+    return result;
 }
 
 /// 四元数乘法，对应旋转的复合。`a * b` 表示先施加 b 再施加 a。

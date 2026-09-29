@@ -1,7 +1,9 @@
 #pragma once
 
+#include <concepts>
 #include <optional>
 
+#include <GeoCore/core/Numeric.hpp>
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Vector2.hpp>
 #include <GeoCore/linear/Vector3.hpp>
@@ -181,7 +183,30 @@ template <typename Scalar, int N>
     static_assert(N == 2 || N == 3 || N == 4,
                   "inverse is implemented for 2x2, 3x3 and 4x4 matrices only");
 
-    const Scalar det = determinant(m);
+    // 行列式是 N 阶量，直接与长度容差比较是量纲错误：s = 1e-4 时 det = 1e-12
+    // 会被默认容差的绝对项判为奇异，而 s = 1e150 时 det 会先溢出成 ±inf。
+    // 先按最大元素归一化，行列式便恒为 O(1)，比较才有意义，中间量也不会溢出。
+    //
+    // 逐元素两两合并而不是滚动比较：max_abs_of 的合并可交换可结合，因此
+    // 结果的槽位无关性不打折扣。
+    Scalar scale = Scalar{0};
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            scale = core::max_abs_of(scale, m.data[i][j]);
+        }
+    }
+    if (scale == Scalar{0}) {
+        return std::nullopt;   // 全零矩阵必然奇异
+    }
+
+    MatrixT<Scalar, N> normalized{};
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            normalized.data[i][j] = m.data[i][j] / scale;
+        }
+    }
+
+    const Scalar det = determinant(normalized);
     // 行列式非有限时同样返回 nullopt。若只依赖容差判断，含 NaN 或 ±inf 的
     // 矩阵会得到一个 has_value() 为真、内容全是 NaN 的逆矩阵 —— 调用者无从
     // 察觉，而 NaN 会污染后续全部计算。这与 normalize() 的裁定是同一条原则。
@@ -191,29 +216,26 @@ template <typename Scalar, int N>
     }
     const Scalar inv_det = Scalar{1} / det;
 
+    MatrixT<Scalar, N> result{};
     if constexpr (N == 2) {
-        MatrixT<Scalar, 2> result{};
-        result.data[0][0] =  m.data[1][1] * inv_det;
-        result.data[0][1] = -m.data[0][1] * inv_det;
-        result.data[1][0] = -m.data[1][0] * inv_det;
-        result.data[1][1] =  m.data[0][0] * inv_det;
-        return result;
+        result.data[0][0] =  normalized.data[1][1] * inv_det;
+        result.data[0][1] = -normalized.data[0][1] * inv_det;
+        result.data[1][0] = -normalized.data[1][0] * inv_det;
+        result.data[1][1] =  normalized.data[0][0] * inv_det;
     } else if constexpr (N == 3) {
-        MatrixT<Scalar, 3> result{};
-        result.data[0][0] = (m.data[1][1] * m.data[2][2] - m.data[1][2] * m.data[2][1]) * inv_det;
-        result.data[0][1] = (m.data[0][2] * m.data[2][1] - m.data[0][1] * m.data[2][2]) * inv_det;
-        result.data[0][2] = (m.data[0][1] * m.data[1][2] - m.data[0][2] * m.data[1][1]) * inv_det;
-        result.data[1][0] = (m.data[1][2] * m.data[2][0] - m.data[1][0] * m.data[2][2]) * inv_det;
-        result.data[1][1] = (m.data[0][0] * m.data[2][2] - m.data[0][2] * m.data[2][0]) * inv_det;
-        result.data[1][2] = (m.data[0][2] * m.data[1][0] - m.data[0][0] * m.data[1][2]) * inv_det;
-        result.data[2][0] = (m.data[1][0] * m.data[2][1] - m.data[1][1] * m.data[2][0]) * inv_det;
-        result.data[2][1] = (m.data[0][1] * m.data[2][0] - m.data[0][0] * m.data[2][1]) * inv_det;
-        result.data[2][2] = (m.data[0][0] * m.data[1][1] - m.data[0][1] * m.data[1][0]) * inv_det;
-        return result;
+        result.data[0][0] = (normalized.data[1][1] * normalized.data[2][2] - normalized.data[1][2] * normalized.data[2][1]) * inv_det;
+        result.data[0][1] = (normalized.data[0][2] * normalized.data[2][1] - normalized.data[0][1] * normalized.data[2][2]) * inv_det;
+        result.data[0][2] = (normalized.data[0][1] * normalized.data[1][2] - normalized.data[0][2] * normalized.data[1][1]) * inv_det;
+        result.data[1][0] = (normalized.data[1][2] * normalized.data[2][0] - normalized.data[1][0] * normalized.data[2][2]) * inv_det;
+        result.data[1][1] = (normalized.data[0][0] * normalized.data[2][2] - normalized.data[0][2] * normalized.data[2][0]) * inv_det;
+        result.data[1][2] = (normalized.data[0][2] * normalized.data[1][0] - normalized.data[0][0] * normalized.data[1][2]) * inv_det;
+        result.data[2][0] = (normalized.data[1][0] * normalized.data[2][1] - normalized.data[1][1] * normalized.data[2][0]) * inv_det;
+        result.data[2][1] = (normalized.data[0][1] * normalized.data[2][0] - normalized.data[0][0] * normalized.data[2][1]) * inv_det;
+        result.data[2][2] = (normalized.data[0][0] * normalized.data[1][1] - normalized.data[0][1] * normalized.data[1][0]) * inv_det;
     } else {
         // 4×4 按伴随矩阵求逆：result(i, j) = cofactor(j, i) / det。
         // 先用 2×2 子式算出每个 3×3 余子式，再按符号填入转置位置。
-        const auto minor3 = [&m](int skip_row, int skip_column) noexcept -> Scalar {
+        const auto minor3 = [&normalized](int skip_row, int skip_column) noexcept -> Scalar {
             Scalar block[3][3];
             int r = 0;
             for (int i = 0; i < 4; ++i) {
@@ -221,7 +243,7 @@ template <typename Scalar, int N>
                 int c = 0;
                 for (int j = 0; j < 4; ++j) {
                     if (j == skip_column) { continue; }
-                    block[r][c] = m.data[i][j];
+                    block[r][c] = normalized.data[i][j];
                     ++c;
                 }
                 ++r;
@@ -231,7 +253,6 @@ template <typename Scalar, int N>
                  + block[0][2] * (block[1][0] * block[2][1] - block[1][1] * block[2][0]);
         };
 
-        MatrixT<Scalar, 4> result{};
         for (int i = 0; i < 4; ++i) {
             for (int j = 0; j < 4; ++j) {
                 const Scalar cofactor = minor3(j, i);
@@ -239,8 +260,20 @@ template <typename Scalar, int N>
                 result.data[i][j] = sign * cofactor * inv_det;
             }
         }
-        return result;
     }
+
+    // (scale·A)^-1 = A^-1 / scale。还原尺度后元素可能重新溢出（真实逆确实
+    // 可能巨大），必须再检查一次，否则又会交出一个 has_value() 为真、内容
+    // 却是 inf 的矩阵 —— 那正是先前裁定禁止的形态。
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            result.data[i][j] /= scale;
+            if (!core::is_finite(static_cast<double>(result.data[i][j]))) {
+                return std::nullopt;
+            }
+        }
+    }
+    return result;
 }
 
 // ---- 矩阵 × 向量 ----

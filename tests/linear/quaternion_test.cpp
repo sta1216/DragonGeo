@@ -10,6 +10,7 @@
 using Catch::Approx;
 
 using GeoCore::core::half_pi;
+using GeoCore::core::Tolerance;
 using GeoCore::linear::conjugate;
 using GeoCore::linear::dot;
 using GeoCore::linear::from_axis_angle;
@@ -144,6 +145,19 @@ TEST_CASE("norm gives a slot-independent answer on non-finite input",
 
     // 无 NaN 的输入不受影响
     CHECK(norm(Quaternion{5.0, 0.0, 0.0, 0.0}) == 5.0);
+}
+
+TEST_CASE("normalize rejects input whose reciprocal magnitude overflows",
+          "[linear][quaternion][degenerate]") {
+    const Tolerance exact{0.0, 0.0};
+    const double smallest = std::numeric_limits<double>::denorm_min();   // 5e-324
+
+    // 模长有限并不保证倒数有限：最小的正次正规数作模长时 1/|q| 直接溢出成
+    // inf，分量乘上去即得 inf。用精确容差排除「模长视为零」这条分支，单独
+    // 考察溢出这一条 —— 曾经这里会返回 has_value() 为真、w == inf 的四元数。
+    const auto result = normalize(Quaternion{smallest, 0.0, 0.0, 0.0}, exact);
+
+    CHECK_FALSE(result.has_value());
 }
 
 TEST_CASE("rotation about x by 90 degrees maps y to z", "[linear][quaternion]") {
