@@ -1621,6 +1621,7 @@ git commit -m "feat(linear): add Vector3T and Vector4T"
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <type_traits>
 
@@ -1735,6 +1736,22 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
     REQUIRE(parallel.has_value());
     CHECK(cross(*x, *parallel).length() == Approx(0.0));
 }
+
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
+          "[linear][unitvector3][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 一个 has_value() 为真、内容却是 NaN 的「单位向量」是本库最不该交出的
+    // 返回值：调用者无从察觉，而 NaN 会一路污染 dot / cross 与所有容差判断。
+    CHECK_FALSE(normalize(Vector3{infinity, 1.0, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{1.0, infinity, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{infinity, infinity, infinity}).has_value());
+
+    // NaN 输入比无穷更常见：任何上游的 0/0 或 inf - inf 都会落到这里
+    CHECK_FALSE(normalize(Vector3{not_a_number, 1.0, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector3{not_a_number, not_a_number, not_a_number}).has_value());
+}
 ```
 
 创建 `tests/linear/unit_vector2_test.cpp`：
@@ -1744,6 +1761,7 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <GeoCore/linear/UnitVector2.hpp>
 
@@ -1775,6 +1793,20 @@ TEST_CASE("2D cross of unit vectors is the sine of the angle",
     CHECK(cross(*x, *y) == Approx(1.0));
     CHECK(cross(*y, *x) == Approx(-1.0));
     CHECK(cross(*x, *x) == Approx(0.0));
+}
+
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
+          "[linear][unitvector2][degenerate]") {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    // 理由同 UnitVector3T：交出一个内容为 NaN 的「单位向量」比返回 nullopt 危险得多。
+    CHECK_FALSE(normalize(Vector2{infinity, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector2{1.0, infinity}).has_value());
+    CHECK_FALSE(normalize(Vector2{infinity, infinity}).has_value());
+
+    CHECK_FALSE(normalize(Vector2{not_a_number, 1.0}).has_value());
+    CHECK_FALSE(normalize(Vector2{not_a_number, not_a_number}).has_value());
 }
 ```
 
@@ -1843,13 +1875,19 @@ private:
 using UnitVector3 = UnitVector3T<double>;
 using UnitVector3f = UnitVector3T<float>;
 
-/// 归一化。向量长度在给定容差下可视为零时返回 std::nullopt，
-/// 因此调用者无法得到含 NaN 的单位向量。
+/// 归一化。向量长度在给定容差下可视为零、或本身不是有限值时返回
+/// std::nullopt，因此调用者无法得到含 NaN 的单位向量。
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector3T<Scalar>> normalize(
     Vector3T<Scalar> v, core::Tolerance tolerance = {}) noexcept {
     const Scalar length = v.length();
-    if (tolerance.is_zero(static_cast<double>(length))) {
+    // 非有限长度同样返回 nullopt。容差判断对 ±inf 与 NaN 一律返回 false
+    // （`is_zero` 刻意不把溢出量静默归类为零），若就此放行，本函数会交出一个
+    // has_value() 为真、内容却是 NaN 的「单位向量」：调用者无从察觉，而 NaN
+    // 会一路污染 dot / cross 与每一个容差比较 —— 那些比较对 NaN 都返回 false，
+    // 下游几何代码会静默走「否」分支。NaN 输入比无穷更常见：任何上游的
+    // 0/0 或 inf - inf 都会落到这里。
+    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
         return std::nullopt;
     }
     return UnitVector3T<Scalar>::from_normalized_unchecked(v / length);
@@ -1945,11 +1983,14 @@ private:
 using UnitVector2 = UnitVector2T<double>;
 using UnitVector2f = UnitVector2T<float>;
 
+/// 归一化。语义与 UnitVector3T 的同名函数一致：长度在给定容差下可视为零、
+/// 或本身不是有限值时返回 std::nullopt。
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector2T<Scalar>> normalize(
     Vector2T<Scalar> v, core::Tolerance tolerance = {}) noexcept {
     const Scalar length = v.length();
-    if (tolerance.is_zero(static_cast<double>(length))) {
+    // 非有限长度同样返回 nullopt，理由见 UnitVector3T 的同名函数。
+    if (!core::is_finite(length) || tolerance.is_zero(static_cast<double>(length))) {
         return std::nullopt;
     }
     return UnitVector2T<Scalar>::from_normalized_unchecked(v / length);
