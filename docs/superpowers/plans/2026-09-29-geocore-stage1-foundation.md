@@ -200,7 +200,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 库自身的编译选项（只作用于 GeoCore 的编译单元，不泄漏给使用者）
 if(MSVC)
-    add_compile_options(/W4 /permissive-)
+    # /utf-8: 源码是 UTF-8 且不带 BOM。不显式声明编码时 MSVC 会按本地代码页
+    # 解码，中文注释会产生 C4819；更糟的是注释后若跟字符串字面量，字节会被
+    # 真正按错误编码解读 —— 那是静默的行为错误，不只是警告。
+    add_compile_options(/W4 /permissive- /utf-8)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
