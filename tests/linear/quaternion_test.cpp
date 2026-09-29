@@ -181,9 +181,11 @@ TEST_CASE("normalize scales a non-unit quaternion", "[linear][quaternion]") {
 TEST_CASE("quaternion product composes rotations in the documented order",
           "[linear][quaternion]") {
     // 全库只有一处调用 operator*（half * half），而那是自乘积、操作数又是 z 轴
-    // 四元数（x = y = 0）：于是 x/y 输出分量与 w 行的 x/y 项始终在对零做运算，
-    // 组合顺序也无从区分（自乘积对顺序不敏感）。这里乘两个不同的四元数，
-    // 两个操作数的四个分量都非零，乘积也不可交换。
+    // 四元数（x = y = 0），因此组合顺序从未被区分过 —— 自乘积对顺序不敏感。
+    // 这里乘两个不同的半转，乘积不可交换，且下面同时验证它与逐次旋转一致。
+    //
+    // 注意：这两个操作数是轴对齐的，各有零分量，因而 16 个乘积项里只有 4 项
+    // 是活的。钉住全部项的是紧随其后的那个一般轴用例。
     const UnitVector3 x_axis = UnitVector3::from_normalized_unchecked(Vector3{1.0, 0.0, 0.0});
     const UnitVector3 y_axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 1.0, 0.0});
 
@@ -211,4 +213,40 @@ TEST_CASE("quaternion product composes rotations in the documented order",
     CHECK(composed.x == Approx(sequential.x));
     CHECK(composed.y == Approx(sequential.y));
     CHECK(composed.z == Approx(sequential.z));
+}
+
+TEST_CASE("quaternion product with general operands pins all sixteen terms",
+          "[linear][quaternion]") {
+    // 上一个用例的两个操作数轴对齐、各有零分量，16 个乘积项里只有 4 项是活的：
+    // a.z*b.y、a.z*b.x、a.x*b.x 都退化成 0·□，那些项上的符号错误依然看不见。
+    // 这里两个操作数都取一般轴，四个分量全部非零，十六项全部参与运算。
+    const UnitVector3 axis_a = UnitVector3::from_normalized_unchecked(
+        Vector3{1.0, 2.0, 3.0} / std::sqrt(14.0));
+    const UnitVector3 axis_b = UnitVector3::from_normalized_unchecked(
+        Vector3{-2.0, 1.0, 0.5} / std::sqrt(4.0 + 1.0 + 0.25));
+
+    const Quaternion a = from_axis_angle(axis_a, 0.7);
+    const Quaternion b = from_axis_angle(axis_b, 1.1);
+
+    // 先证明这次确实没有零分量可供退化
+    CHECK(a.x != 0.0);
+    CHECK(a.y != 0.0);
+    CHECK(a.z != 0.0);
+    CHECK(b.x != 0.0);
+    CHECK(b.y != 0.0);
+    CHECK(b.z != 0.0);
+
+    // 期望值由参考实现（逐项按 Hamilton 规则）独立算出
+    const Quaternion ab = a * b;
+    CHECK(ab.w == Approx(0.7694798520425258));
+    CHECK(ab.x == Approx(-0.39226136832113895));
+    CHECK(ab.y == Approx(0.23465896735876354));
+    CHECK(ab.z == Approx(0.446057109865496));
+
+    // 不可交换：w 相同，其余三个分量各不相同
+    const Quaternion ba = b * a;
+    CHECK(ba.w == Approx(0.7694798520425258));
+    CHECK(ba.x == Approx(-0.30863891228533297));
+    CHECK(ba.y == Approx(0.5064319494751331));
+    CHECK(ba.z == Approx(0.23700096977598095));
 }
