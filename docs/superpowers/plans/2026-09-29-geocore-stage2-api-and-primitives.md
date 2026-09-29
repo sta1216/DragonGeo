@@ -585,6 +585,12 @@ using Catch::Approx;
 using GeoCore::linear::Point3;
 using GeoCore::linear::Vector3;
 
+namespace {
+/// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
+template <typename T>
+concept addable = requires(T p, T q) { p + q; };
+}
+
 TEST_CASE("Point3 supports subscript and array export", "[linear][point3]") {
     const Point3 p{1.0, 2.0, 3.0};
 
@@ -617,11 +623,14 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     // 点 + 点不存在 —— 这是本任务的核心不变量（Review Focus 第 1 条）：
     // 写错了不会报错，只会静默给出错误语义。必须真的断言，不能只注释掉。
     //
-    // 用普通 static_assert 而非 Catch2 的 STATIC_REQUIRE：后者要把表达式分解成
-    // 左右操作数，而 requires-expression 没有可分解的运算符，且 STATIC_REQUIRE
-    // 的宏展开路径上含有逗号与花括号。块作用域的 static_assert 无这些问题。
-    static_assert(!requires(Point3 p, Point3 q) { p + q; },
-                  "Point + Point must not be well-formed");
+    // 不能直接写 `static_assert(!requires(Point3 p, Point3 q) { p + q; });`
+    // —— 那不是「求值为假」，而是**非良构的 C++**。requirements 里的非法表达式
+    // 只有在「替换模板实参」的语境下才求值为 false；`Point3` 是具体类型，
+    // `p + q` 不依赖任何模板参数，因此是硬错误（MSVC 报 C2676，编译器不会
+    // 给你 false）。必须包一层概念，让失败发生在替换上下文里 —— 见文件顶部
+    // 匿名命名空间的 `addable`。这一点与 Catch2 无关，也与用不用
+    // STATIC_REQUIRE 无关。
+    static_assert(!addable<Point3>, "Point + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
@@ -642,6 +651,12 @@ TEST_CASE("Point3 distance_to", "[linear][point3]") {
 using Catch::Approx;
 using GeoCore::linear::Point2;
 using GeoCore::linear::Vector2;
+
+namespace {
+/// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
+template <typename T>
+concept addable = requires(T p, T q) { p + q; };
+}
 
 TEST_CASE("Point2 supports subscript and array export", "[linear][point2]") {
     const Point2 p{1.0, 2.0};
@@ -668,8 +683,7 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     STATIC_REQUIRE(std::is_same_v<decltype(b - a), Vector2>);
     CHECK(b - a == Vector2{3.0, 4.0});
 
-    static_assert(!requires(Point2 p, Point2 q) { p + q; },
-                  "Point + Point must not be well-formed");
+    static_assert(!addable<Point2>, "Point + Point must not be well-formed");
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {
@@ -1520,10 +1534,27 @@ git commit -m "feat(linear): let Transform carry points"
 **Files:**
 - Modify: `README.md`
 - Modify: `examples/vector_basics.cpp`（成员化后的调用点）
+- Modify: `include/GeoCore/linear/Vector2.hpp`（**仅**一处已失效的注释，见 Step 1b）
 
 - [ ] **Step 1: 更新 README 与示例**
 
 README 的 quick start 改用成员形式（`a.dot(b)`、`a.normalized()`），并在"What works today"表里加入本轮新增的五个类型。示例同样改用成员形式，重跑并核对输出。
+
+**顺带修**（Task 1 的复核留下的）：`examples/vector_basics.cpp:39` 打印的字符串 `"normalize(zero) correctly returned nullopt"` 里那个函数名已不存在，改成 `normalized`。
+
+- [ ] **Step 1b: 修 `Vector2.hpp` 里那句已经失效的分层说明**
+
+`Vector2.hpp:18` 的文档注释写着「（Point2 属于 prim 层。）」—— **本阶段已把 `Point` 移进 `linear`**（spec 决策 15–17），这句话现在是错的，而且它正是 `Vector` 与 `Point` 类型分离的理由所在，读者会照着它去理解分层。
+
+改法：保留前半句「与 `Point2` 的区别是语义而非存储 —— 两个点相加没有意义，因此类型系统不允许它」—— 这仍然准确且是这个类型存在的理由；只把括注里的分层归属改对（`Point2` 与本类型同处 `linear`）。
+
+Task 3 的 Step 3b 修掉了 `Transform3.hpp` 顶部的同类说法（那段讲的是「Point3 属于 prim 层，linear 不得依赖它」）。**全库只剩这一处**，改完请自己再 grep 一次确认：
+
+```bash
+grep -rn "prim 层\|prim层" include/
+```
+
+预期零命中（`docs/` 里的历史计划与 spec 记录不算 —— 那是决策的留痕，不要改）。
 
 - [ ] **Step 2: 全量验证**
 
