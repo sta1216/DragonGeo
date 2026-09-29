@@ -54,11 +54,13 @@ polygon      2D 多边形算法：布尔、三角剖分、凸包、偏移
   ↑
 query        求交 / 距离 / 投影 / 包含 —— 跨原语的自由函数
   ↑
-prim         几何原语：点、射线、线段、平面、三角形、包围盒、球、圆
+prim         几何原语：射线、线段、直线、平面、三角形、球、圆柱、胶囊、圆盘、视锥
+             以及后续的矩形、圆与圆弧、椭圆、多段线、NURBS 曲线
   ↑
 predicates   orient2d / orient3d / incircle / insphere（过滤 + 自适应精确）
   ↑
-linear       纯代数：Vector2/3/4、UnitVector2/3、Matrix2/3/4、Quaternion、Transform
+linear       数值与仿射基础：Vector2/3/4、UnitVector2/3、Matrix2/3/4、Quaternion、
+             Transform2/3、Point2/3、Interval、Box2/3、OrientedBox2/3、Coordinate2/3
   ↑
 core         Scalar、Tolerance、常量、数值工具
 ```
@@ -236,12 +238,32 @@ namespace GeoCore::predicates {
 
 ## 5. 能力清单
 
+### 5.0 linear — 数值与仿射基础
+
+**纯代数**：`Vector2/3/4`、`UnitVector2/3`、`Matrix2/3/4`、`Quaternion`、`Transform2/3`
+
+**仿射与区间**：`Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3`
+
+**Point / Box / Coordinate 属于 `linear` 而非 `prim`**，这是对早期划分的一次修正。理由有三：
+
+1. `Point` 只依赖 `core`，与 `Vector` 同样处于依赖图的叶子位置 —— 它不含"射线""平面"这类几何语义，把它放 `prim` 的那条界线是薄的。
+2. 放进 `linear` 后，`Transform` 可以**直接提供变换点的能力**（`transform_point(Point) -> Point`）。原先因 `Point` 在 `prim` 而被迫采用的 `apply(t, Vector)` 分工 —— 把"位置"塞进 `Vector` —— 随之消失。那不是优雅的取舍，是划错层之后的补偿动作。
+3. `Box`/`OrientedBox`/`Coordinate` 只依赖 `Point` 与 `UnitVector`，跟随 `Point` 一同落在 `linear` 不会增加层数；`Coordinate` 与 `Transform` 成为同层兄弟（一个是参考系的几何表示，一个是其矩阵表示），这是它们应有的关系。
+
+`prim` 因此收敛为**有真实几何语义的原语**，那条线更干净。
+
 ### 5.1 prim — 几何原语
 
-**2D**：`Point2` `Segment2` `Ray2` `Line2` `Circle` `Triangle2` `Rectangle` `AxisAlignedBox2`
-**3D**：`Point3` `Segment3` `Ray3` `Line3` `Plane` `Triangle3` `AxisAlignedBox3` `OrientedBox3` `Sphere` `Cylinder` `Capsule` `Disk` `Box` `Frustum`
+**2D**：`Segment2` `Ray2` `Line2` `Circle` `Arc2` `Ellipse2` `Triangle2` `Rectangle` `Polyline2`（简单：仅直线段）`Polyline2`（复杂：直线段 / 圆弧段 / 椭圆弧段任意组合）
+**3D**：`Segment3` `Ray3` `Line3` `Plane` `Triangle3` `Sphere` `Cylinder` `Capsule` `Disk` `Frustum`
 
-（代数类型 `Vector2/3/4`、`UnitVector2/3` 属于 `linear` 层，不在此列出 —— 它们不含任何几何语义。）
+标记：★ 已有规划，☆ 后续阶段新增。
+
+**曲线的若干已定裁决**（详见 §5.6）：
+
+- **圆弧与椭圆是不同的类型**；圆与圆弧**共用一个类型**（`Circle` 表示整圆，`Arc2` 表示其上的弧段）—— 圆是圆弧的特例，不是椭圆的特例。
+- 复杂多段线的每一段可为直线段、圆弧段、椭圆弧段三者之一，需要**变体段类型**承载。
+- `NURBS` 在 `prim` 阶段**只做骨架**，求值/导数/分割留作独立任务。
 
 全部为 POD 风格值类型，`constexpr` 可构造，成员为命名字段（便于调试）而非数组。
 
@@ -298,6 +320,36 @@ namespace GeoCore::predicates {
 - **曲线**：`Line` / `Circle` / `Ellipse` / `BSplineCurve`
 - **曲面**：`Plane` / `Cylinder` / `Sphere` / `Cone` / `Torus` / `BSplineSurface`
 - **操作接口**：曲面求交（SSI）、布尔、倒角、抽壳、偏移 —— 全部为已定义签名 + 明确的未实现行为
+
+### 5.6 曲线与多段线（登记，待 `prim` 阶段实现）
+
+本节记录一组已确认的需求，**实现排期在后续的 `prim` 阶段**，本轮不做。此处登记的目的是让分层归属与类型关系在动工前就定下来，避免届时重新讨论。
+
+**要实现的类型**：
+
+| 类型 | 说明 |
+|---|---|
+| `Rectangle` | 轴对齐矩形（2D），可由两个角点或一个角点加尺寸构造 |
+| `Circle` / `Arc2` | **圆与圆弧共用一套类型**：`Circle` 表示整圆，`Arc2` 表示其上的弧段（带起止角） |
+| `Ellipse2` / `EllipseArc2` | **椭圆与椭圆弧是独立于圆/圆弧的类型**，不与 `Circle` 合并 |
+| `Polyline2`（简单） | 仅由直线段构成的多段线 |
+| `Polyline2`（复杂） | 每段可为**直线段、圆弧段、椭圆弧段**三者之一 —— 需要一个变体段类型承载 |
+| `NurbsCurve2` / `NurbsCurve3` | **先做骨架**：控制点、节点向量、次数、权重的数据结构与接口；求值、导数、分割留作独立任务 |
+
+**已定裁决**（未来实现时不得推翻，若需推翻须先改本节）：
+
+1. **圆弧与椭圆是不同的类型。** 圆弧是圆上的弧段，椭圆弧是椭圆上的弧段，二者不共享类型。
+2. **圆与圆弧共用一个类型。** 圆是圆弧的退化情形（整圈），而不是椭圆的特例 —— 这条与第 1 条并不矛盾：圆与椭圆本就不同族，圆与它的弧同族。
+3. **复杂多段线用变体段类型**，而非三个并列的容器；段的种类是封闭集合（三种），适合用 `std::variant` 或等价机制表达。
+4. **NURBS 先骨架后实现**，骨架须满足 §6 的三条骨架约定（签名完整、结构可用、未实现行为统一抛 `std::logic_error`）。
+
+**尚未决定、实现前须确认的**：
+
+- 复杂多段线的段类型是复用 `prim` 的 `Segment2`/`Arc2`/`EllipseArc2`，还是包一层带参数的段结构（后者能携带"从第几段到第几段"的定位信息）。
+- `Polyline2` 是否要求连续（后段起点等于前段终点），还是允许离散段序列。
+- 椭圆弧的参数化方式（起始角 + 扫掠角 / 两个参数点 / 四段贝塞尔近似）。
+
+**不在本轮范围**：任何曲线类型的实现、曲线求交、曲线离散化、以及依赖它们的 SVG 序列化。
 
 ---
 
@@ -383,16 +435,21 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 
 分阶段交付。**每个阶段独立可用**，不以"全部完成"为前提。
 
-本文件描述的是**全库架构**，因此会跨越全部四个阶段。实施计划按阶段分别生成 —— **首个实施计划仅覆盖阶段 1**，后续阶段的计划在该阶段启动前另行动笔，以便把前序阶段的经验纳入考量。
+本文件描述的是**全库架构**，因此会跨越全部阶段。实施计划按阶段分别生成 —— 每个阶段的计划在该阶段启动前另行动笔，以便把前序阶段的经验纳入考量。
 
-| 阶段 | 内容 | 产出标志 |
+> **路线图已按实际执行情况重排。** 原先把 `core`/`linear`/`predicates`/`prim`/`query` 与三套骨架并列为"阶段 1"，实测下来那个划分过粗：单是 `core` + `linear` 就产出了 53 个 commit、3340 行与 527 条断言。现按依赖顺序细分为下列阶段，**每个阶段独立可交付**。
+
+| 阶段 | 内容 | 状态 |
 |---|---|---|
-| **1. 地基与工具箱** | `core` / `linear` / `predicates` / `prim` 完整实现；`query` 的解析解与 GJK/EPA；**同时落地 `polygon` / `mesh` / `solid` 的接口骨架** | 能完成向量运算、变换、图元求交，且退化输入正确；全库 API 面定型 |
-| **2. 2D 计算几何** | `polygon` 全部 ★ 项；通过性质测试与退化回归集 | 多边形布尔、三角剖分、凸包可用于真实数据 |
-| **3. 3D 网格与图形学** | `mesh` 全部 ★ 项；BVH 性能达标 | 能做射线查询、网格统计与加速结构 |
-| **4. CAD 精确实体** | `solid` 的 SSI、布尔、倒角、抽壳。**高风险**：须先评估"自研 vs 集成现成内核" | — |
+| **1. 数值地基** | `core`（常量、数值工具、容差模型）+ `linear` 的纯代数部分（`Vector` / `UnitVector` / `Matrix` / `Quaternion` / `Transform`） | ✅ 已完成 |
+| **2. API 重构与基础类型** | `linear` 的 API 成员函数化；`Vector`/`Point` 的下标访问与数组导出；新增 `Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3` | ← 本阶段 |
+| **3. 精确谓词** | `predicates`：`orient2d` / `orient3d` / `incircle` / `insphere`（过滤 + 自适应精确算术） | |
+| **4. 几何原语与查询** | `prim`（含 §5.6 的曲线，NURBS 先骨架）+ `query` 的解析解与 GJK/EPA | |
+| **5. 2D 计算几何** | `polygon` 全部 ★ 项；通过性质测试与退化回归集 | |
+| **6. 3D 网格与图形学** | `mesh` 全部 ★ 项；BVH 性能达标 | |
+| **7. CAD 精确实体** | `solid` 的 SSI、布尔、倒角、抽壳。**高风险**：须先评估"自研 vs 集成现成内核" | |
 
-阶段 1 同时定型全库 API 面，是"接口先行"原则的直接体现：后续阶段的实现不再需要重新讨论接口。
+序列化（JSON 与 SVG）**尚未排期**：JSON 已明确暂不实现；SVG 依赖 2D 图形对象，须待阶段 4 的曲线与多段线落地后才有意义。
 
 ---
 
@@ -414,6 +471,9 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | 12 | 核心 header-only，算法层编译 | 类型零开销，同时避免谓词与 BVH 拖垮使用者的编译时间 |
 | 13 | 类型名 PascalCase 且优先完整拼写 | 缩写规则的判断成本高于多打几个字符的成本；完整名称在自动补全下几乎无额外负担 |
 | 14 | 子模块 namespace 小写 | 与 PascalCase 类型名视觉区分；`polygon` 模块中确有 `Polygon` 类 |
+| 15 | `Point` / `Box` / `OrientedBox` / `Coordinate` 归 `linear`，不归 `prim` | `Point` 只依赖 `core`，与 `Vector` 同处依赖图叶子位置；放 `linear` 后 `Transform` 可直接提供变换点的能力，消除原先 `apply(t, Vector)` 把位置塞进向量的补偿性分工 |
+| 16 | `Circle` 与 `Arc2` 共用类型，`Ellipse`/`EllipseArc` 独立成族 | 圆是圆弧的退化（整圈），不是椭圆的特例；两组曲线的参数化与求交都不同，合并会带来虚假的统一 |
+| 17 | 自由函数式的具名运算（`dot`/`cross`/`norm`/`determinant`…）一律改为成员函数 | 便于 IDE 自动补全与发现；运算符仍为自由函数（二元运算的对称性要求），这一分界在阶段 2 明确 |
 
 ---
 
@@ -431,4 +491,6 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 
 ### 10.2 待确认
 
-无。项目名与 namespace 为 `GeoCore`，许可证为 MIT（若需专利授权条款则改 Apache-2.0）。
+**已定**：项目名与 namespace 为 `GeoCore`；许可证 MIT（若需专利授权条款则改 Apache-2.0）。
+
+**序列化栈尚未排期**：JSON 已明确暂不实现；SVG 依赖 2D 图形对象，须待阶段 4 落地。届时需要重新决定 JSON 的实现方式 —— spec 的"零运行时依赖"约束意味着 C++ 没有标准 JSON 可用，自建一个最小实现（约 300–500 行，含解析）与引入第三方库是两个方向不同的选择，会影响序列化层的整体设计。
