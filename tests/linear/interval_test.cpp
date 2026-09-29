@@ -221,6 +221,17 @@ TEST_CASE("the consumers agree with the total empty predicate",
     CHECK(nan_interval.merged(normal) == normal);
     CHECK(normal.merged(nan_interval) == normal);
 
+    // **两个「空」的表示不同时，规范化优先于恒等律。**
+    // `{NaN,NaN}` 与 `{1,0}` 都是空集，但表示不同。若第一支写成
+    // `if (is_empty()) return other;`，两侧会各自返回「另一个」——
+    // 结果都是空集，`==` 却因为比表示而判不等，于是 `merged` 不对称
+    // （实测 4140/14641 组输入）。correct 的第一支是
+    // `return other.is_empty() ? empty() : other;`。
+    const Interval non_canonical_empty{1.0, 0.0};
+    CHECK(non_canonical_empty.is_empty());
+    CHECK(nan_interval.merged(non_canonical_empty) == Interval::empty());
+    CHECK(non_canonical_empty.merged(nan_interval) == Interval::empty());
+
     // `length()` 的 `is_empty()` 守卫也要走全函数谓词 —— 否则退化成
     // `min > max` 就会算出 NaN，而这一格没有任何别的断言看得见。
     CHECK(nan_interval.length() == 0.0);
