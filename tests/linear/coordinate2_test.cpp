@@ -120,6 +120,21 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
     const double scaled = 1.0 + 1e-6;
     CHECK_FALSE(Coordinate2::from_axes(o, unit(scaled, 0.0), y).has_value());
     CHECK_FALSE(Coordinate2::from_axes(o, x, unit(0.0, scaled)).has_value());
+
+    // 定向判据 `x × y > 0` 里的**严格性**（`>` 不是 `>=`）也要有证据。
+    // 二者只在一处分开：叉积**恰好为零** —— 也就是有一根轴是零向量。
+    // 零轴在正常容差下早就被长度检查拒了，所以这一格必须把容差放大到
+    // 「零也算在 1 的容差内」（abs + rel ≥ 1，本例取 1.0）才能**只**由
+    // 符号判据决定：此时长度与正交两项都通过（实测 `equal(0, 1)` 在 1.0 下为真），
+    // 唯一拒它的就是 `0 > 0`。
+    // 实测：把 `>` 放宽成 `>=` 的变异体在补这一格之前**整套 224 个用例全绿**；
+    // 补上之后它死在这里 —— 而那个变异体接受的是一个 x 轴为零向量的「标架」
+    // （xx = 0、cross = 0），正是本任务要堵死的那类退化产物。
+    const Tolerance absurd{1.0, 1.0};
+    CHECK_FALSE(Coordinate2::from_axes(o, unit(0.0, 0.0), y, absurd).has_value());
+    // 反证：同一档容差下一个正常的单位标架照样被接受 —— 否则上面那一格可能
+    // 只是「容差大到什么都拒」的副作用。
+    CHECK(Coordinate2::from_axes(o, x, y, absurd).has_value());
     // <<< sweep-add
 }
 

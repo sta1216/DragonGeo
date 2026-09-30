@@ -75,6 +75,15 @@ public:
     /// 得到一个把几何拉伸 2 倍的「坐标系」。那是本类型存在的全部意义所在，
     /// 不能因为「正常调用者不会这么传」就放过（三维那边同样拒绝非单位的 z）。
     /// 长度校验在 `from_axes` 里，这里不做第二次。
+    ///
+    /// **与三维的一处规格不对称（刻意保留，不要为了「对称」改任何一边）**：
+    /// 本工厂的补全**不做归一化**（`y = (-x.y, x.x)` 只是旋转），而三维的
+    /// `from_z_axis` 走的是 `reference.cross(z).normalized(tolerance)` ——
+    /// 那里的 `is_zero(length)` 会在退化容差下把中间叉积的长度（`z = (1,1,1)/√3`
+    /// 时是 0.8165）当成零吞掉。于是**在退化容差（`{0.009, 0.99}` 与 `{1, 1}` 量级）
+    /// 下，三维比二维更严**：同一档容差里 3D 会多返回一些 `nullopt`。方向是安全的
+    /// （只会多拒绝，不会放进非法标架），默认容差与任何正常容差下两者**零分歧**。
+    /// 3D 那边更严是它的实现路径使然，不是缺陷。
     [[nodiscard]] static constexpr std::optional<Coordinate2T> from_x_axis(
         Point2T<Scalar> origin, UnitVector2T<Scalar> x,
         core::Tolerance tolerance = {}) noexcept {
