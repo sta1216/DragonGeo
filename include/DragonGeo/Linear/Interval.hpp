@@ -234,9 +234,10 @@ struct IntervalT {
     /// - `Below` 是挖掉的那段左侧（较小坐标），没有则为规范空区间；
     /// - `Above` 是挖掉的那段右侧，没有则为规范空区间。
     ///
-    /// 被挖掉的重叠若只有一个点（或根本不相交），闭包仍是原来的整段，放在
-    /// `Below`，`Above` 为空 —— 去掉一个点不改变闭区间的闭包，因此**不会**拆成
-    /// 两段。只有重叠的长度大于 0 时才会裁掉一截或从中间挖开。
+    /// 被挖掉的重叠若只有一个点，且自身更长，闭包仍是原来的整段，放在
+    /// `Below`，`Above` 为空 —— 从一段正长度区间里去掉一个点不改变闭包，因此
+    /// **不会**拆成两段。自身本身就是这个点时，差集为空。根本不相交时差集就是
+    /// 自身。只有重叠的长度大于 0 时才会裁掉一截或从中间挖开。
     ///
     /// 裁切留下的端点仍算在结果里（闭包）。因此 `Below` / `Above` 可能与 other
     /// 在单个端点上 `Intersects`。这是闭区间表达不了半开区间的结果，不是漏判。
@@ -257,8 +258,15 @@ struct IntervalDifferenceT {
 template <typename Scalar>
 constexpr IntervalDifferenceT<Scalar> IntervalT<Scalar>::Difference(IntervalT other) const noexcept {
     const IntervalT overlap = Intersection(other);
-    if (overlap.IsEmpty() || !(overlap.Length() > Scalar{0})) {
+    if (overlap.IsEmpty()) {
         return {IsEmpty() ? Empty() : *this, Empty()};
+    }
+    if (!(overlap.Length() > Scalar{0})) {
+        // 重叠没有正长度。自身更长时，去掉一个点不改变闭包；自身就是这个点时，点被去掉。
+        if (Length() > Scalar{0}) {
+            return {*this, Empty()};
+        }
+        return {Empty(), Empty()};
     }
 
     IntervalDifferenceT<Scalar> result;

@@ -136,6 +136,16 @@ TEST_CASE("intersects and intersection agree, and intersection canonicalises",
     // 抓不到这个差异。相接时 `Intersection` 的结果是退化的单点区间，不是空区间。
     CHECK(a.Intersects(Interval{5.0, 9.0}));
     CHECK(a.Intersection(Interval{5.0, 9.0}) == Interval{5.0, 5.0});
+
+    // 自身、被包含、以及无界与有限的交，都是较短的那一段。
+    CHECK(a.Intersection(a) == a);
+    CHECK(a.Intersection(Interval{2.0, 3.0}) == Interval{2.0, 3.0});
+    CHECK(Interval::Unbounded().Intersection(a) == a);
+    CHECK(a.Intersection(Interval::Unbounded()) == a);
+
+    const Interval inverted{2.0, 0.0};
+    CHECK(a.Intersection(inverted) == Interval::Empty());
+    CHECK(inverted.Intersection(a) == Interval::Empty());
 }
 
 TEST_CASE("empty intervals stay empty under intersects and intersection",
@@ -341,6 +351,22 @@ TEST_CASE("difference returns the closure of the set difference",
     CHECK(whole.Difference(Interval{4.0, 4.0}).Below == whole);
     CHECK(whole.Difference(Interval{4.0, 4.0}).Above == Interval::Empty());
 
+    // 重叠从自身的端点开始、但没有盖住另一端：剩下的一段不能退化成那个端点。
+    const IntervalDifference trimToMin = whole.Difference(Interval{1.0, 4.0});
+    CHECK(trimToMin.Below == Interval::Empty());
+    CHECK(trimToMin.Above == Interval{4.0, 10.0});
+    const IntervalDifference trimToMax = whole.Difference(Interval{7.0, 10.0});
+    CHECK(trimToMax.Below == Interval{1.0, 7.0});
+    CHECK(trimToMax.Above == Interval::Empty());
+
+    // 自身就是一个点：被盖住则差集为空；没被盖住则这个点留下。
+    const Interval point{4.0, 4.0};
+    CHECK(point.Difference(point).Below == Interval::Empty());
+    CHECK(point.Difference(point).Above == Interval::Empty());
+    CHECK(point.Difference(whole).Below == Interval::Empty());
+    CHECK(point.Difference(Interval{5.0, 6.0}).Below == point);
+    CHECK(point.Difference(Interval{5.0, 6.0}).Above == Interval::Empty());
+
     // 空操作数：自身为空则两段都空；对方为空则差集是自身。非规范空先收成规范空。
     const Interval inverted{2.0, 0.0};
     CHECK(Interval::Empty().Difference(whole).Below == Interval::Empty());
@@ -351,7 +377,43 @@ TEST_CASE("difference returns the closure of the set difference",
     CHECK(whole.Difference(inverted).Above == Interval::Empty());
 
     const double nan = std::numeric_limits<double>::quiet_NaN();
-    CHECK(whole.Difference(Interval{nan, nan}).Below == whole);
+    const Interval nanInterval{nan, nan};
+    CHECK(whole.Difference(nanInterval).Below == whole);
+    CHECK(whole.Difference(nanInterval).Above == Interval::Empty());
+    CHECK(nanInterval.Difference(whole).Below == Interval::Empty());
+    CHECK(nanInterval.Difference(whole).Above == Interval::Empty());
+    CHECK(nanInterval.Difference(inverted).Below == Interval::Empty());
+    CHECK(Interval::Empty().Difference(inverted).Below == Interval::Empty());
+
+    // 无界与半无界：挖开一段有限区间得到两侧无穷；从端点裁到无穷只剩一侧。
+    const double infinity = std::numeric_limits<double>::infinity();
+    const IntervalDifference unboundedHole =
+        Interval::Unbounded().Difference(Interval{0.0, 1.0});
+    CHECK(unboundedHole.Below == Interval{-infinity, 0.0});
+    CHECK(unboundedHole.Above == Interval{1.0, infinity});
+    CHECK(Interval::Unbounded().Difference(Interval::Unbounded()).Below == Interval::Empty());
+    CHECK(Interval::Unbounded().Difference(Interval::Empty()).Below == Interval::Unbounded());
+
+    const Interval ray{0.0, infinity};
+    CHECK(ray.Difference(Interval{1.0, infinity}).Below == Interval{0.0, 1.0});
+    CHECK(ray.Difference(Interval{1.0, infinity}).Above == Interval::Empty());
+    CHECK(ray.Difference(Interval{-infinity, 1.0}).Below == Interval::Empty());
+    CHECK(ray.Difference(Interval{-infinity, 1.0}).Above == Interval{1.0, infinity});
+
+    // 默认构造的差集是两段规范空，不是 [0, 0]。相等比较要分别看得见 Below 与 Above。
+    const IntervalDifference def;
+    CHECK(def.Below == Interval::Empty());
+    CHECK(def.Above == Interval::Empty());
+    CHECK(hole != cutLeft);
+    CHECK(IntervalDifference{Interval{1.0, 2.0}, Interval::Empty()}
+          != IntervalDifference{Interval{1.0, 3.0}, Interval::Empty()});
+    CHECK(IntervalDifference{Interval::Empty(), Interval{1.0, 2.0}}
+          != IntervalDifference{Interval::Empty(), Interval{1.0, 3.0}});
+
+    const Intervalf wholef{1.0f, 10.0f};
+    const IntervalDifferencef holef = wholef.Difference(Intervalf{3.0f, 5.0f});
+    CHECK(holef.Below == Intervalf{1.0f, 3.0f});
+    CHECK(holef.Above == Intervalf{5.0f, 10.0f});
 
     constexpr IntervalDifference finite =
         IntervalT<double>{1.0, 10.0}.Difference(IntervalT<double>{3.0, 5.0});

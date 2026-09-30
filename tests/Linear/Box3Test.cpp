@@ -590,6 +590,32 @@ TEST_CASE("intersection is the overlap and canonicalises emptiness",
     const Box3 inverted{Point3{1.0, 1.0, 1.0}, Point3{0.0, 0.0, 0.0}};
     CHECK(a.Intersection(inverted) == Box3::Empty());
     CHECK(inverted.Intersection(a) == Box3::Empty());
+
+    // 边相接、角相接：闭盒，交集分别退化成边和点。
+    const Box3 edge{Point3{2.0, 2.0, 0.0}, Point3{3.0, 3.0, 2.0}};
+    CHECK(a.Intersection(edge) == Box3{Point3{2.0, 2.0, 0.0}, Point3{2.0, 2.0, 2.0}});
+    const Box3 corner{Point3{2.0, 2.0, 2.0}, Point3{4.0, 4.0, 4.0}};
+    CHECK(a.Intersection(corner) == Box3{Point3{2.0, 2.0, 2.0}, Point3{2.0, 2.0, 2.0}});
+
+    CHECK(a.Intersection(a) == a);
+    const Box3 inside{Point3{0.5, 0.5, 0.5}, Point3{1.0, 1.5, 1.5}};
+    CHECK(a.Intersection(inside) == inside);
+
+    const Box3 emptyOnZ{Point3{0.0, 0.0, 1.0}, Point3{2.0, 2.0, 0.0}};
+    CHECK(emptyOnZ.IsEmpty());
+    CHECK(a.Intersection(emptyOnZ) == Box3::Empty());
+    CHECK(emptyOnZ.Intersection(a) == Box3::Empty());
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Box3 nanBox{Point3{0.0, nan, 0.0}, Point3{1.0, 1.0, 1.0}};
+    CHECK(a.Intersection(nanBox) == Box3::Empty());
+    CHECK(nanBox.Intersection(a) == Box3::Empty());
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    const Box3 everywhere{Point3{-infinity, -infinity, -infinity},
+                          Point3{infinity, infinity, infinity}};
+    CHECK(everywhere.Intersection(a) == a);
+    CHECK(a.Intersection(everywhere) == a);
 }
 
 TEST_CASE("every declared callable is noexcept", "[linear][box3]") {

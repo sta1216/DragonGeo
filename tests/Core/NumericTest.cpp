@@ -30,8 +30,12 @@ TEST_CASE("clamp bounds the value on both sides", "[core][numeric]") {
 TEST_CASE("SafeSqrt maps negative input to zero", "[core][numeric][degenerate]") {
     CHECK(SafeSqrt(4.0) == 2.0);
     CHECK(SafeSqrt(0.0) == 0.0);
+    CHECK(SafeSqrt(-0.0) == 0.0);
     // 舍入可能让平方长度略小于零；这种情况不得产生 NaN。
     CHECK(SafeSqrt(-1e-18) == 0.0);
+    CHECK(SafeSqrt(std::numeric_limits<double>::infinity())
+          == std::numeric_limits<double>::infinity());
+    CHECK(std::isnan(SafeSqrt(std::numeric_limits<double>::quiet_NaN())));
 }
 
 TEST_CASE("IsFinite is usable in a constant expression", "[core][numeric]") {

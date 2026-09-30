@@ -95,6 +95,9 @@ TEST_CASE("Transform2 identity leaves a position unchanged", "[linear][transform
     const Transform2 unit = Transform2::Identity();
 
     CHECK(unit.TransformPoint(Point2{1.0, 2.0}) == Point2{1.0, 2.0});
+    CHECK(unit == Transform2{});
+    CHECK(Transform2::Translation(Vector2{1.0, 0.0}) != Transform2::Translation(Vector2{0.0, 1.0}));
+    CHECK(Transform2::Scaling(-1.0).TransformPoint(Point2{2.0, 3.0}) == Point2{-2.0, -3.0});
 }
 
 TEST_CASE("a 2D transform carries points, not just vectors",

@@ -9,6 +9,7 @@
 
 using Catch::Approx;
 
+using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::UnitVector2T;
 using DragonGeo::Linear::UnitVector2f;
 using DragonGeo::Linear::Vector2;
@@ -42,6 +43,17 @@ TEST_CASE("2D cross of unit vectors is the sine of the angle",
     CHECK(x->Cross(*y) == Approx(1.0));
     CHECK(y->Cross(*x) == Approx(-1.0));
     CHECK(x->Cross(*x) == Approx(0.0));
+
+    CHECK(x->Dot(*y) == Approx(0.0));
+    CHECK(x->Dot(*x) == Approx(1.0));
+
+    CHECK(-(*x) == UnitVector2::FromNormalizedUnchecked(Vector2{-1.0, 0.0}));
+    CHECK(*x * 2.0 == Vector2{2.0, 0.0});
+    CHECK(3.0 * *y == Vector2{0.0, 3.0});
+    STATIC_REQUIRE(std::is_same_v<decltype(*x + *y), Vector2>);
+    STATIC_REQUIRE(std::is_same_v<decltype(*x - *y), Vector2>);
+    CHECK(*x + *y == Vector2{1.0, 1.0});
+    CHECK(*x - *y == Vector2{1.0, -1.0});
 }
 
 TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",

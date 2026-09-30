@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <limits>
 #include <type_traits>
 
@@ -51,6 +52,8 @@ TEST_CASE("length of a vector containing infinity is infinity, not NaN",
 
     // 同 Vector2T：缩放写法若不特判，inf / inf 会算出 NaN。
     CHECK(Vector4{infinity, 1.0, 1.0, 1.0}.Length() == infinity);
+    CHECK(Vector4{1.0, infinity, 1.0, 1.0}.Length() == infinity);
+    CHECK(Vector4{1.0, 1.0, infinity, 1.0}.Length() == infinity);
     CHECK(Vector4{1.0, 1.0, 1.0, infinity}.Length() == infinity);
     CHECK(Vector4{infinity, infinity, infinity, infinity}.Length() == infinity);
 }
@@ -71,4 +74,37 @@ TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
     CHECK(Vector4{infinity, nan, 1.0, 1.0}.Length() == infinity);
     CHECK(Vector4{nan, infinity, 1.0, 1.0}.Length() == infinity);
     CHECK(Vector4{1.0, 1.0, nan, infinity}.Length() == infinity);
+}
+
+TEST_CASE("Vector4 subscript, array export and the remaining operators",
+          "[linear][vector4]") {
+    const Vector4 v{1.0, 2.0, 3.0, 4.0};
+
+    CHECK(v[0] == 1.0);
+    CHECK(v[1] == 2.0);
+    CHECK(v[2] == 3.0);
+    CHECK(v[3] == 4.0);
+
+    Vector4 mutableV{};
+    mutableV[0] = 5.0;
+    mutableV[1] = 6.0;
+    mutableV[2] = 7.0;
+    mutableV[3] = 8.0;
+    CHECK(mutableV == Vector4{5.0, 6.0, 7.0, 8.0});
+
+    const std::array<double, 4> exported = v.ToArray();
+    CHECK(exported[0] == 1.0);
+    CHECK(exported[1] == 2.0);
+    CHECK(exported[2] == 3.0);
+    CHECK(exported[3] == 4.0);
+
+    CHECK(-v == Vector4{-1.0, -2.0, -3.0, -4.0});
+    CHECK(3.0 * v == Vector4{3.0, 6.0, 9.0, 12.0});
+    CHECK(v / 2.0 == Vector4{0.5, 1.0, 1.5, 2.0});
+
+    // 相等比较必须看见每一个分量，尤其是 W。
+    CHECK(v != Vector4{0.0, 2.0, 3.0, 4.0});
+    CHECK(v != Vector4{1.0, 0.0, 3.0, 4.0});
+    CHECK(v != Vector4{1.0, 2.0, 0.0, 4.0});
+    CHECK(v != Vector4{1.0, 2.0, 3.0, 0.0});
 }

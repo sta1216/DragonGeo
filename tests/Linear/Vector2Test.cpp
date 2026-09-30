@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -139,4 +140,13 @@ TEST_CASE("Vector2 members: dot, cross and subscript", "[linear][vector2]") {
     CHECK(a.Cross(b) == -1.0);        // 1*5 - 2*3
     CHECK(a[0] == 1.0);
     CHECK(a[1] == 2.0);
+
+    Vector2 mutableV{};
+    mutableV[0] = 7.0;
+    mutableV[1] = 8.0;
+    CHECK(mutableV == Vector2{7.0, 8.0});
+
+    const std::array<double, 2> exported = a.ToArray();
+    CHECK(exported[0] == 1.0);
+    CHECK(exported[1] == 2.0);
 }

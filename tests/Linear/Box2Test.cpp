@@ -556,6 +556,23 @@ TEST_CASE("intersection is the overlap and canonicalises emptiness",
     const Box2 nanBox{Point2{nan, 0.0}, Point2{1.0, 1.0}};
     CHECK(a.Intersection(nanBox) == Box2::Empty());
     CHECK(nanBox.Intersection(a) == Box2::Empty());
+
+    // 角相接：两个轴都退化成一个点。只在一个轴上空的盒也是空盒。
+    const Box2 corner{Point2{2.0, 2.0}, Point2{3.0, 3.0}};
+    CHECK(a.Intersection(corner) == Box2{Point2{2.0, 2.0}, Point2{2.0, 2.0}});
+    CHECK(a.Intersection(a) == a);
+    const Box2 inside{Point2{0.5, 0.5}, Point2{1.0, 1.5}};
+    CHECK(a.Intersection(inside) == inside);
+
+    const Box2 emptyOnX{Point2{1.0, 0.0}, Point2{0.0, 2.0}};
+    CHECK(emptyOnX.IsEmpty());
+    CHECK(a.Intersection(emptyOnX) == Box2::Empty());
+    CHECK(emptyOnX.Intersection(a) == Box2::Empty());
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    const Box2 everywhere{Point2{-infinity, -infinity}, Point2{infinity, infinity}};
+    CHECK(everywhere.Intersection(a) == a);
+    CHECK(a.Intersection(everywhere) == a);
 }
 
 TEST_CASE("every declared callable is noexcept", "[linear][box2]") {
