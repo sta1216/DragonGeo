@@ -256,6 +256,8 @@ namespace DragonGeo::Predicates {
 
 `Transform2` / `Transform3` 表示仿射变换（3×3 / 4×4，列向量约定 `M * v`）。`Quaternion` 提供旋转。法线变换使用逆转置矩阵，按需计算、不缓存 —— 除非基准测试证明它是热点。
 
+反射由 `Reflection` 工厂给出：一般形式是过一点、沿单位法向的 Householder 反射；另有过原点的坐标轴（二维）与坐标平面（三维）便捷工厂。`Coordinate` 仍拒绝这些正交但行列式为 −1 的变换。契约见 `2026-09-30-dragongeo-reflection-design.md`。
+
 ---
 
 ## 5. 能力清单
@@ -497,6 +499,7 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | 16 | `Circle` 与 `Arc2` 共用类型，`Ellipse`/`EllipseArc` 独立成族 | 圆是圆弧的退化（整圈），不是椭圆的特例；两组曲线的参数化与求交都不同，合并会带来虚假的统一 |
 | 17 | 自由函数式的具名运算（`dot`/`cross`/`norm`/`determinant`…）一律改为成员函数 | 便于 IDE 自动补全与发现；运算符仍为自由函数（二元运算的对称性要求），这一分界在阶段 2 明确 |
 | 18 | 阶段 3 的四个谓词编译进静态库，公共头只留声明 | 展开与四个谓词的实现已经不适合放进每个调用方的编译单元。签名不变。过滤不再保证无需链接时优化就能内联 |
+| 19 | 反射是 `Transform` 的工厂，`Coordinate` 继续只接受右手系 | 沿法向取反是仿射矩阵上的运算；标架的定义是正交单位右手轴，行列式为 −1 的线性部分不能同时算作标架 |
 
 ---
 

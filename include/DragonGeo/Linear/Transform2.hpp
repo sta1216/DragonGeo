@@ -7,6 +7,7 @@
 #include <DragonGeo/Core/Tolerance.hpp>
 #include <DragonGeo/Linear/Matrix.hpp>
 #include <DragonGeo/Linear/Point2.hpp>
+#include <DragonGeo/Linear/UnitVector2.hpp>
 #include <DragonGeo/Linear/Vector2.hpp>
 
 namespace DragonGeo::Linear {
@@ -68,6 +69,41 @@ struct Transform2T {
         result.Matrix.Data[1][0] = sine;
         result.Matrix.Data[1][1] = cosine;
         return result;
+    }
+
+    /// 关于过 `point`、以 `normal` 为法向的直线做反射：沿法向的分量取反。
+    ///
+    /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与
+    /// `-normal` 是同一面镜子。法向须是单位向量；长度不对时结果不是等距，
+    /// 本函数不做检查，与三维 `Rotation` 对轴的态度相同。
+    [[nodiscard]] static constexpr Transform2T Reflection(
+        Point2T<Scalar> point, UnitVector2T<Scalar> normal) noexcept {
+        const Scalar nx = normal.X();
+        const Scalar ny = normal.Y();
+        const Scalar along = Scalar{2} * (nx * point.X + ny * point.Y);
+
+        Transform2T<Scalar> result{};
+        result.Matrix.Data[0][0] = Scalar{1} - Scalar{2} * nx * nx;
+        result.Matrix.Data[0][1] = -Scalar{2} * nx * ny;
+        result.Matrix.Data[1][0] = -Scalar{2} * nx * ny;
+        result.Matrix.Data[1][1] = Scalar{1} - Scalar{2} * ny * ny;
+        result.Matrix.Data[0][2] = along * nx;
+        result.Matrix.Data[1][2] = along * ny;
+        return result;
+    }
+
+    /// 关于过原点的 X 轴反射，把 `(x, y)` 变成 `(x, −y)`。法向是 +Y。
+    [[nodiscard]] static constexpr Transform2T ReflectionX() noexcept {
+        return Reflection(Point2T<Scalar>{},
+                          UnitVector2T<Scalar>::FromNormalizedUnchecked(
+                              Vector2T<Scalar>{Scalar{0}, Scalar{1}}));
+    }
+
+    /// 关于过原点的 Y 轴反射，把 `(x, y)` 变成 `(−x, y)`。法向是 +X。
+    [[nodiscard]] static constexpr Transform2T ReflectionY() noexcept {
+        return Reflection(Point2T<Scalar>{},
+                          UnitVector2T<Scalar>::FromNormalizedUnchecked(
+                              Vector2T<Scalar>{Scalar{1}, Scalar{0}}));
     }
 
     /// 施加完整仿射变换，输入按**位置**解读。

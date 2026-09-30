@@ -81,6 +81,55 @@ struct Transform3T {
         return result;
     }
 
+    /// 关于过 `point`、以 `normal` 为法向的平面做反射：沿法向的分量取反。
+    ///
+    /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与
+    /// `-normal` 是同一面镜子。法向须是单位向量；长度不对时结果不是等距，
+    /// 本函数不做检查，与 `Rotation` 对轴的态度相同。
+    [[nodiscard]] static constexpr Transform3T Reflection(
+        Point3T<Scalar> point, UnitVector3T<Scalar> normal) noexcept {
+        const Scalar nx = normal.X();
+        const Scalar ny = normal.Y();
+        const Scalar nz = normal.Z();
+        const Scalar along = Scalar{2} * (nx * point.X + ny * point.Y + nz * point.Z);
+
+        Transform3T<Scalar> result{};
+        result.Matrix.Data[0][0] = Scalar{1} - Scalar{2} * nx * nx;
+        result.Matrix.Data[0][1] = -Scalar{2} * nx * ny;
+        result.Matrix.Data[0][2] = -Scalar{2} * nx * nz;
+        result.Matrix.Data[1][0] = -Scalar{2} * ny * nx;
+        result.Matrix.Data[1][1] = Scalar{1} - Scalar{2} * ny * ny;
+        result.Matrix.Data[1][2] = -Scalar{2} * ny * nz;
+        result.Matrix.Data[2][0] = -Scalar{2} * nz * nx;
+        result.Matrix.Data[2][1] = -Scalar{2} * nz * ny;
+        result.Matrix.Data[2][2] = Scalar{1} - Scalar{2} * nz * nz;
+        result.Matrix.Data[0][3] = along * nx;
+        result.Matrix.Data[1][3] = along * ny;
+        result.Matrix.Data[2][3] = along * nz;
+        return result;
+    }
+
+    /// 关于过原点的 YZ 平面反射，把 `(x, y, z)` 变成 `(−x, y, z)`。法向是 +X。
+    [[nodiscard]] static constexpr Transform3T ReflectionYZ() noexcept {
+        return Reflection(Point3T<Scalar>{},
+                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
+                              Vector3T<Scalar>{Scalar{1}, Scalar{0}, Scalar{0}}));
+    }
+
+    /// 关于过原点的 ZX 平面反射，把 `(x, y, z)` 变成 `(x, −y, z)`。法向是 +Y。
+    [[nodiscard]] static constexpr Transform3T ReflectionZX() noexcept {
+        return Reflection(Point3T<Scalar>{},
+                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
+                              Vector3T<Scalar>{Scalar{0}, Scalar{1}, Scalar{0}}));
+    }
+
+    /// 关于过原点的 XY 平面反射，把 `(x, y, z)` 变成 `(x, y, −z)`。法向是 +Z。
+    [[nodiscard]] static constexpr Transform3T ReflectionXY() noexcept {
+        return Reflection(Point3T<Scalar>{},
+                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
+                              Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}}));
+    }
+
     /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
     ///
     /// 与 operator*(Point3T) 等价，名字更直白。

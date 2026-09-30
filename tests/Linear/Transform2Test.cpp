@@ -4,14 +4,18 @@
 #include <type_traits>          // 本任务新用 STATIC_REQUIRE(std::is_same_v<...>)
 
 #include <DragonGeo/Core/Constants.hpp>
+#include <DragonGeo/Linear/Coordinate2.hpp>
 #include <DragonGeo/Linear/Transform2.hpp>
+#include <DragonGeo/Linear/UnitVector2.hpp>
 
 using Catch::Approx;
 
 using DragonGeo::Core::HALF_PI;
 using DragonGeo::Core::QUARTER_PI;
+using DragonGeo::Linear::Coordinate2;
 using DragonGeo::Linear::Point2;
 using DragonGeo::Linear::Transform2;
+using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Transform2T;
 using DragonGeo::Linear::Transform2f;
 using DragonGeo::Linear::Vector2;
@@ -185,4 +189,81 @@ TEST_CASE("composing 2D transforms agrees with applying TransformPoint in order"
     // b(p) = (5, 24)；a(b(p)) = (2*5+100, 3*24) = (110, 72)，全部精确
     CHECK(a * b.TransformPoint(p) == (a * b).TransformPoint(p));
     CHECK((a * b).TransformPoint(p) == Point2{110.0, 72.0});
+}
+
+TEST_CASE("reflecting across a coordinate axis flips the other coordinate",
+          "[linear][transform2]") {
+    // ReflectionX 保住 X 轴，法向是 +Y：(x, y) -> (x, -y)。
+    const Transform2 acrossX = Transform2::ReflectionX();
+    CHECK(acrossX.TransformPoint(Point2{3.0, 4.0}) == Point2{3.0, -4.0});
+    CHECK(acrossX * Vector2{3.0, 4.0} == Vector2{3.0, -4.0});
+    CHECK(acrossX == Transform2::Scaling(Vector2{1.0, -1.0}));
+    CHECK(acrossX == Transform2::Reflection(
+              Point2{}, UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0})));
+    CHECK(acrossX * acrossX == Transform2::Identity());
+
+    // ReflectionY 保住 Y 轴，法向是 +X：(x, y) -> (-x, y)。
+    const Transform2 acrossY = Transform2::ReflectionY();
+    CHECK(acrossY.TransformPoint(Point2{3.0, 4.0}) == Point2{-3.0, 4.0});
+    CHECK(acrossY * Vector2{3.0, 4.0} == Vector2{-3.0, 4.0});
+    CHECK(acrossY == Transform2::Scaling(Vector2{-1.0, 1.0}));
+    CHECK(acrossY == Transform2::Reflection(
+              Point2{}, UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0})));
+    CHECK(acrossY * acrossY == Transform2::Identity());
+
+    constexpr Transform2 axis = Transform2::ReflectionX();
+    STATIC_REQUIRE(axis.TransformPoint(Point2{3.0, 4.0}) == Point2{3.0, -4.0});
+    STATIC_REQUIRE(noexcept(Transform2::ReflectionX()));
+    STATIC_REQUIRE(noexcept(Transform2::ReflectionY()));
+    STATIC_REQUIRE(noexcept(Transform2::Reflection(
+        Point2{}, UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0}))));
+
+    // 正交且行列式为 −1，不能成为右手标架。
+    CHECK_FALSE(Coordinate2::FromTransform(acrossX).has_value());
+}
+
+TEST_CASE("a 2D reflection is the same mirror for either normal sign",
+          "[linear][transform2]") {
+    const UnitVector2 normal = *Vector2{3.0, -4.0}.Normalized();
+    const Point2 point{2.0, -5.0};
+
+    CHECK(Transform2::Reflection(point, normal) == Transform2::Reflection(point, -normal));
+}
+
+TEST_CASE("reflecting across a line that misses the origin",
+          "[linear][transform2]") {
+    // 直线 y = 4，法向 +Y。线上的点不动；(2, 6) 落到 (2, 2)。
+    const UnitVector2 normal = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
+    const Transform2 mirror = Transform2::Reflection(Point2{1.0, 4.0}, normal);
+    const Transform2 sameLine = Transform2::Reflection(Point2{7.0, 4.0}, normal);
+
+    CHECK(mirror == sameLine);
+    CHECK(mirror.TransformPoint(Point2{2.0, 4.0}) == Point2{2.0, 4.0});
+    CHECK(mirror.TransformPoint(Point2{2.0, 6.0}) == Point2{2.0, 2.0});
+    CHECK(mirror.TransformPoint(mirror.TransformPoint(Point2{2.0, 9.0})) == Point2{2.0, 9.0});
+
+    // 方向只走线性部分，镜面离原点的平移不改变方向。
+    CHECK(mirror * Vector2{0.0, 3.0} == Vector2{0.0, -3.0});
+    CHECK(mirror * Vector2{5.0, 0.0} == Vector2{5.0, 0.0});
+    CHECK(mirror * Vector2{0.0, 3.0}
+          == Transform2::Reflection(Point2{}, normal) * Vector2{0.0, 3.0});
+
+    const auto inverse = mirror.Inverse();
+    REQUIRE(inverse.has_value());
+    CHECK(inverse->TransformPoint(Point2{2.0, 9.0}) == mirror.TransformPoint(Point2{2.0, 9.0}));
+}
+
+TEST_CASE("reflecting across a diagonal line flips the normal component",
+          "[linear][transform2]") {
+    // 法向 (1, 1)/√2。直线方向是 (1, -1)，其上的 (1, -1) 不动。
+    // (1, 0) 落到 (0, -1)。非对角元写错时，这一格不再成立。
+    const UnitVector2 normal = *Vector2{1.0, 1.0}.Normalized();
+    const Transform2 mirror = Transform2::Reflection(Point2{}, normal);
+    const Point2 image = mirror.TransformPoint(Point2{1.0, 0.0});
+
+    CHECK(mirror.TransformPoint(Point2{1.0, -1.0}) == Point2{1.0, -1.0});
+    CHECK(image.X == Approx(0.0).margin(1e-12));
+    CHECK(image.Y == Approx(-1.0).margin(1e-12));
+    CHECK(mirror.TransformPoint(image).X == Approx(1.0).margin(1e-12));
+    CHECK(mirror.TransformPoint(image).Y == Approx(0.0).margin(1e-12));
 }

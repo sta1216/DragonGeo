@@ -5,11 +5,13 @@
 #include <type_traits>          // 本任务新用 STATIC_REQUIRE(std::is_same_v<...>)
 
 #include <DragonGeo/Core/Constants.hpp>
+#include <DragonGeo/Linear/Coordinate3.hpp>
 #include <DragonGeo/Linear/Transform3.hpp>
 
 using Catch::Approx;
 
 using DragonGeo::Core::HALF_PI;
+using DragonGeo::Linear::Coordinate3;
 using DragonGeo::Linear::Point3;
 using DragonGeo::Linear::Transform3;
 using DragonGeo::Linear::Transform3T;
@@ -227,4 +229,89 @@ TEST_CASE("a composed transform and chained member calls are different spellings
     const Point3 p{1.0, 2.0, 3.0};
     CHECK(a * b.TransformPoint(p) == (a * b).TransformPoint(p));
     CHECK((a * b).TransformPoint(p) == Point3{110.0, 66.0, 164.0});
+}
+
+TEST_CASE("reflecting across a coordinate plane flips the remaining axis",
+          "[linear][transform3]") {
+    const UnitVector3 axisX = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});
+    const UnitVector3 axisY = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 1.0, 0.0});
+
+    // YZ 平面，法向 +X：(x, y, z) -> (-x, y, z)。
+    const Transform3 acrossYZ = Transform3::ReflectionYZ();
+    CHECK(acrossYZ.TransformPoint(Point3{3.0, 4.0, 5.0}) == Point3{-3.0, 4.0, 5.0});
+    CHECK(acrossYZ * Vector3{3.0, 4.0, 5.0} == Vector3{-3.0, 4.0, 5.0});
+    CHECK(acrossYZ == Transform3::Scaling(Vector3{-1.0, 1.0, 1.0}));
+    CHECK(acrossYZ == Transform3::Reflection(Point3{}, axisX));
+    CHECK(acrossYZ * acrossYZ == Transform3::Identity());
+
+    // ZX 平面，法向 +Y。
+    const Transform3 acrossZX = Transform3::ReflectionZX();
+    CHECK(acrossZX.TransformPoint(Point3{3.0, 4.0, 5.0}) == Point3{3.0, -4.0, 5.0});
+    CHECK(acrossZX == Transform3::Scaling(Vector3{1.0, -1.0, 1.0}));
+    CHECK(acrossZX == Transform3::Reflection(Point3{}, axisY));
+    CHECK(acrossZX * acrossZX == Transform3::Identity());
+
+    // XY 平面，法向 +Z。
+    const Transform3 acrossXY = Transform3::ReflectionXY();
+    CHECK(acrossXY.TransformPoint(Point3{3.0, 4.0, 5.0}) == Point3{3.0, 4.0, -5.0});
+    CHECK(acrossXY == Transform3::Scaling(Vector3{1.0, 1.0, -1.0}));
+    CHECK(acrossXY == Transform3::Reflection(Point3{}, zAxis));
+    CHECK(acrossXY * acrossXY == Transform3::Identity());
+
+    constexpr Transform3 plane = Transform3::ReflectionXY();
+    STATIC_REQUIRE(plane.TransformPoint(Point3{3.0, 4.0, 5.0}) == Point3{3.0, 4.0, -5.0});
+    STATIC_REQUIRE(noexcept(Transform3::ReflectionYZ()));
+    STATIC_REQUIRE(noexcept(Transform3::ReflectionZX()));
+    STATIC_REQUIRE(noexcept(Transform3::ReflectionXY()));
+    STATIC_REQUIRE(noexcept(Transform3::Reflection(Point3{}, zAxis)));
+
+    CHECK_FALSE(Coordinate3::FromTransform(acrossXY).has_value());
+}
+
+TEST_CASE("a 3D reflection is the same mirror for either normal sign",
+          "[linear][transform3]") {
+    const UnitVector3 normal = *Vector3{1.0, -2.0, 2.0}.Normalized();
+    const Point3 point{4.0, -1.0, 6.0};
+
+    CHECK(Transform3::Reflection(point, normal) == Transform3::Reflection(point, -normal));
+}
+
+TEST_CASE("reflecting across a plane that misses the origin",
+          "[linear][transform3]") {
+    // 平面 z = 2。面上的点不动；(1, 4, 5) 落到 (1, 4, -1)。
+    const Transform3 mirror = Transform3::Reflection(Point3{0.0, 0.0, 2.0}, zAxis);
+    const Transform3 samePlane = Transform3::Reflection(Point3{9.0, 8.0, 2.0}, zAxis);
+
+    CHECK(mirror == samePlane);
+    CHECK(mirror.TransformPoint(Point3{1.0, 4.0, 2.0}) == Point3{1.0, 4.0, 2.0});
+    CHECK(mirror.TransformPoint(Point3{1.0, 4.0, 5.0}) == Point3{1.0, 4.0, -1.0});
+    CHECK(mirror.TransformPoint(mirror.TransformPoint(Point3{1.0, 4.0, 5.0}))
+          == Point3{1.0, 4.0, 5.0});
+
+    CHECK(mirror * Vector3{0.0, 0.0, 3.0} == Vector3{0.0, 0.0, -3.0});
+    CHECK(mirror * Vector3{1.0, 2.0, 0.0} == Vector3{1.0, 2.0, 0.0});
+    CHECK(mirror * Vector3{0.0, 0.0, 3.0}
+          == Transform3::Reflection(Point3{}, zAxis) * Vector3{0.0, 0.0, 3.0});
+
+    const auto inverse = mirror.Inverse();
+    REQUIRE(inverse.has_value());
+    CHECK(inverse->TransformPoint(Point3{1.0, 4.0, 5.0})
+          == mirror.TransformPoint(Point3{1.0, 4.0, 5.0}));
+}
+
+TEST_CASE("reflecting across a diagonal plane flips only the normal component",
+          "[linear][transform3]") {
+    // 法向 (1, 1, 0)/√2。Z 不在法向里，必须原样留下。
+    // (1, 0, 5) 落到 (0, -1, 5)。对角元写成单位矩阵时，这一格失败。
+    const UnitVector3 normal = *Vector3{1.0, 1.0, 0.0}.Normalized();
+    const Transform3 mirror = Transform3::Reflection(Point3{}, normal);
+    const Point3 image = mirror.TransformPoint(Point3{1.0, 0.0, 5.0});
+
+    CHECK(image.X == Approx(0.0).margin(1e-12));
+    CHECK(image.Y == Approx(-1.0).margin(1e-12));
+    CHECK(image.Z == Approx(5.0).margin(1e-12));
+    const Point3 back = mirror.TransformPoint(image);
+    CHECK(back.X == Approx(1.0).margin(1e-12));
+    CHECK(back.Y == Approx(0.0).margin(1e-12));
+    CHECK(back.Z == Approx(5.0).margin(1e-12));
 }
