@@ -65,10 +65,10 @@ jobs:
   # 最后跑起来。
   #
   # 这条防线的强度来自 ci/consumer 里的 /WX。实测（cp936 主机）：缺 /utf-8
-  # 时只会产生 C4819 警告、0 个 error —— MSBuild 命令行（摘要）为
-  # `/W1 /WX- /external:W0 /external:I "<prefix>/include"`：安装前缀被当作
-  # 外部头、其警告被压到 0 级，警告本身又永不致失败，而作业只看退出码，
-  # 于是整条流程照样全绿。/WX 把 C4819 变成硬失败，这才守住了回归。
+  # 时只会产生 C4819 警告、0 个 error —— **补 /WX 之前**的 MSBuild 命令行
+  # （摘要）为 `/W1 /WX- /external:W0 /external:I "<prefix>/include"`：安装
+  # 前缀被当作外部头、其警告被压到 0 级，警告本身又永不致失败，而作业只看
+  # 退出码，于是整条流程照样全绿。/WX 把 C4819 变成硬失败，这才守住了回归。
   consumer-smoke:
     name: Windows MSVC (installed package consumer)
     runs-on: windows-latest

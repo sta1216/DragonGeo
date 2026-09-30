@@ -632,7 +632,7 @@ grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=docs \
 >
 > 正对照（导出完好）零诊断，`vcxproj` 的 `AdditionalOptions` 里确实有 `/utf-8` —— 所以**被测对象本身是好的，坏的是这道检验的强度**。这正是阶段 1 C1 依赖的那道防线。
 >
-> **建议的补法（一行，实测有效）：给 `ci/consumer` 加 `/WX`。** 它不设置任何**编码**选项，因此「本工程刻意不设编码选项，诊断只能指向 GeoCore 的头文件」这个前提完好；而 `C4819` 会变成硬失败（实测 `/W1 /WX` 缺 `/utf-8` 时 exit 2）。**这不属于本计划任何任务，请先与用户确认再动。**
+> **补法（一行，实测有效；已由用户裁定执行，见文末「遗留决策」第 1 条）：给 `ci/consumer` 加 `/WX`。** 它不设置任何**编码**选项，这一点仍然成立；但**触发 C4819 的是消费方 `main.cpp` 自身按 UTF-8 写的中文注释**（GeoCore 头文件的 C4819 被 `/external:W0` 压掉），**前提是该文件保持非 ASCII**。退出码实测（`D:/tmp/geocore-smoke/` 里现成的前缀，缺 `/utf-8`）：`cmake --build` exit 1、`CL.exe` 自身 exit 2 —— 原记的「exit 2」是后者。
 
 - [ ] **Step 3d: 补 `Transform2T::identity()` 的覆盖**
 
@@ -1035,7 +1035,7 @@ template <typename Scalar>
 > 当时不加是因为 spec §4.4 的清单里没有它；裁定之后 spec §4.4 已补上这一条，实现与测试也已跟上。
 > 执行本计划时请按**现状**（`Vector + Point` **存在**）理解，本段下面那两句 `static_assert` 与测试文本里的对应断言均已删除。详见文末「遗留决策」。
 
-（顺带说明：§4.4 的片段只列了 `Point3 + Vector3` 与 `Point3 - Point3` 两条，本计划的 Interfaces 多了 `Point - Vector` —— 那是计划有意加的，实现跟随 Interfaces。`Transform3T * Point3T` 将在 Task 9 加，届时应回填进 §4.4。）
+（顺带说明：该片段当时只列了 `Point3 + Vector3` 与 `Point3 - Point3` 两条 —— 本计划的 Interfaces 有意多加了 `Point - Vector`，Task 9 又加了 `Transform3T * Point3T`；这两处缺口都已由 `e14c793` 连同 `Vector + Point` 一并回填进 §4.4，现状以该节为准。）
 
 在 `GeoCore.hpp` 的 `Vector2/3/4` 之后追加两个 include。
 
@@ -2224,7 +2224,7 @@ STATIC_REQUIRE(std::is_same_v<Matrix3f, MatrixT<float, 3>>);
 
 **别用「构造一个 float 值再比较」的写法** —— 上面刚说明它抓不住误绑定。必须是 `is_same_v`，它才是对**绑定本身**的断言。记得 `struct MatrixT` 之类是两参数模板，别名对应的模板实参要写全。
 
-**顺带把 `PointNT` 其余 7 处 `noexcept` 也钉上。** Task 4 收尾时把它们裁定为「记录后放行的显式取舍」—— 理由是那个文件已经 55 条断言。但 Task 5 给 `Interval` 把 11 处 `noexcept` 全钉了（成本近零，且 `noexcept` 是 Interfaces 的明文承诺），于是两个任务的产物在同一个属性上不一致。**以一致为先**：给 `Point2T`/`Point3T` 补上，让全库的 `noexcept` 承诺都有证据。
+**顺带把 `PointNT` 其余 8 处 `noexcept` 也钉上。** Task 4 收尾时把它们裁定为「记录后放行的显式取舍」—— 理由是那个文件已经 55 条断言。但 Task 5 给 `Interval` 把 11 处 `noexcept` 全钉了（成本近零，且 `noexcept` 是 Interfaces 的明文承诺），于是两个任务的产物在同一个属性上不一致。**以一致为先**：给 `Point2T`/`Point3T` 补上，让全库的 `noexcept` 承诺都有证据。
 
 做法是在已有的用例旁边加，例如：
 
@@ -2528,7 +2528,7 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 
 机制（从 MSBuild 实际命令行读出）：`/W1 /WX- /external:W0 /external:I <prefix>/include` —— 外部头的警告被压到 0 级，且 `/WX-` 表示警告永不致失败，而作业只取退出码。**与 runner 的代码页无关。**
 
-**建议的补法（一行，实测有效）**：给 `ci/consumer` 加 `/WX`。它不设置任何**编码**选项，所以「本工程刻意不设编码选项，诊断只能指向 GeoCore 的头文件」这个前提完好；而 `C4819` 会变成硬失败（实测缺 `/utf-8` 时 exit 2）。
+**补法（一行，已执行，实测有效）**：给 `ci/consumer` 加 `/WX`。它不设置任何**编码**选项，这一点仍然成立 —— 但**诊断并不指向 GeoCore 的头文件**：负对照里唯一的 `C4819` 指向消费方自己的 `ci/consumer/main.cpp`（按设计就是 UTF-8 中文注释），头文件的 `C4819` 在 `/external:I` + `/external:W0` 下根本不报。触发点是 `main.cpp` 自身的非 ASCII 内容，**前提是该文件保持非 ASCII** —— 改成纯 ASCII，这道防线就会静默失效。退出码（实测，`D:/tmp/geocore-smoke/` 里现成的前缀，缺 `/utf-8`）：作业实际跑的那条 `cmake --build . --config Release` 是 **exit 1**（MSBuild 直接调用同样 exit 1），更底层的 `CL.exe` 自身是 **exit 2**（「警告即错误」的约定）；诊断是 `error C2220` + `warning C4819`。此前记的「exit 2」是 `CL.exe` 的数字，不是 `cmake --build` 的。
 
 ### 2. ~~`Vector + Point` 不存在~~ —— **用户裁定：要加（已执行）**
 
@@ -2536,7 +2536,7 @@ spec §4.4 的运算符清单只列了 `Point + Vector` 与 `Point - Point`，�
 
 **用户裁定「需要加」，已执行**：`operator+(VectorNT, PointNT) -> PointNT`（2D/3D 各一个）已加入，spec §4.4 已补上该条，两处 `static_assert(!addable_pair<VectorNT, PointNT>)` 与相关注释已删除，测试已补。`p + p` 仍然不编译（那才是类型系统的承诺）。
 
-（另一处相关：`Transform3T * Point3T` 已在 Task 9 加上，也应回填进 spec §4.4。）
+（另一处相关：`Transform3T * Point3T` 已在 Task 9 加上，也已由 `e14c793` 回填进 spec §4.4；同批把计划有意加的 `Point - Vector` 一并补进了清单。）
 
 ### 3. float 实例化用不了默认容差 —— **用户裁定：现状没问题，不改**
 

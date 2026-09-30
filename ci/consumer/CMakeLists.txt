@@ -19,8 +19,13 @@ target_link_libraries(consumer PRIVATE GeoCore::GeoCore)
 # /WX：警告即错误。**这道防线不能省。** MSBuild 默认按 `/W1 /WX-` 编译，且
 # 安装前缀位于 `/external:I` 之下、外部头的警告被 `/external:W0` 压到 0 级 ——
 # 缺了 /utf-8 时这里只产生 C4819 警告、0 个 error，作业只看退出码就会静默通过
-# （已实测）。/WX 把 C4819 变成硬失败，回归才守得住（实测：MSBuild 退出码 1，
-# 诊断是 C2220「警告被视为错误」+ C4819）。
+# （已实测）。/WX 把 C4819 变成硬失败，回归才守得住（实测：`cmake --build`
+# 退出码 1，诊断是 C2220「警告被视为错误」+ C4819）。
+#
+# **触发点是本工程的 `main.cpp`，不是 GeoCore 的头文件**：负对照里唯一的 C4819
+# 指向 `main.cpp` 按 UTF-8 写的中文注释，头文件的 C4819 已被上面的外部头机制
+# 压掉。所以**前提是 `main.cpp` 保持非 ASCII** —— 若把它改成纯 ASCII，`/WX`
+# 就再也接不到任何警告，这道防线会**静默失效**。
 # 注意：这里**仍然**不设置任何编码选项，见文件开头。
 if(MSVC)
     target_compile_options(consumer PRIVATE /WX)
