@@ -2168,13 +2168,23 @@ git commit -m "feat(linear): let Transform carry points"
 - Modify: `README.md`
 - Modify: `examples/vector_basics.cpp`（成员化后的调用点）
 - Modify: `include/GeoCore/linear/Vector2.hpp`（**仅**一处已失效的注释，见 Step 1b）
+- Modify: `include/GeoCore/linear/Coordinate2.hpp`、`Coordinate3.hpp`（**仅**把两处历史的 `apply(Vector)` 改成 `transform_point(Point)`，见 Step 1e）
 - Modify: `tests/linear/vector4_test.cpp`、`matrix_test.cpp`、`unit_vector2_test.cpp`、`unit_vector3_test.cpp`、`quaternion_test.cpp`、`transform2_test.cpp`、`transform3_test.cpp`（**仅**各加一条别名绑定断言，见 Step 1c）
+- Modify: `tests/linear/box2_test.cpp`、`box3_test.cpp`、`interval_test.cpp`、`coordinate2_test.cpp`、`coordinate3_test.cpp`（**仅**删工具标记行，见 Step 1d）
 
 - [ ] **Step 1: 更新 README 与示例**
 
 README 的 quick start 改用成员形式（`a.dot(b)`、`a.normalized()`），并在"What works today"表里加入本轮新增的五个类型。示例同样改用成员形式，重跑并核对输出。
 
 **顺带修**（Task 1 的复核留下的）：`examples/vector_basics.cpp:39` 打印的字符串 `"normalize(zero) correctly returned nullopt"` 里那个函数名已不存在，改成 `normalized`。
+
+- [ ] **Step 1e: 把 `Coordinate` 里两处历史的 `apply` 用法改成 `transform_point`**
+
+`Coordinate2.hpp` 与 `Coordinate3.hpp` 的 `from_transform` 里各有一处：先 `transform.apply(Vector{})` 求出原点，再手工包成 `Point`。这正是 `transform_point` 要取代的「把位置塞进 Vector」的历史分工。
+
+Task 9 已把 `Transform::transform_point` 加好，所以这里现在可以直写成 `transform.transform_point(Point)`。**改完值必须逐位不变**（同一套算术、同样的求值顺序），并用现有的 `from_transform` 断言守住。
+
+（来源：Task 9 的审查者发现。不在 Task 9 的 Files 清单内，故记到收尾任务。）
 
 - [ ] **Step 1d: 清掉测试文件里的工具标记**
 
