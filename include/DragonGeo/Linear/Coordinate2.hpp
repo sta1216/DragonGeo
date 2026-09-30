@@ -87,8 +87,7 @@ public:
     [[nodiscard]] static constexpr std::optional<Coordinate2T> FromXAxis(
         Point2T<Scalar> origin, UnitVector2T<Scalar> x,
         Core::Tolerance tolerance = {}) noexcept {
-        const UnitVector2T<Scalar> y =
-            UnitVector2T<Scalar>::FromNormalizedUnchecked(Vector2T<Scalar>{-x.Y(), x.X()});
+        const UnitVector2T<Scalar> y = x.Perpendicular();
         return FromAxes(origin, x, y, tolerance);
     }
 

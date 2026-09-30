@@ -16,9 +16,11 @@ namespace DragonGeo::Linear {
 ///
 /// 运算的返回类型如实反映是否保持该不变量：
 ///   -u               -> UnitVector3T   （保持）
+///   u.Perpendicular  -> UnitVector3T   （单位垂直向量，保持）
 ///   u * scalar       -> Vector3T       （缩放后不再是单位向量）
 ///   u + u            -> Vector3T       （和一般不是单位向量）
 ///   u.Cross(u)       -> Vector3T       （平行时退化为零向量）
+///   u.Projected(v)   -> Vector3T       （投影长度一般不是 1）
 template <typename Scalar>
 class UnitVector3T {
 public:
@@ -48,6 +50,38 @@ public:
     /// 叉积。结果不保证是单位向量（两向量平行时为零向量），故返回 Vector3T。
     [[nodiscard]] constexpr Vector3T<Scalar> Cross(UnitVector3T other) const noexcept {
         return m_value.Cross(other.m_value);
+    }
+
+    /// 一条单位垂直向量。垂直方向不唯一，选法与 `Coordinate3T::FromZAxis`
+    /// 补出的 X 轴相同：取绝对值最小的分量所对应的坐标轴，与自身叉积后单位化。
+    /// 分量绝对值并列时取先出现的那根轴。
+    ///
+    /// 单位向量与该坐标轴的夹角至少约 54.7°，叉积不会退化。输入须是单位向量；
+    /// 长度不对时结果不再是单位向量，本函数不做检查。归一化经过平方根，
+    /// 因此不是 `constexpr`。
+    [[nodiscard]] UnitVector3T Perpendicular() const noexcept {
+        const Scalar ax = Core::AbsoluteValue(m_value.X);
+        const Scalar ay = Core::AbsoluteValue(m_value.Y);
+        const Scalar az = Core::AbsoluteValue(m_value.Z);
+
+        Vector3T<Scalar> reference{};
+        if (ax <= ay && ax <= az) {
+            reference = Vector3T<Scalar>{Scalar{1}, Scalar{0}, Scalar{0}};
+        } else if (ay <= az) {
+            reference = Vector3T<Scalar>{Scalar{0}, Scalar{1}, Scalar{0}};
+        } else {
+            reference = Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}};
+        }
+
+        const Vector3T<Scalar> crossed = reference.Cross(m_value);
+        return FromNormalizedUnchecked(crossed / crossed.Length());
+    }
+
+    /// 把 `vector` 投到本方向上：`(vector · n) n`。
+    ///
+    /// 结果的长度是投影长度，一般不再是单位向量，故返回 `Vector3T`。
+    [[nodiscard]] constexpr Vector3T<Scalar> Projected(Vector3T<Scalar> vector) const noexcept {
+        return m_value * m_value.Dot(vector);
     }
 
     [[nodiscard]] constexpr bool operator==(const UnitVector3T&) const noexcept = default;

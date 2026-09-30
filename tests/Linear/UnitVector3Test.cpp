@@ -6,11 +6,14 @@
 #include <optional>
 #include <type_traits>
 
+#include <DragonGeo/Linear/Coordinate3.hpp>
 #include <DragonGeo/Linear/UnitVector3.hpp>
 
 using Catch::Approx;
 
 using DragonGeo::Core::Tolerance;
+using DragonGeo::Linear::Coordinate3;
+using DragonGeo::Linear::Point3;
 using DragonGeo::Linear::UnitVector3;
 using DragonGeo::Linear::UnitVector3T;
 using DragonGeo::Linear::UnitVector3f;
@@ -155,4 +158,55 @@ TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit ve
     // NaN 输入比无穷更常见：任何上游的 0/0 或 inf - inf 都会落到这里
     CHECK_FALSE(Vector3{notANumber, 1.0, 1.0}.Normalized().has_value());
     CHECK_FALSE(Vector3{notANumber, notANumber, notANumber}.Normalized().has_value());
+}
+
+TEST_CASE("a 3D unit vector's perpendicular matches the frame completed from it",
+          "[linear][unitvector3]") {
+    const UnitVector3 axisX = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});
+    const UnitVector3 axisY = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 1.0, 0.0});
+    const UnitVector3 axisZ = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
+
+    // 三条坐标轴各走一个分支。期望值与 FromZAxis 的参考轴选择一致：
+    // +X → -Z，+Y → +Z，+Z → -Y。
+    STATIC_REQUIRE(std::is_same_v<decltype(axisZ.Perpendicular()), UnitVector3>);
+    CHECK(axisX.Perpendicular() == UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, -1.0}));
+    CHECK(axisY.Perpendicular() == UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0}));
+    CHECK(axisZ.Perpendicular() == UnitVector3::FromNormalizedUnchecked(Vector3{0.0, -1.0, 0.0}));
+    CHECK(axisZ.Dot(axisZ.Perpendicular()) == 0.0);
+    STATIC_REQUIRE(noexcept(axisZ.Perpendicular()));
+
+    // |z| 最小的分支：z = (0.6, 0.8, 0) ⇒ 垂直向量 (-0.8, 0.6, 0)。
+    const UnitVector3 flat = UnitVector3::FromNormalizedUnchecked(Vector3{0.6, 0.8, 0.0});
+    CHECK(flat.Perpendicular().X() == Approx(-0.8).margin(1e-15));
+    CHECK(flat.Perpendicular().Y() == Approx(0.6).margin(1e-15));
+    CHECK(flat.Perpendicular().Z() == Approx(0.0).margin(1e-15));
+
+    // 与 FromZAxis 补出的 X 轴是同一个向量。
+    const auto z = Vector3{1.0, 1.0, 1.0}.Normalized();
+    REQUIRE(z.has_value());
+    const auto frame = Coordinate3::FromZAxis(Point3{}, *z);
+    REQUIRE(frame.has_value());
+    CHECK(frame->XAxis() == z->Perpendicular());
+}
+
+TEST_CASE("projecting onto a 3D unit vector keeps only the parallel part",
+          "[linear][unitvector3]") {
+    const UnitVector3 axisZ = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
+
+    STATIC_REQUIRE(std::is_same_v<decltype(axisZ.Projected(Vector3{1.0, 2.0, 3.0})), Vector3>);
+    CHECK(axisZ.Projected(Vector3{1.0, 2.0, 3.0}) == Vector3{0.0, 0.0, 3.0});
+    CHECK(axisZ.Projected(Vector3{1.0, 2.0, -4.0}) == Vector3{0.0, 0.0, -4.0});
+    CHECK(axisZ.Projected(Vector3{1.0, 2.0, 0.0}) == Vector3{0.0, 0.0, 0.0});
+
+    const auto normal = Vector3{1.0, 2.0, 2.0}.Normalized();
+    REQUIRE(normal.has_value());
+    const Vector3 parallel = normal->Projected(Vector3{1.0, 2.0, 2.0});
+    CHECK(parallel.X == Approx(1.0));
+    CHECK(parallel.Y == Approx(2.0));
+    CHECK(parallel.Z == Approx(2.0));
+    CHECK(normal->Projected(normal->Perpendicular().AsVector()).Length() == Approx(0.0).margin(1e-12));
+
+    constexpr UnitVector3 axis = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 1.0, 0.0});
+    STATIC_REQUIRE(axis.Projected(Vector3{3.0, 4.0, 5.0}) == Vector3{0.0, 4.0, 0.0});
+    STATIC_REQUIRE(noexcept(axis.Projected(Vector3{1.0, 2.0, 3.0})));
 }

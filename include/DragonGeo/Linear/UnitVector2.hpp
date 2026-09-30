@@ -38,6 +38,21 @@ public:
         return m_value.Cross(other.m_value);
     }
 
+    /// 逆时针转 90° 得到的单位垂直向量，即 `(-Y, X)`。
+    ///
+    /// 与 `Coordinate2T::FromXAxis` 补出的 Y 轴相同。另一侧取相反数。
+    /// 分量对调不改变长度，所以结果仍是单位向量。
+    [[nodiscard]] constexpr UnitVector2T Perpendicular() const noexcept {
+        return FromNormalizedUnchecked(Vector2T<Scalar>{-m_value.Y, m_value.X});
+    }
+
+    /// 把 `vector` 投到本方向上：`(vector · n) n`。
+    ///
+    /// 结果的长度是投影长度，一般不再是单位向量，故返回 `Vector2T`。
+    [[nodiscard]] constexpr Vector2T<Scalar> Projected(Vector2T<Scalar> vector) const noexcept {
+        return m_value * m_value.Dot(vector);
+    }
+
     [[nodiscard]] constexpr bool operator==(const UnitVector2T&) const noexcept = default;
 
 private:

@@ -69,3 +69,47 @@ TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit ve
     CHECK_FALSE(Vector2{notANumber, 1.0}.Normalized().has_value());
     CHECK_FALSE(Vector2{notANumber, notANumber}.Normalized().has_value());
 }
+
+TEST_CASE("a 2D unit vector's perpendicular is a 90 degree counter-clockwise turn",
+          "[linear][unitvector2]") {
+    const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
+    const UnitVector2 y = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
+
+    // 保住的是单位长度，所以返回 UnitVector2，而不是 Vector2。
+    STATIC_REQUIRE(std::is_same_v<decltype(x.Perpendicular()), UnitVector2>);
+    CHECK(x.Perpendicular() == y);
+    CHECK(y.Perpendicular() == -x);
+    CHECK(x.Dot(x.Perpendicular()) == 0.0);
+    CHECK(x.Cross(x.Perpendicular()) == 1.0);
+
+    // 非轴向：(0.6, 0.8) 的逆时针垂直是 (-0.8, 0.6)。顺时针会得到 (0.8, -0.6)。
+    const UnitVector2 tilted = UnitVector2::FromNormalizedUnchecked(Vector2{0.6, 0.8});
+    CHECK(tilted.Perpendicular() == UnitVector2::FromNormalizedUnchecked(Vector2{-0.8, 0.6}));
+
+    constexpr UnitVector2 axis = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
+    STATIC_REQUIRE(axis.Perpendicular() == UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0}));
+    STATIC_REQUIRE(noexcept(axis.Perpendicular()));
+}
+
+TEST_CASE("projecting onto a 2D unit vector keeps only the parallel part",
+          "[linear][unitvector2]") {
+    const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
+
+    STATIC_REQUIRE(std::is_same_v<decltype(x.Projected(Vector2{3.0, 4.0})), Vector2>);
+    CHECK(x.Projected(Vector2{3.0, 4.0}) == Vector2{3.0, 0.0});
+    CHECK(x.Projected(Vector2{-2.0, 5.0}) == Vector2{-2.0, 0.0});
+    CHECK(x.Projected(Vector2{0.0, 4.0}) == Vector2{0.0, 0.0});
+    CHECK(x.Projected(Vector2{0.0, 0.0}) == Vector2{0.0, 0.0});
+
+    // 斜方向：与法向垂直的向量投影为零，与法向平行的向量原样留下。
+    const auto normal = Vector2{3.0, 4.0}.Normalized();
+    REQUIRE(normal.has_value());
+    CHECK(normal->Projected(Vector2{-4.0, 3.0}).Length() == Approx(0.0).margin(1e-12));
+    const Vector2 parallel = normal->Projected(Vector2{3.0, 4.0});
+    CHECK(parallel.X == Approx(3.0));
+    CHECK(parallel.Y == Approx(4.0));
+
+    constexpr UnitVector2 axis = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
+    STATIC_REQUIRE(axis.Projected(Vector2{3.0, 4.0}) == Vector2{0.0, 4.0});
+    STATIC_REQUIRE(noexcept(axis.Projected(Vector2{1.0, 2.0})));
+}
