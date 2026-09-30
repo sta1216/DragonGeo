@@ -1032,7 +1032,11 @@ template <typename Scalar>
 
 `Point2T` 的三个运算符与 `operator==` 照写一遍（把 `3` 换成 `2`、`z` 去掉）。
 
-**关于 `Point + Point`**：代码块里刻意没有它，`static_assert` 会守住这一点。**也不要顺手加 `Vector + Point`** —— spec 的运算符清单（**§4.4**，不是 §5.0；§5.0 只是能力清单）里没有它，计划不擅自扩 API。若你实现时觉得它显然应该存在，那是**设计问题不是实现问题**，请在报告里提出来，别默默加上。
+**关于 `Point + Point`**：代码块里刻意没有它，`static_assert` 会守住这一点。
+
+> **⚠️ 本段的「也不要顺手加 `Vector + Point`」已作废 —— 用户在本阶段结束后裁定：要加。**
+> 当时不加是因为 spec §4.4 的清单里没有它；裁定之后 spec §4.4 已补上这一条，实现与测试也已跟上。
+> 执行本计划时请按**现状**（`Vector + Point` **存在**）理解，本段下面那两句 `static_assert` 与测试文本里的对应断言均已删除。详见文末「遗留决策」。
 
 （顺带说明：§4.4 的片段只列了 `Point3 + Vector3` 与 `Point3 - Point3` 两条，本计划的 Interfaces 多了 `Point - Vector` —— 那是计划有意加的，实现跟随 Interfaces。`Transform3T * Point3T` 将在 Task 9 加，届时应回填进 §4.4。）
 
@@ -2521,7 +2525,7 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 
 这三条在执行过程中被发现，都**超出了本计划的任务范围**，因此原样记录而不是擅自处置。
 
-### 1. CI 的 `consumer-smoke` 守不住 `/utf-8` 的导出回归
+### 1. CI 的 `consumer-smoke` 守不住 `/utf-8` 的导出回归 —— **用户裁定：接受，已补 `/WX`**
 
 **已实测确认，不是推测**：从安装好的 `GeoCoreTargets.cmake` 里**删掉** `INTERFACE_COMPILE_OPTIONS` 那一行，再完整按 `ci.yml` 的流程跑 configure → build → run，**三步全 exit 0、输出全对**。该作业本来是为守住「`/utf-8` 随安装包到达消费方」而存在的（阶段 1 的 C1 就是这条防线抓到的）。
 
@@ -2529,13 +2533,15 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 
 **建议的补法（一行，实测有效）**：给 `ci/consumer` 加 `/WX`。它不设置任何**编码**选项，所以「本工程刻意不设编码选项，诊断只能指向 GeoCore 的头文件」这个前提完好；而 `C4819` 会变成硬失败（实测缺 `/utf-8` 时 exit 2）。
 
-### 2. `Vector + Point` 不存在，而 `p + v` 与 `p - v` 成立
+### 2. ~~`Vector + Point` 不存在~~ —— **用户裁定：要加（已执行）**
 
-spec §4.4 的运算符清单只列了 `Point + Vector` 与 `Point - Point`，所以本阶段**按规矩没加**。但两个独立代理先后指出这个不对称：调用方先写 `v` 会撞上「找不到运算符」。加它是一行模板。**这是 spec 层的决定，不是实现问题。**
+spec §4.4 的运算符清单只列了 `Point + Vector` 与 `Point - Point`，所以本阶段**按规矩没加**。但两个独立代理先后指出这个不对称：调用方先写 `v` 会撞上「找不到运算符」。
 
-（另一处相关：`Transform3T * Point3T` 已在 Task 9 加上，应回填进 spec §4.4。）
+**用户裁定「需要加」，已执行**：`operator+(VectorNT, PointNT) -> PointNT`（2D/3D 各一个）已加入，spec §4.4 已补上该条，两处 `static_assert(!addable_pair<VectorNT, PointNT>)` 与相关注释已删除，测试已补。`p + p` 仍然不编译（那才是类型系统的承诺）。
 
-### 3. float 实例化用不了默认容差
+（另一处相关：`Transform3T * Point3T` 已在 Task 9 加上，也应回填进 spec §4.4。）
+
+### 3. float 实例化用不了默认容差 —— **用户裁定：现状没问题，不改**
 
 `core::Tolerance` 的默认值是 `{abs=1e-12, rel=1e-9}`，按 **double** 定标。float 的旋转矩阵偏离正交约 **1e-7**，所以 `Coordinate3f::from_axes(...)` 这类容差类操作会**拒绝完全正常的 float 标架**，除非调用方显式传 `Tolerance{1e-5, 1e-5}`。
 
