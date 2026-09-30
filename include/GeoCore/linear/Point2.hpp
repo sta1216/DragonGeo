@@ -40,9 +40,14 @@ struct Point2T {
     /// 经 Vector2T::length() 实现，因此继承它的一切行为 —— 包括**差向量**的任一
     /// 分量含 ±inf 时返回 inf 而非 NaN。那正是长度的既定语义，不为此加特判。
     ///
-    /// 限定语「**差向量**」不可省：两个点在同一位上都是同一个 ±inf 时，差是
-    /// NaN（`(+inf) - (+inf)`），距离随之是 NaN —— 与 `length()` 的规则一致
-    /// （任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN），不是漏判。
+    /// 限定语「**差向量**」不可省：两个点在同一位上都是同一个 ±inf、**且其余
+    /// 槽位的差都是有限值**时，差向量含 NaN 而不含无穷，距离随之是 NaN ——
+    /// 与 `length()` 的规则一致（任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN），
+    /// 不是漏判。
+    ///
+    /// 「其余槽位有限」这个附加条件不能省：若别的槽位差为 ±inf，那条规则会让
+    /// inf 压过 NaN，距离是 inf —— 例如 `{+inf, 0}` 到 `{+inf, +inf}` 是 inf，
+    /// 不是 NaN。
     [[nodiscard]] Scalar distance_to(Point2T other) const noexcept {
         return (*this - other).length();
     }

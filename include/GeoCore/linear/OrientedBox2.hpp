@@ -23,7 +23,7 @@ namespace GeoCore::linear {
 ///   - `to_axis_aligned` 返回 `Box2T`，极值取自四个角。
 ///
 /// **求交与合并尚未提供**（`intersects` / `merged`）：按 spec §5.2，求交归后续的
-/// `query` 层；本类型目前只提供包含与角点。三维同此。
+/// `query` 层。三维同此。
 ///
 /// `frame` 是强不变量类型 `Coordinate2T`（私有构造 + 校验过的工厂）。
 /// `half_extent` 的非负是弱不变量，`expanded` 是把它修回来的公开路径。
