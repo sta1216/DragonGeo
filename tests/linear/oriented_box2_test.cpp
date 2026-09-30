@@ -251,6 +251,20 @@ TEST_CASE("expanded never produces a negative half extent",
     CHECK(std::isnan(nan_half_extent.y));
     CHECK(box.expanded(nan).to_axis_aligned() == Box2::empty());
     CHECK_FALSE(box.expanded(nan).contains(Point2{0.0, 0.0}));
+
+    // **非有限半轴的第二种形态：±inf**（与三维逐条相同）。`expanded(+inf)`
+    // 是公开路径，给出半轴全 +inf；这样的盒 `contains` 什么都收，而
+    // `to_axis_aligned()` 是**规范空盒**（角点里 `0 * inf` 是 NaN）——
+    // 两个说法互相矛盾，这正是「±inf 半轴不是合法状态」的直接后果。
+    // 兄弟类型 `Box2T::expanded(+inf)` 给出的是**整个空间**（`[-inf,+inf]²`）。
+    const double infinity = std::numeric_limits<double>::infinity();
+    const OrientedBox2 unbounded = box.expanded(infinity);
+    CHECK(unbounded.half_extent.x == infinity);
+    CHECK(unbounded.half_extent.y == infinity);
+    CHECK(unbounded.contains(Point2{123.0, -456.0}));
+    CHECK(unbounded.to_axis_aligned() == Box2::empty());
+    // 反方向：`h.i + (-inf) = -inf`，夹取后全是 0 —— 与「收缩过头」同一条规则。
+    CHECK(box.expanded(-infinity).half_extent == Vector2{0.0, 0.0});
 }
 
 TEST_CASE("corner maps the local box through the frame",
@@ -388,9 +402,14 @@ TEST_CASE("containment threads its tolerance through every axis",
 TEST_CASE("containment's tolerance absorbs the local round trip",
           "[linear][orientedbox2]") {
     // 与三维同名用例逐条对应：点经 `to_local` 往返一次（先减原点、再与两根轴
-    // 做点积）会带上 1 ulp 量级的误差，这一格让误差的符号**为正**（角点按精确
-    // 比较落在盒外）。原点取 (100,50)：误差随坐标量级线性增长，这一格因此比
-    // 「原点在 (0,0)」的格子稳定（实测 ±8e-15 对 ±2e-15）。
+    // 做点积）会带上误差，这一格让误差的符号**为正**（角点按精确比较落在盒外）。
+    // 原点取 (100,50)：误差随坐标量级线性增长，这一格因此比「原点在 (0,0)」
+    // 的格子稳定（实测 ±8e-15 对 ±2e-15，约 36 ulp 对 1 ulp）。**「让误差为正
+    // 的断言必须带余量」这条与三维是同一手法**（三维那边换成量级 1000 的原点）：
+    // 断言绑在舍入误差的符号上时，余量就是它全部的安全带。
+    // 这里可以直接逐轴断言，是因为 (100,50) 这一格上两根轴的余量都为正；
+    // 三维在同样量级的原点上三根轴正负混合，那边因此写成「至少一根轴为正」
+    // 的聚合形式。两边的判据相同。
     const auto x = Vector2{1.0, 1.0}.normalized();
     REQUIRE(x.has_value());
     const auto frame = Coordinate2::from_x_axis(Point2{100.0, 50.0}, *x);

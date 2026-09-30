@@ -258,6 +258,27 @@ TEST_CASE("expanded never produces a negative half extent",
     CHECK(std::isnan(nan_half_extent.z));
     CHECK(box.expanded(nan).to_axis_aligned() == Box3::empty());
     CHECK_FALSE(box.expanded(nan).contains(Point3{0.0, 0.0, 0.0}));
+
+    // **非有限半轴的第二种形态：±inf。** 与 NaN 一样按「不特判、暴露矛盾」
+    // 处理，这里钉住当前行为（语义**不改**）：
+    //   - `expanded(+inf)` 是一条**公开路径**（有限盒 + inf 增量），给出半轴
+    //     全 +inf；
+    //   - 这样的盒 `contains` **什么都收**（右端 `inf + inf` 恒大于任何有限
+    //     的 `|local.i|`），而 `to_axis_aligned()` 给出**规范空盒** —— 角点里
+    //     `0 * inf` 是 NaN，八个角全被毒掉。**两个说法互相矛盾**，这正是
+    //     「±inf 半轴不是合法状态」的直接后果；
+    //   - 兄弟类型 `Box3T::expanded(+inf)` 承诺的是**整个空间**（`[-inf,+inf]³`）
+    //     —— 同一个语义在两个类型上给出相反答案。差别来自本类型**没有空盒**：
+    //     那边可以用「全空间」回答，这边只能把矛盾暴露出来。
+    const double infinity = std::numeric_limits<double>::infinity();
+    const OrientedBox3 unbounded = box.expanded(infinity);
+    CHECK(unbounded.half_extent.x == infinity);
+    CHECK(unbounded.half_extent.y == infinity);
+    CHECK(unbounded.half_extent.z == infinity);
+    CHECK(unbounded.contains(Point3{123.0, -456.0, 789.0}));
+    CHECK(unbounded.to_axis_aligned() == Box3::empty());
+    // 反方向：`h.i + (-inf) = -inf`，夹取后全是 0 —— 与「收缩过头」同一条规则。
+    CHECK(box.expanded(-infinity).half_extent == Vector3{0.0, 0.0, 0.0});
 }
 
 TEST_CASE("corner maps the local box through the frame",
@@ -418,27 +439,41 @@ TEST_CASE("containment's tolerance absorbs the local round trip",
           "[linear][orientedbox3]") {
     // `contains` 带容差而 `Box3T::contains` 不带，理由不是「有向盒更模糊」，
     // 而是**点必须经 `to_local` 往返一次**：先减原点、再与三根轴做点积
-    // （六次乘加），一个恰好落在角点上的点会带上 1 ulp 量级的误差。
-    // 这一格刻意让误差的**符号为正**（角点按精确比较落在盒外）—— 标架取
-    // 世界 z 轴绕 (1,1,1) 补全、半轴 (1,2,3)，八个角都有若干轴的误差为正。
+    // （六次乘加），一个恰好落在角点上的点会带上误差。
+    // 这一格让误差**足以把角点判到盒外**（角点按精确比较在自己的盒外），
+    // 而断言一旦绑在舍入误差的符号上，**余量就是它全部的安全带**：
+    //
+    //   原点是刻意的：误差随坐标量级线性增长。原点取量级 1000 时，八个角
+    //   在各自「决定它在外」的那根轴上都有约 **36 ulp** 的余量（实测）；
+    //   原点取 (0,0,0) 时只有 1 ulp —— 把 `to_local` 的结果整体下移 1 ulp
+    //   （GCC/Clang 默认把 `x*ox + y*oy + z*oz` 收缩成 FMA，正是这个量级的
+    //   差异）就会让一个**完全正确**的实现在那一版上失败（实测：
+    //   `oriented_box3_test.cpp:432`）。本版对 32 ulp 的整体系下移仍然通过。
     const auto z = Vector3{1.0, 1.0, 1.0}.normalized();
     REQUIRE(z.has_value());
-    const auto frame = Coordinate3::from_z_axis(Point3{0.0, 0.0, 0.0}, *z);
+    const auto frame = Coordinate3::from_z_axis(Point3{1000.0, 1000.0, 1000.0}, *z);
     REQUIRE(frame.has_value());
 
     const OrientedBox3 box{*frame, Vector3{1.0, 2.0, 3.0}};
 
-    const Point3 local = frame->to_local(box.corner(0));
-    REQUIRE(std::abs(local.x) > box.half_extent.x);
-    REQUIRE(std::abs(local.y) > box.half_extent.y);
-    REQUIRE(std::abs(local.z) > box.half_extent.z);
+    // 每个角点都有**至少一根轴**的余量为正 —— 这正是 `contains(…, 零容差)`
+    // 为假所依赖的**全部**性质。**不**逐轴断言「三根轴都为正」：那是坐标靠近
+    // 原点时的巧合（大坐标下三根轴正负混合，实测），把断言绑到它上面等于把
+    // 用例绑到一个与实现无关的舍入细节上。判据与 2D 同名用例相同（那边在
+    // (100,50) 这一格上两根轴的余量都为正，所以直接逐轴断言）。
+    for (int i = 0; i < 8; ++i) {
+        const Point3 local = frame->to_local(box.corner(i));
+        const double excess_x = std::abs(local.x) - box.half_extent.x;
+        const double excess_y = std::abs(local.y) - box.half_extent.y;
+        const double excess_z = std::abs(local.z) - box.half_extent.z;
+        const double largest = excess_x > excess_y ? excess_x : excess_y;
+        const double excess = largest > excess_z ? largest : excess_z;
+        REQUIRE(excess > 0.0);
+    }
 
-    // 零容差把角点判在盒外，默认容差把它吸收掉 —— 两条合起来说明容差参数
-    // 不是装饰，且默认值恰好够用（误差 ~1e-15 远小于默认的相对项 1e-9）。
-    CHECK_FALSE(box.contains(box.corner(0), Tolerance{0.0, 0.0}));
-    CHECK(box.contains(box.corner(0)));
-
-    // 八个角都是这样。
+    // 零容差把八个角判在盒外，默认容差把它们吸收掉 —— 两条合起来说明容差
+    // 参数不是装饰，且默认值恰好够用（往返误差 ~1e-14 远小于默认的相对项
+    // 1e-9，两者相差 5 个数量级）。
     for (int i = 0; i < 8; ++i) {
         CHECK_FALSE(box.contains(box.corner(i), Tolerance{0.0, 0.0}));
         CHECK(box.contains(box.corner(i)));

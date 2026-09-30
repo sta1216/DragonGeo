@@ -60,7 +60,10 @@ struct OrientedBox3T {
     /// 约 1 ulp —— 没有容差时它判「不在盒里」，而它恰恰是盒子自己的角点。
     /// 默认容差（相对项 1e-9）远大于这个浮点噪声、又远小于任何几何特征量级。
     /// **测试里有一格把这个误差的符号钉住为正**：z 轴绕 (1,1,1) 补全、半轴
-    /// (1,2,3) 的盒，八个角在零容差下全判在盒外、在默认容差下全判在盒内。
+    /// (1,2,3)、原点在量级 1000 处的盒，八个角在零容差下全判在盒外、在默认
+    /// 容差下全判在盒内。原点取在大量级处是**刻意**的：那个断言的正确性
+    /// 依赖舍入误差的符号，而余量随坐标量级线性增长（量级 1000 → 约 36 ulp；
+    /// 原点在 (0,0,0) → 只有 1 ulp，一次 FMA 收缩就能让正确实现失败）。
     ///
     /// 容差的**参考量级取右端**（半轴分量），而不是左端（局部坐标）：接口上写
     /// 的就是「加在比较的右侧」，参考量级跟着那一侧走；边界附近两者只差一个
@@ -69,6 +72,11 @@ struct OrientedBox3T {
     /// 半轴含 NaN、或点含 NaN 时不特判：比较碰上 NaN 一律为假，于是「什么都装
     /// 不下」。这是诚实的答案 —— 与 `to_axis_aligned()` 对 NaN 给出规范空盒
     /// 同源（见该成员）。
+    ///
+    /// **半轴为 ±inf 同样不特判**：`+inf` 让右端恒大于任何有限的 `|local.i|`，
+    /// 于是「什么都装得下」；`-inf` 让右端算出 NaN，于是「什么都装不下」。
+    /// 两者都不是合法状态。尤其 `+inf` 与 `to_axis_aligned()`（那边给**规范
+    /// 空盒**）**互相矛盾** —— 完整的说明在 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool contains(Point3T<Scalar> point,
                                           core::Tolerance tolerance = {}) const noexcept {
         const Point3T<Scalar> local = frame.to_local(point);
@@ -108,9 +116,13 @@ struct OrientedBox3T {
     /// 起点用 `Box3T::empty()`（其 `min = +inf` / `max = -inf`，使首轮比较自然
     /// 成立）。**不能改用零盒起步**：整体落在正卦限的盒子会得到 `min = 0`。
     ///
-    /// 半轴含 NaN 时八个角全是 NaN、逐分量比较一律为假，每一个 min/max 分量都
-    /// 留在初始的 ±inf 上，于是返回**规范空盒** —— 「不含任何点」的诚实答案，
+    /// 半轴含 NaN **或 ±inf** 时八个角全是 NaN（`±inf` 的情形是 `to_parent` 里
+    /// `0 * inf` 的产物）、逐分量比较一律为假，每一个 min/max 分量都留在初始的
+    /// ±inf 上，于是返回**规范空盒** —— 「不含任何点」的诚实答案，
     /// 与 `contains` 对 NaN 恒假同源。`expanded(NaN)` 因此也有确定的下游。
+    /// **注意 `+inf` 半轴下这里与 `contains` 互相矛盾**（那边什么都收、这里是
+    /// 空盒，见 `expanded` 的非有限半轴一节）：这不是本成员的缺陷，是「±inf
+    /// 半轴不是合法状态」在两个成员上的两种暴露方式。
     [[nodiscard]] constexpr Box3T<Scalar> to_axis_aligned() const noexcept {
         Box3T<Scalar> result = Box3T<Scalar>::empty();
         for (int i = 0; i < 8; ++i) {
@@ -139,10 +151,19 @@ struct OrientedBox3T {
     /// `±half_extent` 取、极值对 `|half_extent|` 成立，而 `contains` 用
     /// `|local.i| <= half_extent.i` 对负半轴恒假，同一个盒子的两个说法互相矛盾。
     ///
-    /// `amount` 为 NaN（或半轴已是 NaN）时结果逐分量为 NaN，**不**静默夹成 0：
-    /// 本类型没有空盒可以落回，把非有限输入伪装成一个完全正常的退化盒比留下
-    /// NaN 更危险。NaN 的下游是确定的：`contains` 全假、`to_axis_aligned()`
-    /// 给出规范空盒（见各自的文档）。
+    /// **非有限半轴的三种形态**（都不特判，只把下游规定清楚）：
+    ///
+    ///   - `amount` 为 NaN（或半轴已是 NaN）：结果逐分量为 NaN，**不**静默夹成
+    ///     0 —— 本类型没有空盒可以落回，把非有限输入伪装成一个完全正常的退化盒
+    ///     比留下 NaN 更危险。下游是确定的：`contains` 全假、`to_axis_aligned()`
+    ///     给出规范空盒（见各自的文档）；
+    ///   - `amount = +inf`：这是一条**公开路径**（有限盒 + inf 增量），半轴全变成
+    ///     +inf。这样的盒 `contains` **什么都收**，`to_axis_aligned()` 却是**规范
+    ///     空盒** —— 两个说法互相矛盾。对照 `Box3T::expanded(+inf)`：那边给出的是
+    ///     **整个空间** `[-inf,+inf]³`。同一个语义在两个类型上给出相反答案，
+    ///     差别来自本类型**没有空盒**可以落回（见类文档），只能把矛盾暴露出来；
+    ///   - `amount = -inf`：逐分量算出 `-inf`，夹取后全是 0 —— 与「收缩过头」
+    ///     同一条规则，不再单列。
     ///
     /// 标架原样保留 —— 本运算只动半轴。
     [[nodiscard]] constexpr OrientedBox3T expanded(Scalar amount) const noexcept {
