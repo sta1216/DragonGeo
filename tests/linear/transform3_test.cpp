@@ -169,19 +169,26 @@ TEST_CASE("transform_point is the explicit spelling of carrying a position",
 TEST_CASE("a rotation carries points off the diagonal", "[linear][transform3]") {
     // 绕 z 的 90° 旋转把非对角系数牵进来：对 (1,2,3) 有 (x,y,z) -> (-y, x, z)。
     // 纯对角矩阵的用例看不见转置或轴错位，这一格专门喂非对角项。
-    // cos(π/2) 不是精确的 0，故沿用本文件既有的 margin(1e-15)。
+    //
+    // 余量：quaternion → matrix 的条目各带约 1 ulp（实测 m01 = -1.0000000000000002、
+    // m00 = -2.22e-16 而非 6.12e-17），这条路径不承诺精确舍入 —— 与文件里
+    // inverse 往返（margin 1e-12）同一理由，这里也用 margin(1e-12)。
+    // 实测：x 偏 2 ulp of 2（8.88e-16）→ 余量 1126 倍；y 偏 2 ulp（2.22e-16）
+    // → 4504 倍；z 精确。真正的语义错误（转置、轴错位、丢平移）差的是 O(1)，
+    // 放宽到这个余量不损失检出。（margin 1e-15 时 x 只剩 1.13 倍余量，
+    // 换 libm/编译器就可能假失败 —— 这正是 Task 8 那条余量规则的同一类问题。）
     const Transform3 spin = Transform3::rotation(z_axis, half_pi);
     const Point3 p{1.0, 2.0, 3.0};
 
     const Point3 carried = spin.transform_point(p);
-    CHECK(carried.x == Approx(-2.0).margin(1e-15));
-    CHECK(carried.y == Approx(1.0).margin(1e-15));
-    CHECK(carried.z == Approx(3.0).margin(1e-15));
+    CHECK(carried.x == Approx(-2.0).margin(1e-12));
+    CHECK(carried.y == Approx(1.0).margin(1e-12));
+    CHECK(carried.z == Approx(3.0).margin(1e-12));
 
     const Point3 carried_by_operator = spin * p;
-    CHECK(carried_by_operator.x == Approx(-2.0).margin(1e-15));
-    CHECK(carried_by_operator.y == Approx(1.0).margin(1e-15));
-    CHECK(carried_by_operator.z == Approx(3.0).margin(1e-15));
+    CHECK(carried_by_operator.x == Approx(-2.0).margin(1e-12));
+    CHECK(carried_by_operator.y == Approx(1.0).margin(1e-12));
+    CHECK(carried_by_operator.z == Approx(3.0).margin(1e-12));
 }
 
 TEST_CASE("transform_point is constexpr and noexcept, like apply",
@@ -201,4 +208,36 @@ TEST_CASE("transform_point is constexpr and noexcept, like apply",
     // 单位变换的两种拼写都原样送回原点。
     CHECK(Transform3::identity().transform_point(p) == p);
     CHECK(Transform3::identity() * p == p);
+}
+
+TEST_CASE("a composed transform and chained member calls are different spellings",
+          "[linear][transform3]") {
+    // 成员化陷阱（计划 Review Focus 第 6 条）：`apply(a * b, v)` 直译成
+    // `a * b.apply(v)` 会**静默编译**，但它算的是 `a * (b.apply(v))` ——
+    // operator* 对 Vector 只施加线性部分，**a 的平移被丢掉**。
+    //
+    // 这一格让 a 与 b **都**带平移与缩放（不像 "composition applies the right
+    // operand first" 里的 spin 没有平移 —— 那里两种写法恰好同值，分不开两者）。
+    const Transform3 a = Transform3::translation(Vector3{100.0, 0.0, 0.0})
+                       * Transform3::scaling(Vector3{2.0, 3.0, 4.0});
+    const Transform3 b = Transform3::translation(Vector3{0.0, 10.0, 20.0})
+                       * Transform3::scaling(Vector3{5.0, 6.0, 7.0});
+    const Vector3 v{1.0, 2.0, 3.0};
+
+    // b(v) = (5, 22, 41)；a(b(v)) = (2*5+100, 3*22, 4*41) = (110, 66, 164)，全部精确
+    CHECK((a * b).apply(v) == Vector3{110.0, 66.0, 164.0});
+
+    // 陷阱形能编译，但语义不同：a * b.apply(v) 只施加 a 的**线性部分**
+    // （b.apply(v) 先按位置算完整仿射，随后 a 当方向对待），
+    // 得到 (10, 66, 164) —— 恰好差 a 的平移 (100, 0, 0)。
+    CHECK(a * b.apply(v) == Vector3{10.0, 66.0, 164.0});
+    CHECK((a * b).apply(v) != a * b.apply(v));
+
+    // Point 侧没有这个陷阱：`a * b.transform_point(p)` 先算 b.transform_point(p)
+    // （完整仿射），再被 operator*(Point3T) 当**位置**施加完整仿射 —— 与复合后的
+    // (a * b).transform_point(p) 恒等。本任务新增的 Point 重载把这条路径上的
+    // 括号敏感性去掉了（陷阱只剩 Vector 路径）。
+    const Point3 p{1.0, 2.0, 3.0};
+    CHECK(a * b.transform_point(p) == (a * b).transform_point(p));
+    CHECK((a * b).transform_point(p) == Point3{110.0, 66.0, 164.0});
 }

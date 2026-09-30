@@ -129,17 +129,21 @@ TEST_CASE("2D transform_point is the explicit spelling of carrying a position",
 TEST_CASE("a 2D rotation carries points off the diagonal", "[linear][transform2]") {
     // 45° 旋转把非对角系数牵进来：对 (1,2) 有 (x,y) -> ((x-y)/√2, (x+y)/√2)。
     // 纯对角矩阵的用例看不见转置或轴错位，这一格专门喂非对角项。
-    // √2/2 在浮点下不精确，故沿用本文件既有的 margin 约定。
+    //
+    // 余量：cos/sin(π/4) 的浮点值各带 1 ulp，这条路径与 3D 的 quaternion → matrix
+    // 一样不承诺精确舍入 —— 与文件里 inverse 往返（margin 1e-12）同一理由。
+    // 实测：x 偏 1 ulp（1.11e-16）→ 余量 9007 倍；y 偏 1 ulp of 2.12（4.44e-16）
+    // → 2252 倍。真正的语义错误（转置、轴错位、丢平移）差的是 O(1)。
     const Transform2 spin = Transform2::rotation(quarter_pi);
     const Point2 p{1.0, 2.0};
 
     const Point2 carried = spin.transform_point(p);
-    CHECK(carried.x == Approx(-0.7071067811865476).margin(1e-15));
-    CHECK(carried.y == Approx(2.1213203435596424).margin(1e-15));
+    CHECK(carried.x == Approx(-0.7071067811865476).margin(1e-12));
+    CHECK(carried.y == Approx(2.1213203435596424).margin(1e-12));
 
     const Point2 carried_by_operator = spin * p;
-    CHECK(carried_by_operator.x == Approx(-0.7071067811865476).margin(1e-15));
-    CHECK(carried_by_operator.y == Approx(2.1213203435596424).margin(1e-15));
+    CHECK(carried_by_operator.x == Approx(-0.7071067811865476).margin(1e-12));
+    CHECK(carried_by_operator.y == Approx(2.1213203435596424).margin(1e-12));
 }
 
 TEST_CASE("2D transform_point is constexpr and noexcept, like apply",
@@ -159,4 +163,35 @@ TEST_CASE("2D transform_point is constexpr and noexcept, like apply",
     // 单位变换的两种拼写都原样送回原点。
     CHECK(Transform2::identity().transform_point(p) == p);
     CHECK(Transform2::identity() * p == p);
+}
+
+TEST_CASE("a composed 2D transform and chained member calls are different spellings",
+          "[linear][transform2]") {
+    // 成员化陷阱（计划 Review Focus 第 6 条）：`apply(a * b, v)` 直译成
+    // `a * b.apply(v)` 会**静默编译**，但它算的是 `a * (b.apply(v))` ——
+    // operator* 对 Vector 只施加线性部分，**a 的平移被丢掉**。
+    //
+    // 这一格让 a 与 b **都**带平移与缩放（不像 "2D composition applies the right
+    // operand first" 里的缩放没有平移 —— 那里两种写法恰好同值，分不开两者）。
+    const Transform2 a = Transform2::translation(Vector2{100.0, 0.0})
+                       * Transform2::scaling(Vector2{2.0, 3.0});
+    const Transform2 b = Transform2::translation(Vector2{0.0, 10.0})
+                       * Transform2::scaling(Vector2{5.0, 7.0});
+    const Vector2 v{1.0, 2.0};
+
+    // b(v) = (5, 24)；a(b(v)) = (2*5+100, 3*24) = (110, 72)，全部精确
+    CHECK((a * b).apply(v) == Vector2{110.0, 72.0});
+
+    // 陷阱形能编译，但语义不同：a * b.apply(v) 只施加 a 的**线性部分**，
+    // 得到 (10, 72) —— 恰好差 a 的平移 (100, 0)。
+    CHECK(a * b.apply(v) == Vector2{10.0, 72.0});
+    CHECK((a * b).apply(v) != a * b.apply(v));
+
+    // Point 侧没有这个陷阱：`a * b.transform_point(p)` 先算 b.transform_point(p)
+    // （完整仿射），再被 operator*(Point2T) 当**位置**施加完整仿射 —— 与复合后的
+    // (a * b).transform_point(p) 恒等。本任务新增的 Point 重载把这条路径上的
+    // 括号敏感性去掉了（陷阱只剩 Vector 路径）。
+    const Point2 p{1.0, 2.0};
+    CHECK(a * b.transform_point(p) == (a * b).transform_point(p));
+    CHECK((a * b).transform_point(p) == Point2{110.0, 72.0});
 }
