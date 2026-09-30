@@ -23,13 +23,11 @@ ctest --preset windows-vs-debug
 
 ## Design principles
 
-These are the commitments the design is built around. One of the three is
-target design rather than shipped behaviour today — the layer that carries it
-is listed as planned in the table above.
+These are the commitments the design is built around.
 
-- **Robust predicates over epsilon** *(target design: the `Predicates` layer is
-  planned, not present)*. Orientation and in-circle decisions are exact, so
-  degenerate input gets a correct answer rather than a plausible one.
+- **Robust predicates over epsilon.** `Orient2d`, `Orient3d`, `Incircle`, and
+  `Insphere` return an exact sign, so degenerate input gets a correct answer
+  rather than a plausible one.
 - **Tolerance is an explicit parameter.** No global epsilon constant exists.
   Every entry point that needs a threshold takes a `Core::Tolerance`.
 - **Types carry invariants.** `UnitVector` is a distinct type from `Vector`, so
@@ -43,9 +41,10 @@ See `docs/superpowers/specs/` for the full design. 命名以该文档 §3.4 为�
 
 ## Using DragonGeo from another project
 
-The library is header-only; a consumer needs the include directories and,
-on MSVC, the `/utf-8` option — both travel with the exported target, so
-linking `DragonGeo::DragonGeo` is enough.
+Core and Linear types are headers. The predicates are compiled into the
+library, so a consumer links `DragonGeo::DragonGeo`. The include
+directories and, on MSVC, the `/utf-8` option travel with the exported
+target.
 
 Installed package:
 

@@ -26,3 +26,4 @@
 #include <DragonGeo/Linear/Coordinate3.hpp>
 #include <DragonGeo/Linear/OrientedBox2.hpp>
 #include <DragonGeo/Linear/OrientedBox3.hpp>
+#include <DragonGeo/Predicates/Predicates.hpp>

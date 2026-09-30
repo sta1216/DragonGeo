@@ -32,6 +32,9 @@ compile_commands.json
 # Generated documentation
 docs/api/
 
+# Agent scratch for the current plan
+.superpowers/
+
 # IDE and editor
 .vs/
 .vscode/

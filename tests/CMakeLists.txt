@@ -16,6 +16,8 @@ file(GLOB_RECURSE DRAGONGEO_TEST_SOURCES CONFIGURE_DEPENDS
 
 target_sources(DragonGeoTests PRIVATE ${DRAGONGEO_TEST_SOURCES})
 target_link_libraries(DragonGeoTests PRIVATE DragonGeo::DragonGeo Catch2::Catch2WithMain)
+# 展开运算的头在 src/ 里，只供库自己的编译单元和这份测试使用。
+target_include_directories(DragonGeoTests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 
 include(Catch)
 catch_discover_tests(DragonGeoTests)

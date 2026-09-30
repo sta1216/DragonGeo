@@ -75,7 +75,7 @@ Core         Scalar、Tolerance、常量、数值工具
 
 ```
 include/DragonGeo/  公共头文件，与 namespace 一一对应；内部实现置于 */Detail/
-src/              编译单元：Predicates、Polygon、Mesh、bvh
+src/              编译单元：Predicates，以及以后的 Polygon、Mesh、bvh
 tests/            单元测试 + 性质测试 + 退化用例回归集
 examples/         可独立编译运行的示例
 benchmarks/       性能基线
@@ -87,7 +87,7 @@ cmake/            包配置模板（find_package 支持）
 
 对外只暴露单一 `DragonGeo::DragonGeo` target，使用者无需做链接选择题。内部拆分为多个 OBJECT 库以并行编译。
 
-核心类型（`Core` / `Linear` / `Prim`）为 header-only；算法层（`Predicates` / `Query` 部分 / `Polygon` / `Mesh` / `Solid`）编译为库。这样在保持类型零开销的同时，避免精确谓词与 BVH 造成使用者的编译时间灾难。
+核心类型（`Core` / `Linear` / `Prim`）为 header-only。阶段 3 的 `Predicates` 只在头文件里放四个函数的声明，过滤与精确展开都编译进 `DragonGeo` 静态库；调用方链接这个目标。精确展开只在符号落进误差界时才执行，展开头不进入公共包含路径。`Polygon`、`Mesh`、`Solid` 与 BVH 继续追加到同一个库，避免这些体积更大的算法拖垮使用者的编译时间。四个函数的签名保持不变。
 
 ### 3.4 命名规范
 
@@ -241,7 +241,16 @@ namespace DragonGeo::Predicates {
 
 返回三值符号，且**必须能够精确返回零** —— 这是浮点近似永远无法可靠给出、而精确算术可以给出的信息。
 
-自建而非移植第三方实现，以保持许可证干净、代码风格一致、构建零依赖。这是全库唯一允许"复杂"的模块，其余代码保持平实可读。
+符号约定：
+
+- `Orient2d(a, b, c)`：`a, b, c` 逆时针为 `+1`，顺时针为 `-1`，共线（含点重合）为 `0`。
+- `Orient3d(a, b, c, d)`：`d` 在平面 `abc` 的正侧为 `+1`。正侧由 `(b - a) × (c - a)` 的右手方向决定，共面为 `0`。
+- `Incircle(a, b, c, d)`：`a, b, c` 逆时针时，`d` 在圆内为 `+1`，圆外为 `-1`，圆上为 `0`。`a, b, c` 顺时针时符号相反。
+- `Insphere(a, b, c, d, e)`：`Orient3d(a, b, c, d)` 为正时，`e` 在球内为 `+1`，球外为 `-1`，球上为 `0`。前四个点反向时符号相反。
+
+阶段 3 的四个函数声明在公共头里，实现编译进 `DragonGeo` 静态库，调用方需要链接它。坐标必须是有限数；出现 `NaN` 或无穷时函数仍是 `noexcept`，返回值不作规定。精确路径在展开前用同一个 2 的整数次幂缩放全部坐标，把最大绝对值拉回常规指数范围，符号不变。各坐标的指数跨度大到使中间积下溢到次正规数时，返回值不作规定。
+
+自建而非移植第三方实现，以保持许可证干净、代码风格一致、构建零依赖。这是全库唯一允许"复杂"的模块，其余代码保持平实可读。误差界常数取自 Jonathan Richard Shewchuk, *Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric Predicates*（1997）的 `errboundA`。
 
 ### 4.6 变换
 
@@ -455,8 +464,8 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | **1. 数值地基** | `Core`（常量、数值工具、容差模型）+ `Linear` 的纯代数部分（`Vector` / `UnitVector` / `Matrix` / `Quaternion` / `Transform`） | ✅ 已完成 |
-| **2. API 重构与基础类型** | `Linear` 的 API 成员函数化；`Vector`/`Point` 的下标访问与数组导出；新增 `Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3` | ← 本阶段 |
-| **3. 精确谓词** | `Predicates`：`Orient2d` / `Orient3d` / `Incircle` / `Insphere`（过滤 + 自适应精确算术） | |
+| **2. API 重构与基础类型** | `Linear` 的 API 成员函数化；`Vector`/`Point` 的下标访问与数组导出；新增 `Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3` | ✅ 已完成 |
+| **3. 精确谓词** | `Predicates`：`Orient2d` / `Orient3d` / `Incircle` / `Insphere`（过滤 + 自适应精确算术，编译进静态库） | ← 本阶段 |
 | **4. 几何原语与查询** | `Prim`（含 §5.6 的曲线，NURBS 先骨架）+ `Query` 的解析解与 GJK/EPA | |
 | **5. 2D 计算几何** | `Polygon` 全部 ★ 项；通过性质测试与退化回归集 | |
 | **6. 3D 网格与图形学** | `Mesh` 全部 ★ 项；BVH 性能达标 | |
@@ -481,12 +490,13 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | 9 | 接口先行，☆ 与骨架的签名在早期定型 | API 面可在投入实现成本之前被审查和纠正 |
 | 10 | 未实现行为统一抛 `std::logic_error` | 明确、可测试、不静默出错 |
 | 11 | C++20 必需 | 换取更干净的接口与更好的编译期诊断；接受排除旧工具链的代价 |
-| 12 | 核心 header-only，算法层编译 | 类型零开销，同时避免谓词与 BVH 拖垮使用者的编译时间 |
+| 12 | 核心 header-only，大体量算法层编译 | 类型零开销，同时避免 BVH 与多边形、网格算法拖垮使用者的编译时间 |
 | 13 | 类型名 PascalCase 且优先完整拼写 | 缩写规则的判断成本高于多打几个字符的成本；完整名称在自动补全下几乎无额外负担 |
 | 14 | 模块 namespace 与目录用大驼峰 | 与文件名、类名同一套规则；同名类型放在模块命名空间内，如 `DragonGeo::Polygon::Polygon` |
 | 15 | `Point` / `Box` / `OrientedBox` / `Coordinate` 归 `Linear`，不归 `Prim` | `Point` 只依赖 `Core`，与 `Vector` 同处依赖图叶子位置；放 `Linear` 后 `Transform` 可直接提供变换点的能力，消除原先 `apply(t, Vector)` 把位置塞进向量的补偿性分工 |
 | 16 | `Circle` 与 `Arc2` 共用类型，`Ellipse`/`EllipseArc` 独立成族 | 圆是圆弧的退化（整圈），不是椭圆的特例；两组曲线的参数化与求交都不同，合并会带来虚假的统一 |
 | 17 | 自由函数式的具名运算（`dot`/`cross`/`norm`/`determinant`…）一律改为成员函数 | 便于 IDE 自动补全与发现；运算符仍为自由函数（二元运算的对称性要求），这一分界在阶段 2 明确 |
+| 18 | 阶段 3 的四个谓词编译进静态库，公共头只留声明 | 展开与四个谓词的实现已经不适合放进每个调用方的编译单元。签名不变。过滤不再保证无需链接时优化就能内联 |
 
 ---
 
