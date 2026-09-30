@@ -20,6 +20,10 @@ struct Vector4T {
     Scalar Z{};
     Scalar W{};
 
+    /// 零向量，各分量都是 0。加法单位元，与值初始化的向量相同。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const Vector4T Zero;
+
     [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
         return X * X + Y * Y + Z * Z + W * W;
     }
@@ -63,6 +67,9 @@ struct Vector4T {
         return X * other.X + Y * other.Y + Z * other.Z + W * other.W;
     }
 };
+
+template <typename Scalar>
+const Vector4T<Scalar> Vector4T<Scalar>::Zero{};
 
 using Vector4 = Vector4T<double>;
 using Vector4f = Vector4T<float>;

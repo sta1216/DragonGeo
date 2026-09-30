@@ -42,7 +42,7 @@ namespace DragonGeo::Linear {
 /// 注意本类型只承诺**线性**部分是正交的：`Transform3T` 的第 4 行（`(0,0,0,1)`）
 /// 是那边的契约，本类型既不读取也不校验。
 template <typename Scalar>
-class Coordinate3T {
+struct Coordinate3T {
 public:
     using ScalarType = Scalar;
 

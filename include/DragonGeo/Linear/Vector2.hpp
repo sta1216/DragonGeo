@@ -10,7 +10,7 @@
 
 namespace DragonGeo::Linear {
 
-template <typename Scalar> class UnitVector2T;
+template <typename Scalar> struct UnitVector2T;
 
 /// 二维向量：纯代数载体，不含任何几何语义。
 ///
@@ -25,6 +25,10 @@ struct Vector2T {
     // 聚合初始化失效。默认成员初始化器已经提供了零初始化，无需额外构造函数。
     Scalar X{};
     Scalar Y{};
+
+    /// 零向量，各分量都是 0。加法单位元，与值初始化的向量相同。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const Vector2T Zero;
 
     [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
         return X * X + Y * Y;
@@ -86,6 +90,9 @@ struct Vector2T {
     [[nodiscard]] std::optional<UnitVector2T<Scalar>> Normalized(
         Core::Tolerance tolerance = {}) const noexcept;
 };
+
+template <typename Scalar>
+const Vector2T<Scalar> Vector2T<Scalar>::Zero{};
 
 using Vector2 = Vector2T<double>;
 using Vector2f = Vector2T<float>;

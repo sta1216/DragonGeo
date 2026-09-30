@@ -28,7 +28,7 @@ namespace DragonGeo::Linear {
 /// 长度校验在二维尤其不能省：定向检查只看叉积的**符号**，均匀缩放不会改变它，
 /// 于是「`{2,0}` 配 `{0,3}`」这种拉伸标架能顺利通过正交与定向两项。
 template <typename Scalar>
-class Coordinate2T {
+struct Coordinate2T {
 public:
     using ScalarType = Scalar;
 

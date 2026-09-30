@@ -70,6 +70,23 @@ TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit ve
     CHECK_FALSE(Vector2{notANumber, notANumber}.Normalized().has_value());
 }
 
+TEST_CASE("2D axis constants are the positive unit axes", "[linear][unitvector2]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(UnitVector2::XAxis), const UnitVector2>);
+    STATIC_REQUIRE(std::is_same_v<decltype(UnitVector2::YAxis), const UnitVector2>);
+
+    CHECK(UnitVector2::XAxis.X() == 1.0);
+    CHECK(UnitVector2::XAxis.Y() == 0.0);
+    CHECK(UnitVector2::YAxis.X() == 0.0);
+    CHECK(UnitVector2::YAxis.Y() == 1.0);
+
+    // 正 X 的逆时针垂直是正 Y。两轴对调或 Y 取负都会失败。
+    CHECK(UnitVector2::XAxis.Perpendicular() == UnitVector2::YAxis);
+    CHECK(UnitVector2::XAxis.Cross(UnitVector2::YAxis) == 1.0);
+
+    CHECK(UnitVector2f::XAxis.X() == 1.0f);
+    CHECK(UnitVector2f::YAxis.Y() == 1.0f);
+}
+
 TEST_CASE("a 2D unit vector's perpendicular is a 90 degree counter-clockwise turn",
           "[linear][unitvector2]") {
     const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});

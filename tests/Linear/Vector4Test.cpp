@@ -108,3 +108,18 @@ TEST_CASE("Vector4 subscript, array export and the remaining operators",
     CHECK(v != Vector4{1.0, 2.0, 0.0, 4.0});
     CHECK(v != Vector4{1.0, 2.0, 3.0, 0.0});
 }
+
+TEST_CASE("Vector4 zero is the additive identity", "[linear][vector4]") {
+    CHECK(Vector4::Zero.X == 0.0);
+    CHECK(Vector4::Zero.Y == 0.0);
+    CHECK(Vector4::Zero.Z == 0.0);
+    CHECK(Vector4::Zero.W == 0.0);
+    CHECK(Vector4::Zero == Vector4{});
+    CHECK(Vector4::Zero.LengthSquared() == 0.0);
+    CHECK(Vector4{1.0, 2.0, 3.0, 4.0} + Vector4::Zero == Vector4{1.0, 2.0, 3.0, 4.0});
+    CHECK(Vector4::Zero + Vector4{1.0, 2.0, 3.0, 4.0} == Vector4{1.0, 2.0, 3.0, 4.0});
+    CHECK(Vector4f::Zero.X == 0.0f);
+    CHECK(Vector4f::Zero.Y == 0.0f);
+    CHECK(Vector4f::Zero.Z == 0.0f);
+    CHECK(Vector4f::Zero.W == 0.0f);
+}

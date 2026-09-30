@@ -160,6 +160,23 @@ TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit ve
     CHECK_FALSE(Vector3{notANumber, notANumber, notANumber}.Normalized().has_value());
 }
 
+TEST_CASE("3D axis constants are the positive unit axes", "[linear][unitvector3]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(UnitVector3::XAxis), const UnitVector3>);
+    STATIC_REQUIRE(std::is_same_v<decltype(UnitVector3::YAxis), const UnitVector3>);
+    STATIC_REQUIRE(std::is_same_v<decltype(UnitVector3::ZAxis), const UnitVector3>);
+
+    CHECK(UnitVector3::XAxis.AsVector() == Vector3{1.0, 0.0, 0.0});
+    CHECK(UnitVector3::YAxis.AsVector() == Vector3{0.0, 1.0, 0.0});
+    CHECK(UnitVector3::ZAxis.AsVector() == Vector3{0.0, 0.0, 1.0});
+
+    // 右手系：X × Y = Z。某一轴取反会让叉积反向。
+    CHECK(UnitVector3::XAxis.Cross(UnitVector3::YAxis) == UnitVector3::ZAxis.AsVector());
+
+    CHECK(UnitVector3f::XAxis.X() == 1.0f);
+    CHECK(UnitVector3f::YAxis.Y() == 1.0f);
+    CHECK(UnitVector3f::ZAxis.Z() == 1.0f);
+}
+
 TEST_CASE("a 3D unit vector's perpendicular matches the frame completed from it",
           "[linear][unitvector3]") {
     const UnitVector3 axisX = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});

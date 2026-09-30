@@ -12,7 +12,7 @@ namespace DragonGeo::Linear {
 /// 单位向量的二维类型。语义与 UnitVector3T 完全一致，
 /// 差异仅在维度与二维叉积返回标量。
 template <typename Scalar>
-class UnitVector2T {
+struct UnitVector2T {
 public:
     using ScalarType = Scalar;
 
@@ -21,6 +21,13 @@ public:
         Vector2T<Scalar> normalized) noexcept {
         return UnitVector2T{normalized};
     }
+
+    /// 正 X 轴单位向量 `(1, 0)`。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const UnitVector2T XAxis;
+
+    /// 正 Y 轴单位向量 `(0, 1)`。它是 `XAxis` 逆时针转 90° 的结果。
+    static const UnitVector2T YAxis;
 
     [[nodiscard]] constexpr Vector2T<Scalar> AsVector() const noexcept {
         return m_value;
@@ -60,6 +67,14 @@ private:
 
     Vector2T<Scalar> m_value;
 };
+
+template <typename Scalar>
+const UnitVector2T<Scalar> UnitVector2T<Scalar>::XAxis =
+    UnitVector2T<Scalar>::FromNormalizedUnchecked(Vector2T<Scalar>{Scalar{1}, Scalar{0}});
+
+template <typename Scalar>
+const UnitVector2T<Scalar> UnitVector2T<Scalar>::YAxis =
+    UnitVector2T<Scalar>::FromNormalizedUnchecked(Vector2T<Scalar>{Scalar{0}, Scalar{1}});
 
 using UnitVector2 = UnitVector2T<double>;
 using UnitVector2f = UnitVector2T<float>;

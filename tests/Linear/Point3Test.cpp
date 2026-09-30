@@ -186,3 +186,36 @@ TEST_CASE("Point3 DistanceTo", "[linear][point3]") {
     CHECK(Point3{-infinity, 0.0, 0.0}.DistanceTo(Point3{infinity, 0.0, 0.0}) == infinity);
     CHECK(std::isnan(Point3{infinity, 0.0, 0.0}.DistanceTo(Point3{infinity, 0.0, 0.0})));
 }
+
+TEST_CASE("Point3 DistanceSquared is the sum of squared deltas", "[linear][point3]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(Point3{}.DistanceSquared(Point3{})), double>);
+
+    // 三个分量都非零，丢掉 z 就不是 9。两端都离开原点，减法写成加法也对不上。
+    CHECK(Point3{1.0, 2.0, 3.0}.DistanceSquared(Point3{2.0, 4.0, 5.0}) == 9.0);
+    CHECK(Point3{2.0, 4.0, 5.0}.DistanceSquared(Point3{1.0, 2.0, 3.0}) == 9.0);
+    CHECK(Point3{0.0, 0.0, 0.0}.DistanceSquared(Point3{0.0, 0.0, 5.0}) == 25.0);
+    CHECK(Point3{1.0, 2.0, 3.0}.DistanceSquared(Point3{1.0, 2.0, 3.0}) == 0.0);
+
+    // (1,1,1) 的距离是 √3。平方和必须精确是 3，不能先开方再平方。
+    CHECK(Point3{0.0, 0.0, 0.0}.DistanceSquared(Point3{1.0, 1.0, 1.0}) == 3.0);
+
+    constexpr Point3 a{1.0, 2.0, 3.0};
+    constexpr Point3 b{2.0, 4.0, 5.0};
+    STATIC_REQUIRE(a.DistanceSquared(b) == 9.0);
+    STATIC_REQUIRE(noexcept(a.DistanceSquared(b)));
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Point3{-infinity, 0.0, 0.0}.DistanceSquared(Point3{infinity, 0.0, 0.0}) == infinity);
+    CHECK(std::isnan(Point3{infinity, 0.0, 0.0}.DistanceSquared(Point3{infinity, 0.0, 0.0})));
+}
+
+TEST_CASE("Point3 zero is the origin", "[linear][point3]") {
+    CHECK(Point3::Zero.X == 0.0);
+    CHECK(Point3::Zero.Y == 0.0);
+    CHECK(Point3::Zero.Z == 0.0);
+    CHECK(Point3::Zero == Point3{});
+    CHECK(Point3::Zero.DistanceSquared(Point3{1.0, 2.0, 2.0}) == 9.0);
+    CHECK(Point3f::Zero.X == 0.0f);
+    CHECK(Point3f::Zero.Y == 0.0f);
+    CHECK(Point3f::Zero.Z == 0.0f);
+}

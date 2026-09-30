@@ -8,7 +8,7 @@ namespace DragonGeo::Linear {
 
 /// 二维点：位置类型，与 Vector2T 同底层存储、不同类型语义。
 ///
-/// 与 Vector2T 的区别是语义而非存储。点没有加法，也没有零元 —— 两个点相加没有
+/// 与 Vector2T 的区别是语义而非存储。点没有加法，因此没有加法零元 —— 两个点相加没有
 /// 意义，因此 `Point2 + Point2` 刻意不提供，类型系统会拒绝它。有意义的运算只有
 /// 三种：点 ± 向量（平移，反向书写 `向量 + 点` 同样成立）、点 - 点（位移向量）。
 template <typename Scalar>
@@ -18,6 +18,11 @@ struct Point2T {
     // 同 Vector2T：不声明任何构造函数，以保持聚合性。
     Scalar X{};
     Scalar Y{};
+
+    /// 原点，两个分量都是 0。名称与零向量的 `Zero` 一致。
+    /// 与值初始化的点相同。点没有加法，它不是加法零元。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const Point2T Zero;
 
     /// 下标访问。索引 0/1 依次对应 X/Y。
     ///
@@ -51,7 +56,19 @@ struct Point2T {
     [[nodiscard]] Scalar DistanceTo(Point2T other) const noexcept {
         return (*this - other).Length();
     }
+
+    /// 两点间距离的平方。
+    ///
+    /// 经差向量的 `LengthSquared`，不经过平方根。`(1, 1)` 这种无理距离的平方
+    /// 仍是精确的分量平方和。非有限差与 `LengthSquared` 相同：差向量含 ±inf
+    /// 时平方和为 inf，`inf - inf` 得到的 NaN 差则保持 NaN。
+    [[nodiscard]] constexpr Scalar DistanceSquared(Point2T other) const noexcept {
+        return (*this - other).LengthSquared();
+    }
 };
+
+template <typename Scalar>
+const Point2T<Scalar> Point2T<Scalar>::Zero{};
 
 using Point2 = Point2T<double>;
 using Point2f = Point2T<float>;

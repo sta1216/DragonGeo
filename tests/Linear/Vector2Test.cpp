@@ -150,3 +150,14 @@ TEST_CASE("Vector2 members: dot, cross and subscript", "[linear][vector2]") {
     CHECK(exported[0] == 1.0);
     CHECK(exported[1] == 2.0);
 }
+
+TEST_CASE("Vector2 zero is the additive identity", "[linear][vector2]") {
+    CHECK(Vector2::Zero.X == 0.0);
+    CHECK(Vector2::Zero.Y == 0.0);
+    CHECK(Vector2::Zero == Vector2{});
+    CHECK(Vector2::Zero.LengthSquared() == 0.0);
+    CHECK(Vector2{3.0, 4.0} + Vector2::Zero == Vector2{3.0, 4.0});
+    CHECK(Vector2::Zero + Vector2{3.0, 4.0} == Vector2{3.0, 4.0});
+    CHECK(Vector2f::Zero.X == 0.0f);
+    CHECK(Vector2f::Zero.Y == 0.0f);
+}

@@ -22,7 +22,7 @@ namespace DragonGeo::Linear {
 ///   u.Cross(u)       -> Vector3T       （平行时退化为零向量）
 ///   u.Projected(v)   -> Vector3T       （投影长度一般不是 1）
 template <typename Scalar>
-class UnitVector3T {
+struct UnitVector3T {
 public:
     using ScalarType = Scalar;
 
@@ -34,6 +34,16 @@ public:
         Vector3T<Scalar> normalized) noexcept {
         return UnitVector3T{normalized};
     }
+
+    /// 正 X 轴单位向量 `(1, 0, 0)`。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const UnitVector3T XAxis;
+
+    /// 正 Y 轴单位向量 `(0, 1, 0)`。
+    static const UnitVector3T YAxis;
+
+    /// 正 Z 轴单位向量 `(0, 0, 1)`。`XAxis × YAxis` 与它同向。
+    static const UnitVector3T ZAxis;
 
     [[nodiscard]] constexpr Vector3T<Scalar> AsVector() const noexcept {
         return m_value;
@@ -91,6 +101,21 @@ private:
 
     Vector3T<Scalar> m_value;
 };
+
+template <typename Scalar>
+const UnitVector3T<Scalar> UnitVector3T<Scalar>::XAxis =
+    UnitVector3T<Scalar>::FromNormalizedUnchecked(
+        Vector3T<Scalar>{Scalar{1}, Scalar{0}, Scalar{0}});
+
+template <typename Scalar>
+const UnitVector3T<Scalar> UnitVector3T<Scalar>::YAxis =
+    UnitVector3T<Scalar>::FromNormalizedUnchecked(
+        Vector3T<Scalar>{Scalar{0}, Scalar{1}, Scalar{0}});
+
+template <typename Scalar>
+const UnitVector3T<Scalar> UnitVector3T<Scalar>::ZAxis =
+    UnitVector3T<Scalar>::FromNormalizedUnchecked(
+        Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}});
 
 using UnitVector3 = UnitVector3T<double>;
 using UnitVector3f = UnitVector3T<float>;

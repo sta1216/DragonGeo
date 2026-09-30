@@ -158,3 +158,16 @@ TEST_CASE("Vector3 normalized is a member returning optional",
     // 零向量仍然拒绝，且与旧自由函数 normalize 语义一致
     CHECK_FALSE(Vector3{0.0, 0.0, 0.0}.Normalized().has_value());
 }
+
+TEST_CASE("Vector3 zero is the additive identity", "[linear][vector3]") {
+    CHECK(Vector3::Zero.X == 0.0);
+    CHECK(Vector3::Zero.Y == 0.0);
+    CHECK(Vector3::Zero.Z == 0.0);
+    CHECK(Vector3::Zero == Vector3{});
+    CHECK(Vector3::Zero.LengthSquared() == 0.0);
+    CHECK(Vector3{1.0, 2.0, 3.0} + Vector3::Zero == Vector3{1.0, 2.0, 3.0});
+    CHECK(Vector3::Zero + Vector3{1.0, 2.0, 3.0} == Vector3{1.0, 2.0, 3.0});
+    CHECK(Vector3f::Zero.X == 0.0f);
+    CHECK(Vector3f::Zero.Y == 0.0f);
+    CHECK(Vector3f::Zero.Z == 0.0f);
+}

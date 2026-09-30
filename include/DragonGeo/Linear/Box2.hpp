@@ -181,6 +181,16 @@ struct Box2T {
         return Extent() * Scalar{0.5};
     }
 
+    /// 面积，即两轴尺寸之积。
+    ///
+    /// 空盒（含非规范空、含 NaN 的盒）为 0，与 `Extent()` 一致：直接用
+    /// `Max - Min` 会让倒置的盒得到负面积。退化成线段或点的非空盒面积也是 0。
+    /// 某一轴尺寸为 inf 时面积为 inf；尺寸含 NaN（两端同为 +inf）时面积为 NaN。
+    [[nodiscard]] constexpr Scalar Area() const noexcept {
+        const Vector2T<Scalar> extent = Extent();
+        return extent.X * extent.Y;
+    }
+
     /// 盒中心。
     ///
     /// 逐分量写成 `Min * 0.5 + Max * 0.5`，**不要**写成 `(Min + Max) * 0.5`

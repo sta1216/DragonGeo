@@ -10,7 +10,7 @@
 
 namespace DragonGeo::Linear {
 
-template <typename Scalar> class UnitVector3T;
+template <typename Scalar> struct UnitVector3T;
 
 /// 三维向量：纯代数载体，不含任何几何语义。
 template <typename Scalar>
@@ -21,6 +21,10 @@ struct Vector3T {
     Scalar X{};
     Scalar Y{};
     Scalar Z{};
+
+    /// 零向量，各分量都是 0。加法单位元，与值初始化的向量相同。
+    /// 类型在定义内部不完整，常量定义在类型之后。
+    static const Vector3T Zero;
 
     [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
         return X * X + Y * Y + Z * Z;
@@ -81,6 +85,9 @@ struct Vector3T {
     [[nodiscard]] std::optional<UnitVector3T<Scalar>> Normalized(
         Core::Tolerance tolerance = {}) const noexcept;
 };
+
+template <typename Scalar>
+const Vector3T<Scalar> Vector3T<Scalar>::Zero{};
 
 using Vector3 = Vector3T<double>;
 using Vector3f = Vector3T<float>;

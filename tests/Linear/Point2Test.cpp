@@ -134,3 +134,33 @@ TEST_CASE("Point2 DistanceTo", "[linear][point2]") {
     CHECK(Point2{-infinity, 0.0}.DistanceTo(Point2{infinity, 0.0}) == infinity);
     CHECK(std::isnan(Point2{infinity, 0.0}.DistanceTo(Point2{infinity, 0.0})));
 }
+
+TEST_CASE("Point2 DistanceSquared is the sum of squared deltas", "[linear][point2]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(Point2{}.DistanceSquared(Point2{})), double>);
+
+    // 两端都离开原点：把减法写成加法时，平方后不再相同。
+    CHECK(Point2{1.0, 2.0}.DistanceSquared(Point2{4.0, 6.0}) == 25.0);
+    CHECK(Point2{4.0, 6.0}.DistanceSquared(Point2{1.0, 2.0}) == 25.0);
+    CHECK(Point2{1.0, 2.0}.DistanceSquared(Point2{1.0, 2.0}) == 0.0);
+
+    // (1,1) 的距离是 √2。先开方再平方一般回不到 2，平方和必须精确是 2。
+    CHECK(Point2{0.0, 0.0}.DistanceSquared(Point2{1.0, 1.0}) == 2.0);
+
+    constexpr Point2 a{1.0, 2.0};
+    constexpr Point2 b{4.0, 6.0};
+    STATIC_REQUIRE(a.DistanceSquared(b) == 25.0);
+    STATIC_REQUIRE(noexcept(a.DistanceSquared(b)));
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Point2{-infinity, 0.0}.DistanceSquared(Point2{infinity, 0.0}) == infinity);
+    CHECK(std::isnan(Point2{infinity, 0.0}.DistanceSquared(Point2{infinity, 0.0})));
+}
+
+TEST_CASE("Point2 zero is the origin", "[linear][point2]") {
+    CHECK(Point2::Zero.X == 0.0);
+    CHECK(Point2::Zero.Y == 0.0);
+    CHECK(Point2::Zero == Point2{});
+    CHECK(Point2::Zero.DistanceSquared(Point2{3.0, 4.0}) == 25.0);
+    CHECK(Point2f::Zero.X == 0.0f);
+    CHECK(Point2f::Zero.Y == 0.0f);
+}

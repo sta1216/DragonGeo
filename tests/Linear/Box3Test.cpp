@@ -681,3 +681,32 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE(Box3T<double>::FromCorners(innerMin, innerMax).Max.Y == 1.0);
     STATIC_REQUIRE(box == box);
 }
+
+TEST_CASE("Box3 volume is the product of the three extents", "[linear][box3]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(Box3{}.Volume()), double>);
+
+    // 三轴尺寸 2、3、4 互不相等。丢掉任意一轴，或者只乘其中两轴，都不是 24。
+    const Box3 box{Point3{0.0, 0.0, 0.0}, Point3{2.0, 3.0, 4.0}};
+    CHECK(box.Volume() == 24.0);
+
+    CHECK((Box3{Point3{-3.0, -1.0, -4.0}, Point3{-1.0, 0.0, -1.0}}.Volume()) == 6.0);
+
+    // 压成一个面：非空，体积是 0。
+    const Box3 flat{Point3{0.0, 0.0, 1.0}, Point3{2.0, 3.0, 1.0}};
+    CHECK_FALSE(flat.IsEmpty());
+    CHECK(flat.Volume() == 0.0);
+
+    CHECK(Box3::Empty().Volume() == 0.0);
+    const Box3 inverted{Point3{1.0, 1.0, 1.0}, Point3{0.0, 0.0, 0.0}};
+    REQUIRE(inverted.IsEmpty());
+    CHECK(inverted.Volume() == 0.0);
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK((Box3{Point3{nan, 0.0, 0.0}, Point3{1.0, 1.0, 1.0}}.Volume()) == 0.0);
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK((Box3{Point3{0.0, 0.0, 0.0}, Point3{infinity, 2.0, 3.0}}.Volume()) == infinity);
+
+    constexpr Box3 exact{Point3{0.0, 0.0, 0.0}, Point3{2.0, 3.0, 4.0}};
+    STATIC_REQUIRE(exact.Volume() == 24.0);
+    STATIC_REQUIRE(noexcept(exact.Volume()));
+}

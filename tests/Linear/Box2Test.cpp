@@ -632,3 +632,35 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE(Box2T<double>::FromCorners(innerMin, innerMax).Max.Y == 1.0);
     STATIC_REQUIRE(box == box);
 }
+
+TEST_CASE("Box2 area is the product of the two extents", "[linear][box2]") {
+    STATIC_REQUIRE(std::is_same_v<decltype(Box2{}.Area()), double>);
+
+    // 两轴尺寸故意不同：只乘一根轴、或把两轴写反后平方，都对不上 12。
+    const Box2 box{Point2{0.0, 0.0}, Point2{3.0, 4.0}};
+    CHECK(box.Area() == 12.0);
+
+    // 盒子落在负坐标里，面积仍是正的尺寸之积。
+    CHECK((Box2{Point2{-2.0, -3.0}, Point2{-1.0, -1.0}}.Area()) == 2.0);
+
+    // 退化成一条线段或一个点：非空，面积是 0。
+    const Box2 segment{Point2{0.0, 1.0}, Point2{5.0, 1.0}};
+    CHECK_FALSE(segment.IsEmpty());
+    CHECK(segment.Area() == 0.0);
+    CHECK((Box2{Point2{1.0, 2.0}, Point2{1.0, 2.0}}.Area()) == 0.0);
+
+    // 空盒的测度是 0。非规范空若直接用 Max - Min，会得到负面积。
+    CHECK(Box2::Empty().Area() == 0.0);
+    const Box2 inverted{Point2{1.0, 1.0}, Point2{0.0, 0.0}};
+    REQUIRE(inverted.IsEmpty());
+    CHECK(inverted.Area() == 0.0);
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK((Box2{Point2{nan, 0.0}, Point2{1.0, 1.0}}.Area()) == 0.0);
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK((Box2{Point2{0.0, 0.0}, Point2{infinity, 2.0}}.Area()) == infinity);
+
+    constexpr Box2 exact{Point2{0.0, 0.0}, Point2{3.0, 4.0}};
+    STATIC_REQUIRE(exact.Area() == 12.0);
+    STATIC_REQUIRE(noexcept(exact.Area()));
+}
