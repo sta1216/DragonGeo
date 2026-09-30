@@ -38,7 +38,9 @@ jobs:
             test: ninja-debug
             cxx: clang++
           - name: Windows MSVC
-            os: windows-latest
+            # windows-latest 自 2026-06 起是 Visual Studio 2026，没有 VS 2022 实例。
+            # 预设 windows-vs 固定生成器 Visual Studio 17 2022，因此钉在 windows-2022。
+            os: windows-2022
             configure: windows-vs
             build: windows-vs-debug
             test: windows-vs-debug
@@ -71,7 +73,8 @@ jobs:
   # 退出码，于是整条流程照样全绿。/WX 把 C4819 变成硬失败，这才守住了回归。
   consumer-smoke:
     name: Windows MSVC (installed package consumer)
-    runs-on: windows-latest
+    # 与 Windows MSVC 相同：预设要求 Visual Studio 17 2022，不能用 windows-latest。
+    runs-on: windows-2022
 
     steps:
       - uses: actions/checkout@v4
