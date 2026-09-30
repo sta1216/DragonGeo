@@ -15,14 +15,15 @@ namespace DragonGeo::Linear {
 /// 三维仿射变换，内部为 4×4 齐次矩阵（行主序，列向量约定 `M * v`）。
 /// 平移量位于第 4 列。
 ///
-/// 第 4 行假定为 (0,0,0,1)，且 apply / operator* 都不读取它 —— 直接改写
+/// 第 4 行假定为 (0,0,0,1)，且 TransformPoint / operator* 都不读取它 —— 直接改写
 /// Matrix 而破坏这个前提时，两者的结果不再被保证。类型不做这项检查。
 ///
-/// 三种「施加」语义不要混用 ——
+/// 两种「施加」语义不要混用 ——
 ///   operator*(Point3T)    施加完整仿射变换，输入按**位置**解读
 ///   operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
-///   Apply(Vector3T)       施加完整仿射变换，把 Vector 读作位置（历史用法，新代码请用 TransformPoint）
 /// TransformPoint(Point3T) 与 operator*(Point3T) 等价，名字更直白。
+/// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让
+/// `a * b.Apply(v)` 静默丢掉 a 的平移。
 template <typename Scalar>
 struct Transform3T {
     using ScalarType = Scalar;
@@ -82,22 +83,7 @@ struct Transform3T {
 
     /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
     ///
-    /// 历史用法：位置以 Vector3T 承载时的入口。它仍然有效，但**新代码请用
-    /// TransformPoint(Point3T)**，或等价的 operator*(Point3T) —— 位置由
-    /// Point3T 承载，语义在类型上就是对的。
-    [[nodiscard]] constexpr Vector3T<Scalar> Apply(Vector3T<Scalar> position) const noexcept {
-        const MatrixT<Scalar, 4>& m = Matrix;
-        return Vector3T<Scalar>{
-            m.Data[0][0] * position.X + m.Data[0][1] * position.Y + m.Data[0][2] * position.Z + m.Data[0][3],
-            m.Data[1][0] * position.X + m.Data[1][1] * position.Y + m.Data[1][2] * position.Z + m.Data[1][3],
-            m.Data[2][0] * position.X + m.Data[2][1] * position.Y + m.Data[2][2] * position.Z + m.Data[2][3],
-        };
-    }
-
-    /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
-    ///
-    /// 与 operator*(Point3T) 等价，名字更直白。与 Apply() 的数学内容完全相同，
-    /// 只是接受并返回 Point3T —— 因此它是 Apply() 的替代入口，不是它的补充。
+    /// 与 operator*(Point3T) 等价，名字更直白。
     [[nodiscard]] constexpr Point3T<Scalar> TransformPoint(Point3T<Scalar> position) const noexcept {
         const MatrixT<Scalar, 4>& m = Matrix;
         return Point3T<Scalar>{

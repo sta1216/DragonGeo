@@ -110,7 +110,7 @@ cmake/            包配置模板（find_package 支持）
 
 **函数参数、局部变量：小驼峰（camelCase）。** 例：`angleRadians`、`scaledX`、`roundTrip`。函数内部的 `const` 局部量仍是变量，用小驼峰，不因为加了 `const` 就写成全大写。
 
-**public 数据成员：大驼峰。** 例：`X`、`Y`、`Z`、`W`、`Min`、`Max`、`Abs`、`Rel`、`Data`、`Frame`、`Matrix`、`HalfExtent`。
+**public 数据成员：大驼峰。** 例：`X`、`Y`、`Z`、`W`、`Min`、`Max`、`Abs`、`Rel`、`Data`、`Coordinate`、`Matrix`、`HalfExtent`。
 
 **非 public 数据成员：`m_` + 小驼峰。** 例：`m_value`、`m_origin`、`m_x`。不要再用尾随下划线。
 

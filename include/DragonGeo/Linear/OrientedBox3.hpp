@@ -11,8 +11,8 @@ namespace DragonGeo::Linear {
 
 /// 三维有向包围盒（OBB）：一个坐标系（标架）加三个**非负**半轴长度。
 ///
-/// 盒子是标架的局部盒子 `[-HalfExtent, +HalfExtent]` 经 `Frame` 送到父坐标系
-/// 后的像：中心在 `Frame.Origin()`，三条棱沿三根轴。与 `Box3T` 一样是**闭**盒
+/// 盒子是标架的局部盒子 `[-HalfExtent, +HalfExtent]` 经 `Coordinate` 送到父坐标系
+/// 后的像：中心在 `Coordinate.Origin()`，三条棱沿三根轴。与 `Box3T` 一样是**闭**盒
 /// （边界算在内），但两个类型的定义域不同，几条规则也**刻意不同**：
 ///
 ///   - **本类型没有「空」的概念。** 半轴恒非负，退化只到「一个点」（半轴全 0），
@@ -27,13 +27,13 @@ namespace DragonGeo::Linear {
 /// **求交与合并尚未提供**（`intersects` / `merged`）：按 spec §5.2，求交归后续的
 /// `query` 层。
 ///
-/// `Frame` 是**强不变量**类型 `Coordinate3T`（私有构造 + 校验过的工厂），于是
+/// `Coordinate` 是**强不变量**类型 `Coordinate3T`（私有构造 + 校验过的工厂），于是
 /// 「有向盒一定挂在一个正交单位标架上」是类型层面的保证，本类型不做第二次校验。
 /// `HalfExtent` 的非负则是**弱不变量**：聚合初始化随时能写出负数，`expanded`
 /// 是把它修回来的公开路径（见该成员的文档）。
 ///
 /// 本类型是聚合体（`struct` + 两个公开数据成员，不声明任何构造函数），
-/// `OrientedBox3T{Frame, HalfExtent}` 是全部的构造方式。**没有默认构造** ——
+/// `OrientedBox3T{Coordinate, HalfExtent}` 是全部的构造方式。**没有默认构造** ——
 /// `Coordinate3T` 没有，于是「有向盒必须有一个标架」不需要运行期检查。
 ///
 /// 所有容差都由调用者显式传入，默认值来自 `Core::Tolerance`，函数体内不硬编码
@@ -43,7 +43,7 @@ struct OrientedBox3T {
     using ScalarType = Scalar;
 
     /// 标架：原点即盒中心，三根轴即三条棱的方向。
-    Coordinate3T<Scalar> Frame;
+    Coordinate3T<Scalar> Coordinate;
 
     /// 三个方向的半轴长度，逐分量为非负。
     Vector3T<Scalar> HalfExtent{};
@@ -52,7 +52,7 @@ struct OrientedBox3T {
     ///
     /// `Box3T::Center()` 对空盒返回 NaN（「没有中心」的哨兵）；本类型没有空，
     /// 永远有中心 —— 差别来自两个类型的定义域，不是实现风格的差异。
-    [[nodiscard]] constexpr Point3T<Scalar> Center() const noexcept { return Frame.Origin(); }
+    [[nodiscard]] constexpr Point3T<Scalar> Center() const noexcept { return Coordinate.Origin(); }
 
     /// 闭包含：把点送进局部坐标，再逐轴比较 `|local.i| <= HalfExtent.i`，
     /// 边界算在内。**容差加在比较的右侧**：
@@ -83,7 +83,7 @@ struct OrientedBox3T {
     /// 与 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool Contains(Point3T<Scalar> point,
                                           Core::Tolerance tolerance = {}) const noexcept {
-        const Point3T<Scalar> local = Frame.ToLocal(point);
+        const Point3T<Scalar> local = Coordinate.ToLocal(point);
         return Core::AbsoluteValue(local.X) <= HalfExtent.X + tolerance.Resolve(HalfExtent.X)
             && Core::AbsoluteValue(local.Y) <= HalfExtent.Y + tolerance.Resolve(HalfExtent.Y)
             && Core::AbsoluteValue(local.Z) <= HalfExtent.Z + tolerance.Resolve(HalfExtent.Z);
@@ -94,7 +94,7 @@ struct OrientedBox3T {
     /// **索引约定与 `Box3T::corner` 完全一致**：bit 0 / bit 1 / bit 2 依次选择
     /// x / y / z 取 `-HalfExtent` 还是 `+HalfExtent`，置位取 `+HalfExtent`
     /// （即 `Box3T` 那边的 `max` 一角）。先在**局部**坐标取角，再用
-    /// `Frame.ToParent` 送到父坐标系 —— 顺序反了（先变换后取角）是另一回事，
+    /// `Coordinate.ToParent` 送到父坐标系 —— 顺序反了（先变换后取角）是另一回事，
     /// 这里的局部盒子以标架原点为中心。
     ///
     /// 「索引位与 `Box3T` 相同」是接口的一部分：`ToAxisAligned()` 与后续的
@@ -104,7 +104,7 @@ struct OrientedBox3T {
         const Point3T<Scalar> local{(index & 1) != 0 ? HalfExtent.X : -HalfExtent.X,
                                     (index & 2) != 0 ? HalfExtent.Y : -HalfExtent.Y,
                                     (index & 4) != 0 ? HalfExtent.Z : -HalfExtent.Z};
-        return Frame.ToParent(local);
+        return Coordinate.ToParent(local);
     }
 
     /// 紧致的轴对齐包围盒。
@@ -186,7 +186,7 @@ struct OrientedBox3T {
         const Scalar x = HalfExtent.X + amount;
         const Scalar y = HalfExtent.Y + amount;
         const Scalar z = HalfExtent.Z + amount;
-        return OrientedBox3T{Frame,
+        return OrientedBox3T{Coordinate,
                              Vector3T<Scalar>{x < Scalar{0} ? Scalar{0} : x,
                                               y < Scalar{0} ? Scalar{0} : y,
                                               z < Scalar{0} ? Scalar{0} : z}};
@@ -198,14 +198,14 @@ using OrientedBox3f = OrientedBox3T<float>;
 
 // ---- 运算符 ----
 
-/// **七个**标量都相等才算相等（`Frame` 的原点 + 三根轴，加 `HalfExtent` 的三个
+/// **七个**标量都相等才算相等（`Coordinate` 的原点 + 三根轴，加 `HalfExtent` 的三个
 /// 分量）。与 Vector / Point / Box / Coordinate 的约定一致：自由函数，
 /// `operator!=` 由 C++20 自动生成，不手写；逐分量精确比较，不带容差 —— 两个
 /// 「几乎相同」的有向盒不相等，这一点是刻意的。
 template <typename Scalar>
 [[nodiscard]] constexpr bool operator==(const OrientedBox3T<Scalar>& a,
                                         const OrientedBox3T<Scalar>& b) noexcept {
-    return a.Frame == b.Frame && a.HalfExtent == b.HalfExtent;
+    return a.Coordinate == b.Coordinate && a.HalfExtent == b.HalfExtent;
 }
 
 } // namespace DragonGeo::Linear

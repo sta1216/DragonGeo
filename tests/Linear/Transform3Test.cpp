@@ -30,7 +30,7 @@ TEST_CASE("the float alias really is the float instantiation",
 TEST_CASE("identity transform leaves a position unchanged", "[linear][transform3]") {
     const Transform3 t = Transform3::Identity();
 
-    CHECK(t.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
+    CHECK(t.TransformPoint(Point3{1.0, 2.0, 3.0}) == Point3{1.0, 2.0, 3.0});
 }
 
 TEST_CASE("translation moves a position but not a direction",
@@ -38,9 +38,9 @@ TEST_CASE("translation moves a position but not a direction",
     const Transform3 t = Transform3::Translation(Vector3{10.0, 20.0, 30.0});
 
     // 位置被平移
-    CHECK(t.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{11.0, 22.0, 33.0});
+    CHECK(t.TransformPoint(Point3{1.0, 2.0, 3.0}) == Point3{11.0, 22.0, 33.0});
 
-    // 方向不受平移影响 —— 这正是 operator* 与 apply 的分工
+    // 方向不受平移影响 —— 这正是 operator* 与 TransformPoint 的分工
     CHECK(t * Vector3{1.0, 2.0, 3.0} == Vector3{1.0, 2.0, 3.0});
 }
 
@@ -48,7 +48,7 @@ TEST_CASE("uniform scaling scales both positions and directions",
           "[linear][transform3]") {
     const Transform3 t = Transform3::Scaling(2.0);
 
-    CHECK(t.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{2.0, 4.0, 6.0});
+    CHECK(t.TransformPoint(Point3{1.0, 2.0, 3.0}) == Point3{2.0, 4.0, 6.0});
     CHECK(t * Vector3{1.0, 2.0, 3.0} == Vector3{2.0, 4.0, 6.0});
 }
 
@@ -56,19 +56,19 @@ TEST_CASE("non-uniform scaling scales each axis independently",
           "[linear][transform3]") {
     const Transform3 t = Transform3::Scaling(Vector3{2.0, 3.0, 4.0});
 
-    CHECK(t.Apply(Vector3{1.0, 1.0, 1.0}) == Vector3{2.0, 3.0, 4.0});
+    CHECK(t.TransformPoint(Point3{1.0, 1.0, 1.0}) == Point3{2.0, 3.0, 4.0});
 
     // (1,1,1) 是全对称输入：「写对角线」与「写第一列」得到的矩阵在它上面
     // 给出相同结果，单靠这一行分不开两者。换成各分量互不相等的输入，第一列
     // 写入会算成 (2*1, 2*2, 2*5) 之类的错误值。
-    CHECK(t.Apply(Vector3{1.0, 2.0, 5.0}) == Vector3{2.0, 6.0, 20.0});
+    CHECK(t.TransformPoint(Point3{1.0, 2.0, 5.0}) == Point3{2.0, 6.0, 20.0});
     CHECK(t * Vector3{1.0, 2.0, 5.0} == Vector3{2.0, 6.0, 20.0});
 }
 
 TEST_CASE("rotation about z by 90 degrees", "[linear][transform3]") {
     const Transform3 t = Transform3::Rotation(zAxis, HALF_PI);
 
-    const Vector3 rotated = t.Apply(Vector3{1.0, 0.0, 0.0});
+    const Point3 rotated = t.TransformPoint(Point3{1.0, 0.0, 0.0});
     CHECK(rotated.X == Approx(0.0).margin(1e-15));
     CHECK(rotated.Y == Approx(1.0));
     CHECK(rotated.Z == Approx(0.0).margin(1e-15));
@@ -80,13 +80,13 @@ TEST_CASE("composition applies the right operand first", "[linear][transform3]")
 
     // 绕 z 的 90° 旋转在浮点下含约 1e-16 的误差，故用 margin 而非精确相等
     // 先平移再旋转： (1,0,0) -> (2,0,0) -> (0,2,0)
-    const Vector3 rotateAfter = (spin * move).Apply(Vector3{1.0, 0.0, 0.0});
+    const Point3 rotateAfter = (spin * move).TransformPoint(Point3{1.0, 0.0, 0.0});
     CHECK(rotateAfter.X == Approx(0.0).margin(1e-15));
     CHECK(rotateAfter.Y == Approx(2.0));
     CHECK(rotateAfter.Z == Approx(0.0).margin(1e-15));
 
     // 先旋转再平移： (1,0,0) -> (0,1,0) -> (1,1,0)
-    const Vector3 translateAfter = (move * spin).Apply(Vector3{1.0, 0.0, 0.0});
+    const Point3 translateAfter = (move * spin).TransformPoint(Point3{1.0, 0.0, 0.0});
     CHECK(translateAfter.X == Approx(1.0));
     CHECK(translateAfter.Y == Approx(1.0));
     CHECK(translateAfter.Z == Approx(0.0).margin(1e-15));
@@ -100,8 +100,8 @@ TEST_CASE("inverse undoes the transform", "[linear][transform3]") {
     const auto inv = t.Inverse();
 
     REQUIRE(inv.has_value());
-    const Vector3 original{1.0, 2.0, 3.0};
-    const Vector3 roundTrip = inv->Apply(t.Apply(original));
+    const Point3 original{1.0, 2.0, 3.0};
+    const Point3 roundTrip = inv->TransformPoint(t.TransformPoint(original));
 
     CHECK(roundTrip.X == Approx(original.X).margin(1e-12));
     CHECK(roundTrip.Y == Approx(original.Y).margin(1e-12));
@@ -118,18 +118,18 @@ TEST_CASE("inverse of a degenerate transform is nullopt",
 TEST_CASE("Transform3 members and static factories", "[linear][transform3]") {
     const Transform3 t = Transform3::Translation(Vector3{10.0, 20.0, 30.0});
 
-    CHECK(t.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{11.0, 22.0, 33.0});
+    CHECK(t.TransformPoint(Point3{1.0, 2.0, 3.0}) == Point3{11.0, 22.0, 33.0});
     CHECK(t * Vector3{1.0, 2.0, 3.0} == Vector3{1.0, 2.0, 3.0});
 
     const Transform3 unit = Transform3::Identity();
-    CHECK(unit.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 3.0});
+    CHECK(unit.TransformPoint(Point3{1.0, 2.0, 3.0}) == Point3{1.0, 2.0, 3.0});
 
     // 逆走的是行列平衡 + 除法还原，这条路径不承诺精确舍入；本文件既有的
     // "inverse undoes the transform" 用的就是 margin(1e-12)。沿用同一强度 ——
     // 断言精确相等会把正常的浮点舍入当成缺陷，换个编译器/libm 就会碎。
     const auto inv = t.Inverse();
     REQUIRE(inv.has_value());
-    const Vector3 back = inv->Apply(Vector3{11.0, 22.0, 33.0});
+    const Point3 back = inv->TransformPoint(Point3{11.0, 22.0, 33.0});
     CHECK(back.X == Approx(1.0).margin(1e-12));
     CHECK(back.Y == Approx(2.0).margin(1e-12));
     CHECK(back.Z == Approx(3.0).margin(1e-12));
@@ -165,9 +165,6 @@ TEST_CASE("TransformPoint is the explicit spelling of carrying a position",
     // operator*(Point3) 与 TransformPoint 是同一件事的两种拼写
     CHECK(t * Point3{1.0, 2.0, 3.0} == t.TransformPoint(Point3{1.0, 2.0, 3.0}));
 
-    // 历史入口 Apply() 在相同数值上给出相同的数（只是类型仍是 Vector3）
-    CHECK(t.Apply(Vector3{1.0, 2.0, 3.0}) == Vector3{3.0, 16.0, 112.0});
-
     // 同一个矩阵、同一组数字：点吃平移、方向不吃，两者之差恰是平移量。
     // 若 Point 重载悄悄走了 Vector 那条只施加线性部分的路，这一条立刻失败。
     CHECK((t * Point3{1.0, 2.0, 3.0}) - (t * Vector3{1.0, 2.0, 3.0})
@@ -199,10 +196,8 @@ TEST_CASE("a rotation carries points off the diagonal", "[linear][transform3]") 
     CHECK(carriedByOperator.Z == Approx(3.0).margin(1e-12));
 }
 
-TEST_CASE("TransformPoint is constexpr and noexcept, like apply",
+TEST_CASE("TransformPoint is constexpr and noexcept",
           "[linear][transform3]") {
-    // Apply() 是 constexpr；数学内容相同的 TransformPoint 没有理由不能用于
-    // 常量表达式 —— 这一格把口径钉住。
     constexpr Transform3 t = Transform3::Translation(Vector3{1.0, 10.0, 100.0})
                            * Transform3::Scaling(Vector3{2.0, 3.0, 4.0});
     constexpr Point3 p{1.0, 2.0, 3.0};
@@ -220,31 +215,15 @@ TEST_CASE("TransformPoint is constexpr and noexcept, like apply",
 
 TEST_CASE("a composed transform and chained member calls are different spellings",
           "[linear][transform3]") {
-    // 成员化陷阱（计划 Review Focus 第 6 条）：`Apply(a * b, v)` 直译成
-    // `a * b.Apply(v)` 会**静默编译**，但它算的是 `a * (b.Apply(v))` ——
-    // operator* 对 Vector 只施加线性部分，**a 的平移被丢掉**。
+    // 位置走 Point。若还留着 Apply(Vector)，`a * b.Apply(v)` 能编译，
+    // 但 operator* 对 Vector 只施加线性部分，a 的平移会被丢掉。
     //
-    // 这一格让 a 与 b **都**带平移与缩放（不像 "composition applies the right
-    // operand first" 里的 spin 没有平移 —— 那里两种写法恰好同值，分不开两者）。
+    // 这一格让 a 与 b 都带平移与缩放。`a * b.TransformPoint(p)` 与
+    // `(a * b).TransformPoint(p)` 是同一件事。
     const Transform3 a = Transform3::Translation(Vector3{100.0, 0.0, 0.0})
                        * Transform3::Scaling(Vector3{2.0, 3.0, 4.0});
     const Transform3 b = Transform3::Translation(Vector3{0.0, 10.0, 20.0})
                        * Transform3::Scaling(Vector3{5.0, 6.0, 7.0});
-    const Vector3 v{1.0, 2.0, 3.0};
-
-    // b(v) = (5, 22, 41)；a(b(v)) = (2*5+100, 3*22, 4*41) = (110, 66, 164)，全部精确
-    CHECK((a * b).Apply(v) == Vector3{110.0, 66.0, 164.0});
-
-    // 陷阱形能编译，但语义不同：a * b.Apply(v) 只施加 a 的**线性部分**
-    // （b.Apply(v) 先按位置算完整仿射，随后 a 当方向对待），
-    // 得到 (10, 66, 164) —— 恰好差 a 的平移 (100, 0, 0)。
-    CHECK(a * b.Apply(v) == Vector3{10.0, 66.0, 164.0});
-    CHECK((a * b).Apply(v) != a * b.Apply(v));
-
-    // Point 侧没有这个陷阱：`a * b.TransformPoint(p)` 先算 b.TransformPoint(p)
-    // （完整仿射），再被 operator*(Point3T) 当**位置**施加完整仿射 —— 与复合后的
-    // (a * b).TransformPoint(p) 恒等。本任务新增的 Point 重载把这条路径上的
-    // 括号敏感性去掉了（陷阱只剩 Vector 路径）。
     const Point3 p{1.0, 2.0, 3.0};
     CHECK(a * b.TransformPoint(p) == (a * b).TransformPoint(p));
     CHECK((a * b).TransformPoint(p) == Point3{110.0, 66.0, 164.0});

@@ -18,7 +18,7 @@ namespace DragonGeo::Linear {
 ///   operator*(Vector2T)   只施加线性部分，输入按**方向**解读（平移不生效）
 /// TransformPoint(Point2T) 与 operator*(Point2T) 等价，名字更直白。
 /// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让
-/// `a * b.Apply(v)` 静默丢掉 a 的平移。三维的 Apply 仍保留，见 Transform3T。
+/// `a * b.Apply(v)` 静默丢掉 a 的平移。三维同样不提供。
 template <typename Scalar>
 struct Transform2T {
     using ScalarType = Scalar;

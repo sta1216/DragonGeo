@@ -12,7 +12,7 @@ namespace DragonGeo::Linear {
 /// 二维有向包围盒（OBB）：一个坐标系（标架）加两个**非负**半轴长度。
 ///
 /// 语义与 `OrientedBox3T` 完全一致（标架的局部盒子 `[-HalfExtent, +HalfExtent]`
-/// 经 `Frame` 送到父坐标系；**没有「空」的概念**；有向盒必须有一个标架，因此
+/// 经 `Coordinate` 送到父坐标系；**没有「空」的概念**；有向盒必须有一个标架，因此
 /// 没有默认构造），差异仅在维度。二维与三维的这些约定是**同一套**：本文件里
 /// 每一条都可以在 `OrientedBox3.hpp` 找到对应的那一条，反之亦然。
 ///
@@ -25,7 +25,7 @@ namespace DragonGeo::Linear {
 /// **求交与合并尚未提供**（`intersects` / `merged`）：按 spec §5.2，求交归后续的
 /// `query` 层。三维同此。
 ///
-/// `Frame` 是强不变量类型 `Coordinate2T`（私有构造 + 校验过的工厂）。
+/// `Coordinate` 是强不变量类型 `Coordinate2T`（私有构造 + 校验过的工厂）。
 /// `HalfExtent` 的非负是弱不变量，`expanded` 是把它修回来的公开路径。
 ///
 /// 所有容差都由调用者显式传入，默认值来自 `Core::Tolerance`，函数体内不硬编码
@@ -35,7 +35,7 @@ struct OrientedBox2T {
     using ScalarType = Scalar;
 
     /// 标架：原点即盒中心，两根轴即两条棱的方向。
-    Coordinate2T<Scalar> Frame;
+    Coordinate2T<Scalar> Coordinate;
 
     /// 两个方向的半轴长度，逐分量为非负。
     Vector2T<Scalar> HalfExtent{};
@@ -44,7 +44,7 @@ struct OrientedBox2T {
     ///
     /// `Box2T::Center()` 对空盒返回 NaN（「没有中心」的哨兵）；本类型没有空，
     /// 永远有中心 —— 差别来自两个类型的定义域，不是实现风格的差异。
-    [[nodiscard]] constexpr Point2T<Scalar> Center() const noexcept { return Frame.Origin(); }
+    [[nodiscard]] constexpr Point2T<Scalar> Center() const noexcept { return Coordinate.Origin(); }
 
     /// 闭包含：把点送进局部坐标，再逐轴比较 `|local.i| <= HalfExtent.i`，
     /// 边界算在内。**容差加在比较的右侧**：
@@ -75,7 +75,7 @@ struct OrientedBox2T {
     /// 与 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool Contains(Point2T<Scalar> point,
                                           Core::Tolerance tolerance = {}) const noexcept {
-        const Point2T<Scalar> local = Frame.ToLocal(point);
+        const Point2T<Scalar> local = Coordinate.ToLocal(point);
         return Core::AbsoluteValue(local.X) <= HalfExtent.X + tolerance.Resolve(HalfExtent.X)
             && Core::AbsoluteValue(local.Y) <= HalfExtent.Y + tolerance.Resolve(HalfExtent.Y);
     }
@@ -84,14 +84,14 @@ struct OrientedBox2T {
     ///
     /// **索引约定与 `Box2T::corner` 完全一致**：bit 0 / bit 1 依次选择 x / y 取
     /// `-HalfExtent` 还是 `+HalfExtent`，置位取 `+HalfExtent`（即 `Box2T`
-    /// 那边的 `max` 一角）。先在**局部**坐标取角，再用 `Frame.ToParent` 送到
+    /// 那边的 `max` 一角）。先在**局部**坐标取角，再用 `Coordinate.ToParent` 送到
     /// 父坐标系。
     ///
     /// 越界是未定义行为（与 `Box2T::corner` 一致，不做边界检查）。
     [[nodiscard]] constexpr Point2T<Scalar> Corner(int index) const noexcept {
         const Point2T<Scalar> local{(index & 1) != 0 ? HalfExtent.X : -HalfExtent.X,
                                     (index & 2) != 0 ? HalfExtent.Y : -HalfExtent.Y};
-        return Frame.ToParent(local);
+        return Coordinate.ToParent(local);
     }
 
     /// 紧致的轴对齐包围盒。
@@ -170,7 +170,7 @@ struct OrientedBox2T {
     [[nodiscard]] constexpr OrientedBox2T Expanded(Scalar amount) const noexcept {
         const Scalar x = HalfExtent.X + amount;
         const Scalar y = HalfExtent.Y + amount;
-        return OrientedBox2T{Frame, Vector2T<Scalar>{x < Scalar{0} ? Scalar{0} : x,
+        return OrientedBox2T{Coordinate, Vector2T<Scalar>{x < Scalar{0} ? Scalar{0} : x,
                                                      y < Scalar{0} ? Scalar{0} : y}};
     }
 };
@@ -180,14 +180,14 @@ using OrientedBox2f = OrientedBox2T<float>;
 
 // ---- 运算符 ----
 
-/// **五个**标量都相等才算相等（`Frame` 的原点 + 两根轴，加 `HalfExtent` 的两个
+/// **五个**标量都相等才算相等（`Coordinate` 的原点 + 两根轴，加 `HalfExtent` 的两个
 /// 分量）。与 Vector / Point / Box / Coordinate 的约定一致：自由函数，
 /// `operator!=` 由 C++20 自动生成，不手写；逐分量精确比较，不带容差。
 /// 与三维同一条约定（两个头文件独立编写，这一条两边各自有测试）。
 template <typename Scalar>
 [[nodiscard]] constexpr bool operator==(const OrientedBox2T<Scalar>& a,
                                         const OrientedBox2T<Scalar>& b) noexcept {
-    return a.Frame == b.Frame && a.HalfExtent == b.HalfExtent;
+    return a.Coordinate == b.Coordinate && a.HalfExtent == b.HalfExtent;
 }
 
 } // namespace DragonGeo::Linear

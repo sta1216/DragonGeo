@@ -69,9 +69,9 @@ TEST_CASE("the float alias really is the float instantiation",
     STATIC_REQUIRE(!std::is_default_constructible_v<OrientedBox2T<float>>);
 
     // 两个数据成员的名字与类型。
-    STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<double>::Frame), Coordinate2T<double>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<double>::Coordinate), Coordinate2T<double>>);
     STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<double>::HalfExtent), Vector2T<double>>);
-    STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<float>::Frame), Coordinate2T<float>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<float>::Coordinate), Coordinate2T<float>>);
     STATIC_REQUIRE(std::is_same_v<decltype(OrientedBox2T<float>::HalfExtent), Vector2T<float>>);
 }
 
@@ -227,8 +227,8 @@ TEST_CASE("expanded never produces a negative half extent",
     CHECK(degenerate.Max == Point2{0.0, 0.0});
 
     // 标架原样保留：`expanded` 只动半轴（三个成员都要真的搬过去）。
-    CHECK(box.Expanded(1.0).Frame == box.Frame);
-    CHECK(box.Expanded(-10.0).Frame == box.Frame);
+    CHECK(box.Expanded(1.0).Coordinate == box.Coordinate);
+    CHECK(box.Expanded(-10.0).Coordinate == box.Coordinate);
     CHECK(box.Expanded(0.0) == box);            // 零增量是恒等
 
     // 逐分量的夹取证据：一个让 x 与 y 各自被夹、而另一个不被夹。
@@ -504,27 +504,27 @@ TEST_CASE("the implicitly generated special members carry the frame and the half
     // 拷贝赋值：只赋 HalfExtent、或只赋 frame 的手臂实现会在这里现形。
     OrientedBox2 target{FrameAt(Point2{9.0, 9.0}), Vector2{9.0, 9.0}};
     target = source;
-    CHECK(target.Frame == source.Frame);
+    CHECK(target.Coordinate == source.Coordinate);
     CHECK(target.HalfExtent == Vector2{1.0, 2.0});
     CHECK(target.Center() == Point2{1.0, -2.0});
     CHECK(target.Corner(3) == source.Corner(3));
 
     // 拷贝构造。
     const OrientedBox2 copied = target;
-    CHECK(copied.Frame == source.Frame);
+    CHECK(copied.Coordinate == source.Coordinate);
     CHECK(copied.HalfExtent == Vector2{1.0, 2.0});
     CHECK(copied.Corner(3) == source.Corner(3));
 
     // 移动构造。
     OrientedBox2 movedSource{frame, Vector2{4.0, 5.0}};
     OrientedBox2 moved = std::move(movedSource);
-    CHECK(moved.Frame == frame);
+    CHECK(moved.Coordinate == frame);
     CHECK(moved.HalfExtent == Vector2{4.0, 5.0});
 
     // 移动赋值。
     OrientedBox2 movedInto{FrameAt(Point2{0.0, 0.0}), Vector2{0.0, 0.0}};
     movedInto = std::move(moved);
-    CHECK(movedInto.Frame == frame);
+    CHECK(movedInto.Coordinate == frame);
     CHECK(movedInto.HalfExtent == Vector2{4.0, 5.0});
     CHECK(movedInto.Corner(3) == Point2{5.0, 3.0});
 

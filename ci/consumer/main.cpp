@@ -25,8 +25,8 @@ int main() {
     std::cout << "unit = (" << unit->X() << ", " << unit->Y() << ", " << unit->Z() << ")\n";
 
     const Transform3 pipeline = Transform3::Translation(Vector3{1.0, 2.0, 3.0}) * Transform3::Scaling(2.0);
-    const Vector3 moved = pipeline.Apply(Vector3{1.0, 1.0, 1.0});
+    const Point3 moved = pipeline.TransformPoint(Point3{1.0, 1.0, 1.0});
     std::cout << "moved = (" << moved.X << ", " << moved.Y << ", " << moved.Z << ")\n";
 
-    return moved == Vector3{3.0, 4.0, 5.0} ? 0 : 2;
+    return moved == Point3{3.0, 4.0, 5.0} ? 0 : 2;
 }

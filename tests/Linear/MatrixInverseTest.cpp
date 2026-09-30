@@ -13,6 +13,7 @@ using DragonGeo::Core::Tolerance;
 using DragonGeo::Linear::Matrix2;
 using DragonGeo::Linear::Matrix3;
 using DragonGeo::Linear::Matrix4;
+using DragonGeo::Linear::Point3;
 using DragonGeo::Linear::Transform3;
 using DragonGeo::Linear::Vector3;
 
@@ -165,8 +166,8 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
     CHECK((*huge).Matrix(3, 3) == Approx(1.0));
 
     // 回环把它们钉在一起：两个方向的缩放互逆
-    const Vector3 original{1.0, 2.0, 3.0};
-    const Vector3 roundTrip = huge->Apply(Transform3::Scaling(1e150).Apply(original));
+    const Point3 original{1.0, 2.0, 3.0};
+    const Point3 roundTrip = huge->TransformPoint(Transform3::Scaling(1e150).TransformPoint(original));
     CHECK(roundTrip.X == Approx(original.X).margin(1e-12));
     CHECK(roundTrip.Y == Approx(original.Y).margin(1e-12));
     CHECK(roundTrip.Z == Approx(original.Z).margin(1e-12));
