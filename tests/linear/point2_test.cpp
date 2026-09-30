@@ -18,9 +18,6 @@ namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
-
-template <typename A, typename B>
-concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -63,7 +60,7 @@ TEST_CASE("Point2 keeps its declaration-level guarantees",
     STATIC_REQUIRE(std::is_same_v<Point2T<double>::scalar_type, double>);
     STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
 
-    // 其余 7 处 noexcept 同样要有证据（Task 4 曾记录后放行，这里与 Interval
+    // 其余 8 处 noexcept 同样要有证据（Task 4 曾记录后放行，这里与 Interval
     // 的 11 处口径统一）。逐条都有死亡证明：删掉声明上的 noexcept，该条即
     // 编译失败。const 重载只能由具名 const 对象选中，故先声明 sample。
     const Point2 sample{1.0, 2.0};
@@ -71,6 +68,7 @@ TEST_CASE("Point2 keeps its declaration-level guarantees",
     STATIC_REQUIRE(noexcept(sample[0]));                // const 重载
     STATIC_REQUIRE(noexcept(Point2{}.to_array()));
     STATIC_REQUIRE(noexcept(sample + Vector2{1.0, 2.0}));
+    STATIC_REQUIRE(noexcept(Vector2{1.0, 2.0} + sample));
     STATIC_REQUIRE(noexcept(sample - Vector2{1.0, 2.0}));
     STATIC_REQUIRE(noexcept(sample - sample));
     STATIC_REQUIRE(noexcept(sample == sample));
@@ -99,6 +97,12 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     STATIC_REQUIRE(std::is_same_v<decltype(a + v), Point2>);
     CHECK(a + v == Point2{11.0, 22.0});
 
+    // 向量 + 点 = 点 —— 上一条的反向书写，同 3D 侧。平移不关心书写顺序，
+    // 两种写法必须同义；调用方先写出向量时不该撞上「找不到运算符」。
+    STATIC_REQUIRE(std::is_same_v<decltype(v + a), Point2>);
+    CHECK(v + a == Point2{11.0, 22.0});
+    CHECK(v + a == a + v);
+
     STATIC_REQUIRE(std::is_same_v<decltype(a - v), Point2>);
     CHECK(a - v == Point2{-9.0, -18.0});
 
@@ -113,8 +117,6 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     CHECK(Point2{1.0, 2.0} == Point2{1.0, 2.0});
 
     static_assert(!addable<Point2>, "Point + Point must not be well-formed");
-    static_assert(!addable_pair<Vector2, Point2>,
-                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {

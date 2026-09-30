@@ -699,10 +699,6 @@ namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
-
-/// 两种**不同**类型之间能否相加 —— 用来钉住 `Vector + Point` 不存在。
-template <typename A, typename B>
-concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -833,10 +829,11 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     // STATIC_REQUIRE 无关。
     static_assert(!addable<Point3>, "Point + Point must not be well-formed");
 
-    // `Vector + Point` 同样必须不存在 —— spec 的运算符清单里没有它，
-    // 本计划的 Interfaces 也明令不加。它同样只能由编译器判定。
-    static_assert(!addable_pair<Vector3, Point3>,
-                  "Vector + Point must not be well-formed");
+    // `Vector + Point` 存在 —— 用户在本阶段结束后裁定补上（见文末「遗留决策」
+    // 第 2 条）。它是 `Point + Vector` 的反向书写，返回的仍是点。
+    STATIC_REQUIRE(std::is_same_v<decltype(v + a), Point3>);
+    CHECK(v + a == Point3{11.0, 22.0, 33.0});
+    CHECK(v + a == a + v);
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
@@ -875,9 +872,6 @@ namespace {
 /// 同 point3_test.cpp：判断「能否相加」必须包在概念里。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
-
-template <typename A, typename B>
-concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -944,6 +938,11 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     STATIC_REQUIRE(std::is_same_v<decltype(a + v), Point2>);
     CHECK(a + v == Point2{11.0, 22.0});
 
+    // 向量 + 点 = 点 —— 上一条的反向书写，同 3D 侧（用户裁定补上）。
+    STATIC_REQUIRE(std::is_same_v<decltype(v + a), Point2>);
+    CHECK(v + a == Point2{11.0, 22.0});
+    CHECK(v + a == a + v);
+
     STATIC_REQUIRE(std::is_same_v<decltype(a - v), Point2>);
     CHECK(a - v == Point2{-9.0, -18.0});
 
@@ -958,8 +957,6 @@ TEST_CASE("Point2 arithmetic follows the same affine rules as Point3",
     CHECK(Point2{1.0, 2.0} == Point2{1.0, 2.0});
 
     static_assert(!addable<Point2>, "Point + Point must not be well-formed");
-    static_assert(!addable_pair<Vector2, Point2>,
-                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point2 distance_to", "[linear][point2]") {

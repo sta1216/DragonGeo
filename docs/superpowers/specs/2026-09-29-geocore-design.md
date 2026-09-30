@@ -168,9 +168,12 @@ using Vector3 = Vector3T<double>;   // 绝大多数使用者只会看到这一�
 同底层存储，不同类型语义。**不变量由类型系统承载。**
 
 ```cpp
-// Point 与 Vector 分离
+// Point 与 Vector 分离（下面以 3D 为例；2D 的 Point2 / Vector2 逐条同构）
 Point3 operator+(Point3 p, Vector3 v);    // -> Point3
-Vector3 operator-(Point3 a, Point3 b);    // -> Vector3
+Point3 operator+(Vector3 v, Point3 p);    // -> Point3，与上一条对称：平移不关心书写顺序
+Point3 operator-(Point3 p, Vector3 v);    // -> Point3
+Vector3 operator-(Point3 a, Point3 b);   // -> Vector3
+Point3 operator*(Transform3 t, Point3 p); // -> Point3：点吃平移；Transform3 * Vector3 不吃
 // 两个点相加在编译期即不存在
 
 // 单位向量独立类型，存储等价于 Vector3，零额外开销

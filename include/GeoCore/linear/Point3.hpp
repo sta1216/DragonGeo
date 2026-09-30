@@ -10,7 +10,7 @@ namespace GeoCore::linear {
 ///
 /// 与 Vector3T 的区别是语义而非存储。点没有加法，也没有零元 —— 两个点相加没有
 /// 意义，因此 `Point3 + Point3` 刻意不提供，类型系统会拒绝它。有意义的运算只有
-/// 三种：点 + 向量（平移）、点 - 向量（反向平移）、点 - 点（位移向量）。
+/// 三种：点 ± 向量（平移，反向书写 `向量 + 点` 同样成立）、点 - 点（位移向量）。
 template <typename Scalar>
 struct Point3T {
     using scalar_type = Scalar;
@@ -66,6 +66,16 @@ using Point3f = Point3T<float>;
 template <typename Scalar>
 [[nodiscard]] constexpr Point3T<Scalar> operator+(Point3T<Scalar> p, Vector3T<Scalar> v) noexcept {
     return Point3T<Scalar>{p.x + v.x, p.y + v.y, p.z + v.z};
+}
+
+/// 向量 + 点：同一次平移的反向书写，结果同样是点。
+///
+/// 平移不关心两个操作数的书写顺序，`v + p` 与 `p + v` 必须同义 —— 调用方先
+/// 写出向量时不该撞上「找不到运算符」。返回的仍是点，不会与刻意不存在的
+/// `Point + Point` 混淆。
+template <typename Scalar>
+[[nodiscard]] constexpr Point3T<Scalar> operator+(Vector3T<Scalar> v, Point3T<Scalar> p) noexcept {
+    return Point3T<Scalar>{v.x + p.x, v.y + p.y, v.z + p.z};
 }
 
 /// 点沿向量反方向平移。

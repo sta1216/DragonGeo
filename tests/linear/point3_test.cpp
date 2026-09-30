@@ -18,10 +18,6 @@ namespace {
 /// 「能否相加」这个判断必须包在概念里，见下面 static_assert 处的说明。
 template <typename T>
 concept addable = requires(T p, T q) { p + q; };
-
-/// 两种**不同**类型之间能否相加 —— 用来钉住 `Vector + Point` 不存在。
-template <typename A, typename B>
-concept addable_pair = requires(A a, B b) { a + b; };
 }
 
 TEST_CASE("the float alias really is the float instantiation",
@@ -78,12 +74,13 @@ TEST_CASE("Point3 keeps its declaration-level guarantees",
     // noexcept 是 Interfaces 的明文承诺，也要有证据。
     STATIC_REQUIRE(noexcept(Point3{}.distance_to(Point3{})));
 
-    // 同 point2_test.cpp：其余 7 处 noexcept 也要有证据，逐条都有死亡证明。
+    // 同 point2_test.cpp：其余 8 处 noexcept 也要有证据，逐条都有死亡证明。
     const Point3 sample{1.0, 2.0, 3.0};
     STATIC_REQUIRE(noexcept(Point3{}.operator[](0)));   // 非 const 重载
     STATIC_REQUIRE(noexcept(sample[0]));                // const 重载
     STATIC_REQUIRE(noexcept(Point3{}.to_array()));
     STATIC_REQUIRE(noexcept(sample + Vector3{1.0, 2.0, 3.0}));
+    STATIC_REQUIRE(noexcept(Vector3{1.0, 2.0, 3.0} + sample));
     STATIC_REQUIRE(noexcept(sample - Vector3{1.0, 2.0, 3.0}));
     STATIC_REQUIRE(noexcept(sample - sample));
     STATIC_REQUIRE(noexcept(sample == sample));
@@ -127,6 +124,13 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     STATIC_REQUIRE(std::is_same_v<decltype(a + v), Point3>);
     CHECK(a + v == Point3{11.0, 22.0, 33.0});
 
+    // 向量 + 点 = 点 —— 上一条的反向书写。平移不关心两个操作数的书写顺序，
+    // 两种写法必须同义；调用方先写出向量时不该撞上「找不到运算符」。
+    // （此运算符用户裁定补上，详见计划的「遗留决策」第 2 条。）
+    STATIC_REQUIRE(std::is_same_v<decltype(v + a), Point3>);
+    CHECK(v + a == Point3{11.0, 22.0, 33.0});
+    CHECK(v + a == a + v);
+
     // 点 - 向量 = 点
     STATIC_REQUIRE(std::is_same_v<decltype(a - v), Point3>);
     CHECK(a - v == Point3{-9.0, -18.0, -27.0});
@@ -161,11 +165,6 @@ TEST_CASE("point and vector arithmetic follows affine rules",
     // 匿名命名空间的 `addable`。这一点与 Catch2 无关，也与用不用
     // STATIC_REQUIRE 无关。
     static_assert(!addable<Point3>, "Point + Point must not be well-formed");
-
-    // `Vector + Point` 同样必须不存在 —— spec 的运算符清单里没有它，
-    // 本计划的 Interfaces 也明令不加。它同样只能由编译器判定。
-    static_assert(!addable_pair<Vector3, Point3>,
-                  "Vector + Point must not be well-formed");
 }
 
 TEST_CASE("Point3 distance_to", "[linear][point3]") {
