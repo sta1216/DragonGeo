@@ -9,11 +9,17 @@
 | --- | --- |
 | CPU | 12th Gen Intel(R) Core(TM) i7-12700（Google Benchmark 报告 20 逻辑核 × 2112 MHz 基频） |
 | OS | Windows 10 Enterprise 10.0.19045 |
-| 编译器 | MSVC 19.39.33519（Visual Studio 2022 17.9.8），x64 |
+| 编译器 | MSVC 19.39.33523（`_MSC_FULL_VER=193933523`；工具集目录 `14.39.33519`；Visual Studio 2022 **17.9.5**），x64 |
 | 优化 | **Release**：`/MD /O2 /Ob2 /DNDEBUG`，另加全库统一的 `/W4 /permissive- /utf-8` |
 | CMake | 3.29.0-rc4，生成器 Visual Studio 17 2022 |
 | Google Benchmark | v1.9.1（FetchContent，仅开发期依赖，默认不参与构建） |
 | 采样 | `--benchmark_min_time=0.5s`，每项至少 0.5 秒 |
+
+版本号的来源写清楚，免得复现的人对不上：`_MSC_FULL_VER` 由
+`cl` 预处理宏读出，VS 版本由 `vswhere -latest -products * -property
+catalog_productDisplayVersion` 读出。**命令行构建时 MSBuild 自报的 `17.9.8`
+是 MSBuild 的版本号，不是 Visual Studio 的版本号** —— 两者不同，别混用。
+工具集目录名 `14.39.33519` 与 `_MSC_FULL_VER` 的末几位（33523）本就允许不一致。
 
 复现命令（Git Bash，仓库根目录）：
 
@@ -45,6 +51,12 @@ bench_box_contains               1.99 ns         1.99 ns    344615385
 bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 ```
 
+同一二进制复跑（审查后重跑确认量级不变）：`bench_empty` 0.436、`bench_dot` 1.52、
+`bench_cross` 1.76、`bench_length` 6.20、`bench_normalized` 7.92、`bench_subscript`
+1.98、`bench_matrix_vector` 3.07、`bench_matrix_inverse` 48.5、
+`bench_quaternion_rotate` 2.82、`bench_box_contains` 1.93、
+`bench_coordinate_to_parent` 2.21 ns。
+
 ## 反空转验证
 
 这一节要防的是**假快**，不是假慢。一个被常量传播掉的基准会给出零点几纳秒的
@@ -73,6 +85,11 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 
 **每个基准都明显慢于零点**（最接近的 `dot` 也有 3.6×），没有出现"零点几纳秒"
 那一类被折叠的信号。
+
+**但这条判据必要而不充分 —— 不要把它当作"没被折叠"的证明。** 一个同形状的
+"纯空气"基准（算式被提出循环、循环里只剩屏障）实测 **1.29 ns ≈ 3.0× 零点**，
+照样会通过"明显慢于零点"。比值只能用来快速筛查"整项被折叠成常数"这类最粗暴的
+失败；真正的证据是第 3、4 节，反面校准见第 5 节。
 
 ### 3. 直接反证 A：同形平凡表达式重测（临时探针，验完已撤回）
 
@@ -110,15 +127,50 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 - `bench_length` 的循环里是 **3 次 `divsd` + `sqrtpd` + 一次对 `sqrt` 的非内联调用**。
 - `bench_matrix_inverse` 的 `inverse()` 没有内联，循环里是**每次迭代一次真实的
   出线调用**（返回 `std::optional<Matrix3>`），不存在被提出循环的迹象。
+- `bench_subscript` 的循环里是 **3 次非内联的 `call Vector3T<double>::operator[](int)`
+  + 2 次屏障** —— 它的 2.1 ns 主要是**调用 + 屏障**开销，不是"下标访问本身的成本"
+  （MSVC 没有内联这个成员）。
+- `bench_normalized` 的循环里有一次**非内联的 `call Vector3T<double>::length`**，
+  再叠加屏障。
 
 这解释了差值表的形状：`length`/`normalized` 的 6~9 ns 不是屏障开销，而是
 "按最大分量缩放防溢出 + 3 次除法 + sqrt"这个算法本身的成本（见
 `Vector3T::length` 的实现）。
 
-### 5. 结论
+### 5. 反面校准：折叠输入与提出循环（对照实验）
 
-`bench_empty` 之上每一项都有可归因的真实成本，反证 A、B 双向一致。本基线可
-作为后续阶段的回归参考。
+前四条都是"证明基准没坏"。反过来再问一句：**这些检测手段真的抓得住坏基准吗？**
+于是造几个"应该被抓出来"的坏基准当对照。对照组跑在 `build/calib/` 的临时二进制里
+（`#include` 提交版基准源码再加变体，**不进仓库**），与提交版基准同进程交替测量：
+
+| 变体 | 实测 | 与提交版对比 | 判定 |
+| --- | --- | --- | --- |
+| `folded_dot`：字面量 `const` 输入、只 `DoNotOptimize` 结果（**计划原来的缺陷**） | 0.645 ns | 提交版 `bench_dot` 1.51 ns，快 2.3×，贴近零点 0.437 | **时序即可判定** |
+| `hoisted_dot`：算式提到循环外，循环内屏障形状不变 | 1.29 ns | 比提交版 1.51 ns 只快 15% | **时序判定不了，只能靠反汇编** |
+| `hoisted_length`：算式提到循环外 | 0.862 ns | 提交版 `bench_length` 6.19 ns，差 7.2× | 时序即可判定 |
+| `hoisted_matrix_inverse`：算式提到循环外 | 0.879 ns | 提交版 50.2 ns，差 57× | 时序即可判定 |
+| `folded_length`：字面量输入、只 `DoNotOptimize` 结果 | 6.17 ns | 与提交版 6.19 ns 相同 | **该结构折叠不掉** |
+| `folded_matrix_inverse`：字面量输入、只 `DoNotOptimize` 结果 | 50.5 ns | 与提交版 50.2 ns 相同 | **该结构折叠不掉** |
+
+（这一轮校准里 `bench_empty` = 0.437 ns。审查者独立造的同款对照给出
+0.665 / 1.34 / 0.878 / 0.905 ns，与本表逐项一致，差异在运行波动之内。）
+
+三点结论，比单个数字有用：
+
+1. **`length` / `normalized` / `matrix_inverse` 这类"贵"的基准，时序就能判定**：
+   空转版本会快 7× 以上，没有判定歧义。
+2. **`dot` / `cross` 这类"便宜"的基准，时序判定不了**：纯空气版本只比真版本快
+   15%，落在"看起来很正常"的范围里 —— 它们的可信度只能建立在反汇编（第 4 节）上。
+3. **计划原本担心的缺陷是真实存在的**：字面量输入 + 只 `DoNotOptimize` 结果，
+   `dot` 会被折叠（0.645 vs 1.51，快 2.3×）。反过来说，`length()` 与 `inverse()`
+   **即使**用纯字面量输入也不会被折叠：前者结构上有非内联 `sqrt` 调用与分支，
+   后者结构上就是不透明调用 —— 这两类**不可能空转**，所以它们对输入写法不敏感。
+
+### 6. 结论
+
+`bench_empty` 之上每一项都有可归因的真实成本，反证 A、B 与反面校准三者一致，
+并且反面校准划清了"哪些基准时序就能判定、哪些只能靠反汇编"。本基线可作为后续
+阶段的回归参考。
 
 ## 解读与注意事项（不要跳过）
 
@@ -139,6 +191,15 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 4. **`length`/`normalized` 比 `dot` 贵一个数量级**（6.5 / 8.7 ns，差值 5.8 /
    7.6 ns），原因是防溢出的缩放算法本身要做 3 次除法，再加 sqrt。
    `length_squared()` 没有基准 —— 若上层只需要比较长度，用它。
-5. **已知波动**：同一二进制重复运行，各项约 ±5%（例：`bench_dot` 1.61~1.72 ns，
-   `bench_matrix_inverse` 51.2~53.0 ns）。跑基线时关注趋势与数量级，别对着末位
-   数字做判断。
+5. **`bench_subscript` 的 2.1 ns 是"调用 + 屏障"，不是"下标本身的成本"。**
+   反汇编显示它每次迭代要做 3 次**非内联的** `operator[](int)` 调用（MSVC 没内联
+   这个 `constexpr` 成员），外加 2 次 `DoNotOptimize` 屏障；`bench_normalized`
+   的循环里则有一次非内联的 `length()` 调用。数字是真的（探针差值为正），但
+   解读时不要把 `subscript` 的 2 ns 当成"下标访问要 2 ns"。这与第 2 条"`dot`
+   只有上界"是同一类诚实要求。
+6. **比值不是证明。** 见第 2 节的限定与第 5 节的反面校准：一个纯空气基准
+   （1.29 ns ≈ 3.0× 零点）照样"明显慢于零点"。要判定某项没被优化掉，用
+   `build/calib/` 那套反面校准，或直接看反汇编。
+7. **已知波动**：同一二进制重复运行，各项约 ±5%~8%（例：`bench_dot` 1.51~1.72 ns、
+   `bench_empty` 0.436~0.464 ns、`bench_matrix_inverse` 48.5~53.0 ns）。跑基线时
+   关注趋势与数量级，别对着末位数字做判断。
