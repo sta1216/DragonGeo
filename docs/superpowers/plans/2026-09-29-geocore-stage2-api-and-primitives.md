@@ -2518,9 +2518,9 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 
 ---
 
-## 遗留决策（**需用户裁定，不属于本阶段任何任务**）
+## 遗留决策（**不属于本阶段任何任务；三条均已由用户裁定**）
 
-这三条在执行过程中被发现，都**超出了本计划的任务范围**，因此原样记录而不是擅自处置。
+这三条在执行过程中被发现，都**超出了本计划的任务范围**，因此执行期间原样记录而不是擅自处置。阶段结束后用户逐条作了裁定，裁定与执行结果记在各条标题与正文里；**第 3 条裁定为「现状没问题，不改」，是唯一一条没有产生改动的**。
 
 ### 1. CI 的 `consumer-smoke` 守不住 `/utf-8` 的导出回归 —— **用户裁定：接受，已补 `/WX`**
 
@@ -2528,7 +2528,7 @@ git commit -m "perf: add benchmarks for the hot linear-algebra paths"
 
 机制（从 MSBuild 实际命令行读出）：`/W1 /WX- /external:W0 /external:I <prefix>/include` —— 外部头的警告被压到 0 级，且 `/WX-` 表示警告永不致失败，而作业只取退出码。**与 runner 的代码页无关。**
 
-**补法（一行，已执行，实测有效）**：给 `ci/consumer` 加 `/WX`。它不设置任何**编码**选项，这一点仍然成立 —— 但**诊断并不指向 GeoCore 的头文件**：负对照里唯一的 `C4819` 指向消费方自己的 `ci/consumer/main.cpp`（按设计就是 UTF-8 中文注释），头文件的 `C4819` 在 `/external:I` + `/external:W0` 下根本不报。触发点是 `main.cpp` 自身的非 ASCII 内容，**前提是该文件保持非 ASCII** —— 改成纯 ASCII，这道防线就会静默失效。退出码（实测，`D:/tmp/geocore-smoke/` 里现成的前缀，缺 `/utf-8`）：作业实际跑的那条 `cmake --build . --config Release` 是 **exit 1**（MSBuild 直接调用同样 exit 1），更底层的 `CL.exe` 自身是 **exit 2**（「警告即错误」的约定）；诊断是 `error C2220` + `warning C4819`。此前记的「exit 2」是 `CL.exe` 的数字，不是 `cmake --build` 的。
+**补法（一行，已执行，实测有效）**：给 `ci/consumer` 加 `/WX`。它不设置任何**编码**选项，这一点仍然成立 —— 但**诊断并不指向 GeoCore 的头文件**：负对照里唯一的 `C4819` 指向消费方自己的 `ci/consumer/main.cpp`（按设计就是 UTF-8 中文注释），头文件的 `C4819` 在 `/external:I` + `/external:W0` 下根本不报。触发点是 `main.cpp` 自身的非 ASCII 内容，**前提是该文件保持非 ASCII** —— 改成纯 ASCII，这道防线就会静默失效。退出码（实测，`D:/tmp/geocore-smoke/` 里现成的前缀，缺 `/utf-8`）：作业实际跑的那条 `cmake --build build/consumer --config Release` 是 **exit 1**（MSBuild 直接调用同样 exit 1），更底层的 `CL.exe` 自身是 **exit 2**（「警告即错误」的约定）；诊断是 `error C2220` + `warning C4819`。此前记的「exit 2」是 `CL.exe` 的数字，不是 `cmake --build` 的。
 
 ### 2. ~~`Vector + Point` 不存在~~ —— **用户裁定：要加（已执行）**
 
