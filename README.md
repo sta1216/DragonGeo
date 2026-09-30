@@ -23,20 +23,21 @@ ctest --preset windows-vs-debug
 
 ## Design principles
 
-These are the commitments the design is built around. Two of the three are
-target design rather than shipped behaviour today — the layers that carry them
-are listed as planned in the table above.
+These are the commitments the design is built around. One of the three is
+target design rather than shipped behaviour today — the layer that carries it
+is listed as planned in the table above.
 
 - **Robust predicates over epsilon** *(target design: the `predicates` layer is
   planned, not present)*. Orientation and in-circle decisions are exact, so
   degenerate input gets a correct answer rather than a plausible one.
 - **Tolerance is an explicit parameter.** No global epsilon constant exists.
   Every entry point that needs a threshold takes a `core::Tolerance`.
-- **Types carry invariants** *(partly shipped)*. `UnitVector` is already a
-  distinct type from `Vector`, so scaling one is a visible change of return
-  type. `Point` is likewise split from `Vector` (both live in `linear`), so
-  adding two points does not compile, and every `Coordinate` construction
-  path validates the frame it builds.
+- **Types carry invariants.** `UnitVector` is a distinct type from `Vector`, so
+  scaling one is a visible change of return type. `Point` is likewise split from
+  `Vector` (both live in `linear`), so adding two points does not compile, and
+  every `Coordinate` construction path validates the frame it builds — a
+  non-orthogonal or left-handed frame cannot be built through any public
+  interface.
 
 See `docs/superpowers/specs/` for the full design.
 
