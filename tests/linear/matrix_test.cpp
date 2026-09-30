@@ -1,15 +1,30 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <type_traits>
+
 #include <GeoCore/linear/Matrix.hpp>
 
 using Catch::Approx;
 
 using GeoCore::linear::Matrix2;
+using GeoCore::linear::Matrix2f;
 using GeoCore::linear::Matrix3;
+using GeoCore::linear::Matrix3f;
 using GeoCore::linear::Matrix4;
+using GeoCore::linear::Matrix4f;
+using GeoCore::linear::MatrixT;
 using GeoCore::linear::Vector2;
 using GeoCore::linear::Vector3;
+
+TEST_CASE("the float aliases really are the float instantiations",
+          "[linear][matrix]") {
+    // 同 vector4_test.cpp：三个别名此前零命中，误绑定不会被任何断言发现。
+    // 模板实参要写全 —— MatrixT 是两参数模板（宿主列数 N 在别名里写死）。
+    STATIC_REQUIRE(std::is_same_v<Matrix2f, MatrixT<float, 2>>);
+    STATIC_REQUIRE(std::is_same_v<Matrix3f, MatrixT<float, 3>>);
+    STATIC_REQUIRE(std::is_same_v<Matrix4f, MatrixT<float, 4>>);
+}
 
 TEST_CASE("MatrixT is zero-initialized and supports aggregate init",
           "[linear][matrix]") {

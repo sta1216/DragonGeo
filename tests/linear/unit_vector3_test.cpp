@@ -12,7 +12,15 @@ using Catch::Approx;
 
 using GeoCore::core::Tolerance;
 using GeoCore::linear::UnitVector3;
+using GeoCore::linear::UnitVector3T;
+using GeoCore::linear::UnitVector3f;
 using GeoCore::linear::Vector3;
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][unitvector3]") {
+    // 同 vector4_test.cpp：UnitVector3f 此前零命中，误绑定不会被断言发现。
+    STATIC_REQUIRE(std::is_same_v<UnitVector3f, UnitVector3T<float>>);
+}
 
 TEST_CASE("normalize produces a unit-length vector", "[linear][unitvector3]") {
     const auto result = Vector3{3.0, 4.0, 0.0}.normalized();

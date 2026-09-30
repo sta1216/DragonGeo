@@ -14,8 +14,6 @@ TEST_CASE("the float alias really is the float instantiation",
           "[linear][interval]") {
     STATIC_REQUIRE(std::is_same_v<Intervalf, IntervalT<float>>);
 
-    // >>> sweep-add （以下为本轮的实体清单横扫补充，剥掉标记对之间的内容
-    // 即可与计划文本逐字节比对）
     // 别名与成员别名都必须被**命名**过 —— 未被命名的绑定写错时连一次实例化
     // 都不会发生（Task 4 实测：把 float 别名绑成 double 实例化，全库 134 个
     // 用例全绿、退出码 0）。与 Task 4 同一条判据：**两个实例化都要钉**，
@@ -23,7 +21,6 @@ TEST_CASE("the float alias really is the float instantiation",
     STATIC_REQUIRE(std::is_same_v<Interval, IntervalT<double>>);
     STATIC_REQUIRE(std::is_same_v<IntervalT<float>::scalar_type, float>);
     STATIC_REQUIRE(std::is_same_v<IntervalT<double>::scalar_type, double>);
-    // <<< sweep-add
 }
 
 TEST_CASE("merging with the empty interval is the identity",
@@ -33,7 +30,6 @@ TEST_CASE("merging with the empty interval is the identity",
     CHECK(Interval::empty().merged(a) == a);
     CHECK(Interval::empty().merged(Interval::empty()) == Interval::empty());
 
-    // >>> sweep-add
     // 「空的**非规范**表示」也是合法输入（`Interval{5.0, 1.0}` 就是个聚合初始化出来的
     // 倒置区间，`is_empty()` 明说对任何倒置区间都安全）。任一为空就要返回另一个，
     // 两个方向都必须如此 —— 只留自判空、不留对方判空的实现会在这一格返回
@@ -41,7 +37,6 @@ TEST_CASE("merging with the empty interval is the identity",
     const Interval inverted_empty{5.0, 1.0};
     CHECK(Interval{0.0, 0.0}.merged(inverted_empty) == Interval{0.0, 0.0});
     CHECK(inverted_empty.merged(Interval{0.0, 0.0}) == Interval{0.0, 0.0});
-    // <<< sweep-add
 }
 
 TEST_CASE("a degenerate interval contains exactly one point",
@@ -63,12 +58,10 @@ TEST_CASE("contains is closed at both ends", "[linear][interval]") {
     CHECK_FALSE(a.contains(0.999));
     CHECK_FALSE(a.contains(5.001));
 
-    // >>> sweep-add
     // 空集不含任何点，无界区间含一切有限点 —— 两个哨兵在谓词下必须安全可用
     // （选这个空表示的理由正是让谓词无需特判）。
     CHECK_FALSE(Interval::empty().contains(3.0));
     CHECK(Interval::unbounded().contains(3.0));
-    // <<< sweep-add
 }
 
 TEST_CASE("length and center are defined on the sentinel intervals",
@@ -134,13 +127,11 @@ TEST_CASE("intersects and clipped agree, and clipped canonicalises",
     CHECK(a.clipped(disjoint) == Interval::empty());
     CHECK_FALSE(a.clipped(disjoint).intersects(a));
 
-    // >>> sweep-add
     // 闭区间：端点相接算相交 —— 改成半开比较（`<`）会把它判成不相交，而计划里
     // 的两条用例（{1,5} vs {4,8}、vs {6,9}）**在两种写法下结果完全相同**，
     // 抓不到这个差异。相接时 `clipped` 的结果是退化的单点区间，不是空区间。
     CHECK(a.intersects(Interval{5.0, 9.0}));
     CHECK(a.clipped(Interval{5.0, 9.0}) == Interval{5.0, 5.0});
-    // <<< sweep-add
 }
 
 TEST_CASE("empty intervals stay empty under intersects and clipped",
@@ -168,7 +159,6 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
     // 无界区间膨胀后仍然无界。
     CHECK(Interval::unbounded().expanded(1.0) == Interval::unbounded());
 
-    // >>> sweep-add
     // 非规范空也是空（`Interval{1.0, 0.0}` 一个聚合初始化就造得出来）。「空进空出」
     // 必须在**两种表示**上都成立 —— 旧实现只在规范空上兑现：它只靠末尾那次
     // 「结果为空则规范化」，而 `{1, 0}.expanded(1)` 的结果是 `{0, 1}`，
@@ -182,7 +172,6 @@ TEST_CASE("expanded grows both ends, and a negative amount shrinks",
     CHECK(non_canonical_empty_for_expand.is_empty());
     CHECK(non_canonical_empty_for_expand.expanded(1.0).is_empty());
     CHECK(non_canonical_empty_for_expand.expanded(1.0) == Interval::empty());
-    // <<< sweep-add
 }
 
 TEST_CASE("the empty predicate is total, including on non-finite input",
@@ -296,7 +285,6 @@ TEST_CASE("the implicitly generated special members carry both endpoints",
         IntervalT<double>::empty().merged(IntervalT<double>{1.0, 5.0});
     STATIC_REQUIRE(merged_sentinel.min == 1.0);
     STATIC_REQUIRE(merged_sentinel.max == 5.0);
-    // >>> sweep-add
     // 修复轮 2：`merged` 加了空判定守卫之后，上面两条**不再经过取两端外扩的算术
     // 路径**（空区间直接返回 other），`merged` 的 min/max 取错由「编译失败」变成了
     // **存活**（实测 89/89 全绿）。非空的合并路径因此需要自己的证据：期望值的两端
@@ -305,7 +293,6 @@ TEST_CASE("the implicitly generated special members carry both endpoints",
         IntervalT<double>{1.0, 5.0}.merged(IntervalT<double>{0.0, 9.0});
     STATIC_REQUIRE(merged_finite.min == 0.0);
     STATIC_REQUIRE(merged_finite.max == 9.0);
-    // <<< sweep-add
 
     // 隐式拷贝赋值也必须被真的用一次，否则它从未被实例化 —— 一个只赋 min 的
     // 手写 operator= 会完全静默（Task 4 实测过同族形态：从仓库测试编出的 obj

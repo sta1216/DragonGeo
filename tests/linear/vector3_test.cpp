@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #include <GeoCore/linear/UnitVector3.hpp>
 #include <GeoCore/linear/Vector3.hpp>
@@ -11,6 +12,7 @@
 using Catch::Approx;
 
 using GeoCore::linear::Vector3;
+using GeoCore::linear::Vector3T;
 using GeoCore::linear::Vector3f;
 
 TEST_CASE("Vector3 arithmetic is component-wise", "[linear][vector3]") {
@@ -78,6 +80,10 @@ TEST_CASE("length of the 1-2-2 vector is 3", "[linear][vector3]") {
 }
 
 TEST_CASE("Vector3T is usable with float", "[linear][vector3]") {
+    // 同 vector2_test.cpp：`v.length() == 3.0f` 抓不住误绑定 —— 两种精度下
+    // 都得 3.0，且 float 字面量与 double 比较时会提升。钉的是绑定本身。
+    STATIC_REQUIRE(std::is_same_v<Vector3f, Vector3T<float>>);
+
     const Vector3f v{1.0f, 2.0f, 2.0f};
     CHECK(v.length() == 3.0f);
 }

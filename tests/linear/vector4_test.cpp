@@ -1,10 +1,22 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
+#include <type_traits>
 
 #include <GeoCore/linear/Vector4.hpp>
 
 using GeoCore::linear::Vector4;
+using GeoCore::linear::Vector4T;
+using GeoCore::linear::Vector4f;
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][vector4]") {
+    // 别名若从未被任何测试**命名**，绑定写错时其成员连一次实例化都不会发生 ——
+    // 全库审计里 Vector4f 零命中。而「构造一个 float 值再比较」抓不住误绑定：
+    // Vector4T<float> 与 Vector4T<double> 在那种断言下都得同一个值。对绑定
+    // 本身的断言只能是 is_same_v。
+    STATIC_REQUIRE(std::is_same_v<Vector4f, Vector4T<float>>);
+}
 
 TEST_CASE("Vector4 arithmetic is component-wise", "[linear][vector4]") {
     const Vector4 a{1.0, 2.0, 3.0, 4.0};

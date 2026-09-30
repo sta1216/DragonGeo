@@ -61,6 +61,18 @@ TEST_CASE("Point2 keeps its declaration-level guarantees",
     STATIC_REQUIRE(std::is_same_v<Point2T<double>::scalar_type, double>);
     STATIC_REQUIRE(noexcept(Point2{}.distance_to(Point2{})));
 
+    // 其余 7 处 noexcept 同样要有证据（Task 4 曾记录后放行，这里与 Interval
+    // 的 11 处口径统一）。逐条都有死亡证明：删掉声明上的 noexcept，该条即
+    // 编译失败。const 重载只能由具名 const 对象选中，故先声明 sample。
+    const Point2 sample{1.0, 2.0};
+    STATIC_REQUIRE(noexcept(Point2{}.operator[](0)));   // 非 const 重载
+    STATIC_REQUIRE(noexcept(sample[0]));                // const 重载
+    STATIC_REQUIRE(noexcept(Point2{}.to_array()));
+    STATIC_REQUIRE(noexcept(sample + Vector2{1.0, 2.0}));
+    STATIC_REQUIRE(noexcept(sample - Vector2{1.0, 2.0}));
+    STATIC_REQUIRE(noexcept(sample - sample));
+    STATIC_REQUIRE(noexcept(sample == sample));
+
     // 同 point3_test.cpp：常量求值 + **不带花括号**的默认初始化。
     constexpr Point2T<double> default_point;
     STATIC_REQUIRE(default_point.x == 0.0);

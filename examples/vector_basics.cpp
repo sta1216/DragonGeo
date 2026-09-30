@@ -36,7 +36,7 @@ int main() {
     }
 
     if (!Vector3{0.0, 0.0, 0.0}.normalized()) {
-        std::cout << "normalize(zero) correctly returned nullopt\n";
+        std::cout << "normalized(zero) correctly returned nullopt\n";
     }
 
     return 0;

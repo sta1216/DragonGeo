@@ -3,12 +3,14 @@
 
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #include <GeoCore/linear/Vector2.hpp>
 
 using Catch::Approx;
 
 using GeoCore::linear::Vector2;
+using GeoCore::linear::Vector2T;
 using GeoCore::linear::Vector2f;
 
 TEST_CASE("Vector2 supports aggregate initialization", "[linear][vector2]") {
@@ -92,6 +94,11 @@ TEST_CASE("length of a vector containing NaN does not crash",
 }
 
 TEST_CASE("Vector2T is usable with float", "[linear][vector2]") {
+    // 被用到不等于被钉住：`v.length() == 5.0f` 在 Vector2T<float> 与
+    // Vector2T<double> 下都成立（float 字面量比较时会提升），把 Vector2f 绑成
+    // Vector2T<double> 它照样通过。对**绑定本身**的断言只能是 is_same_v。
+    STATIC_REQUIRE(std::is_same_v<Vector2f, Vector2T<float>>);
+
     const Vector2f v{3.0f, 4.0f};
     CHECK(v.length() == 5.0f);
     CHECK(v.x == 3.0f);

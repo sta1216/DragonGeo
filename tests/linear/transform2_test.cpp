@@ -12,7 +12,15 @@ using GeoCore::core::half_pi;
 using GeoCore::core::quarter_pi;
 using GeoCore::linear::Point2;
 using GeoCore::linear::Transform2;
+using GeoCore::linear::Transform2T;
+using GeoCore::linear::Transform2f;
 using GeoCore::linear::Vector2;
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][transform2]") {
+    // 同 vector4_test.cpp：Transform2f 此前零命中，误绑定不会被断言发现。
+    STATIC_REQUIRE(std::is_same_v<Transform2f, Transform2T<float>>);
+}
 
 TEST_CASE("2D translation moves positions only", "[linear][transform2]") {
     const Transform2 t = Transform2::translation(Vector2{5.0, 7.0});

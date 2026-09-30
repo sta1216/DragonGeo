@@ -128,7 +128,6 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
     // 左手系 —— 同样拒绝
     CHECK_FALSE(Coordinate3::from_axes(o, x, y, -z).has_value());
 
-    // >>> sweep-add
     // 三对点积是三条独立的子表达式，只有 x·y 这一对有证据是不够的：
     // 与 x 斜交的第三条轴、与 y 斜交的第三条轴，各来一份。
     CHECK_FALSE(Coordinate3::from_axes(o, x, y, unit(0.6, 0.0, 0.8)).has_value());
@@ -170,7 +169,6 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
     CHECK(Coordinate3::from_axes(o, x, unit(sine, cosine, 0.0), z, loose).has_value());
     CHECK(Coordinate3::from_axes(o, x, y, unit(sine, 0.0, cosine), loose).has_value());
     CHECK(Coordinate3::from_axes(o, x, y, unit(0.0, sine, cosine), loose).has_value());
-    // <<< sweep-add
 }
 
 TEST_CASE("the orientation check rejects every left-handed arrangement",
@@ -392,7 +390,6 @@ TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate3]
     const Vector3 parent_direction{1.0, 2.0, 3.0};
     CHECK(frame->to_local(frame->to_parent(parent_direction)) == parent_direction);
 
-    // >>> sweep-add
     // 上面那个标架有一半系数的**零**：x = (0,1,0)、y = (-1,0,0)、z = (0,0,1)。
     // 于是 `to_parent` 的九项里，像 `z_.x() * local.z` 这样的项恒为零 ——
     // 整个删掉也看不出来（实测：删掉 row x 的 z 项，全文件只有这一处能抓，
@@ -429,7 +426,6 @@ TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate3]
     CHECK(dense->to_parent(dense->to_local(dense_local)).x == Approx(1.0));
     CHECK(dense->to_parent(dense->to_local(dense_local)).y == Approx(2.0));
     CHECK(dense->to_parent(dense->to_local(dense_local)).z == Approx(3.0));
-    // <<< sweep-add
 }
 
 TEST_CASE("only a rigid transform is a coordinate frame",
@@ -453,7 +449,6 @@ TEST_CASE("only a rigid transform is a coordinate frame",
 
     CHECK(Coordinate3::from_transform(Transform3::identity()).has_value());
 
-    // >>> sweep-add
     // 只有 origin 被钉住是不够的：一个「原点取平移列、三轴直接给标准基」的
     // 实现能通过上面全部四条。下面把旋转出来的轴逐分量钉死。
     REQUIRE(rigid.has_value());
@@ -523,7 +518,6 @@ TEST_CASE("only a rigid transform is a coordinate frame",
     CHECK(moved->x_axis().x() == 1.0);
     CHECK(moved->y_axis().y() == 1.0);
     CHECK(moved->z_axis().z() == 1.0);
-    // <<< sweep-add
 }
 
 TEST_CASE("from_axes and from_transform thread their tolerance through",

@@ -3,12 +3,21 @@
 
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #include <GeoCore/linear/UnitVector2.hpp>
 
 using Catch::Approx;
 
+using GeoCore::linear::UnitVector2T;
+using GeoCore::linear::UnitVector2f;
 using GeoCore::linear::Vector2;
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][unitvector2]") {
+    // 同 vector4_test.cpp：UnitVector2f 此前零命中，误绑定不会被断言发现。
+    STATIC_REQUIRE(std::is_same_v<UnitVector2f, UnitVector2T<float>>);
+}
 
 TEST_CASE("normalize produces a unit-length 2D vector", "[linear][unitvector2]") {
     const auto result = Vector2{3.0, 4.0}.normalized();

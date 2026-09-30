@@ -34,8 +34,9 @@ are listed as planned in the table above.
   Every entry point that needs a threshold takes a `core::Tolerance`.
 - **Types carry invariants** *(partly shipped)*. `UnitVector` is already a
   distinct type from `Vector`, so scaling one is a visible change of return
-  type. The `Point`/`Vector` split belongs to the `prim` layer, which is
-  planned rather than present.
+  type. `Point` is likewise split from `Vector` (both live in `linear`), so
+  adding two points does not compile, and every `Coordinate` construction
+  path validates the frame it builds.
 
 See `docs/superpowers/specs/` for the full design.
 
@@ -87,11 +88,11 @@ int main() {
     const Vector3 a{1.0, 2.0, 3.0};
     const Vector3 b{4.0, 5.0, 6.0};
 
-    std::cout << dot(a, b) << '\n';   // 32
+    std::cout << a.dot(b) << '\n';   // 32
 
     // 归一化返回 optional —— 零向量无解这一事实由类型表达，
     // 调用者无法忽略这个分支。
-    if (const auto unit = normalize(a)) {
+    if (const auto unit = a.normalized()) {
         std::cout << unit->as_vector().length() << '\n';   // 1
     }
 }
@@ -104,7 +105,7 @@ int main() {
 | Area | Status |
 |---|---|
 | `core` — 常量、数值工具、容差模型 | 完成 |
-| `linear` — `Vector2/3/4`、`UnitVector2/3`、`Matrix2/3/4`、`Quaternion`、`Transform2/3` | 完成 |
+| `linear` — `Vector2/3/4`、`UnitVector2/3`、`Matrix2/3/4`、`Quaternion`、`Transform2/3`、`Point2/3`、`Interval`、`Box2/3`、`Coordinate2/3`、`OrientedBox2/3` | 完成 |
 | `predicates` — 精确方向 / 内切圆判定 | 计划 2 |
 | `prim` / `query` — 几何原语与求交查询 | 计划 3 |
 | `polygon` / `mesh` / `solid` 接口骨架 | 计划 4 |

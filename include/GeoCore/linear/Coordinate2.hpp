@@ -115,8 +115,7 @@ public:
         const UnitVector2T<Scalar> y = UnitVector2T<Scalar>::from_normalized_unchecked(
             Vector2T<Scalar>{m.data[0][1], m.data[1][1]});
 
-        const Vector2T<Scalar> moved = transform.apply(Vector2T<Scalar>{});
-        return from_axes(Point2T<Scalar>{moved.x, moved.y}, x, y, tolerance);
+        return from_axes(transform.transform_point(Point2T<Scalar>{}), x, y, tolerance);
     }
 
     /// 原点。

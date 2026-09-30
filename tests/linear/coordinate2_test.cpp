@@ -107,7 +107,6 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
     // 两轴重合是最极端的斜交：x·y = 1。
     CHECK_FALSE(Coordinate2::from_axes(o, x, x).has_value());
 
-    // >>> sweep-add
     // 轴的**长度**也要校验（`from_normalized_unchecked` 是公开的，不校验就等于
     // 留了一条能造出「拉伸 2 倍」的坐标系的路径）。这一对刻意让叉积保持为正：
     // 二维的叉积检查只看符号，拉伸/压缩在它眼里完全一样 —— 只有长度校验能拦下。
@@ -135,7 +134,6 @@ TEST_CASE("a coordinate frame cannot be built from non-orthogonal axes",
     // 反证：同一档容差下一个正常的单位标架照样被接受 —— 否则上面那一格可能
     // 只是「容差大到什么都拒」的副作用。
     CHECK(Coordinate2::from_axes(o, x, y, absurd).has_value());
-    // <<< sweep-add
 }
 
 TEST_CASE("coordinate frame round-trips a point", "[linear][coordinate2]") {
@@ -183,7 +181,6 @@ TEST_CASE("from_x_axis completes y as x rotated 90 degrees counter-clockwise",
     CHECK(flipped->y_axis().x() == Approx(0.0).margin(1e-15));
     CHECK(flipped->y_axis().y() == Approx(-1.0));
 
-    // >>> sweep-add
     // **非单位的 x 必须被拒绝。** 补全公式只用得到 x 的方向，对长度一无所知：
     // 不放行校验，`from_normalized_unchecked({2,0})`（公开接口）就会补出一组
     // 长度都是 2 的轴 —— 一个把几何拉伸 2 倍的「坐标系」，正是本任务要堵死的那类
@@ -205,7 +202,6 @@ TEST_CASE("from_x_axis completes y as x rotated 90 degrees counter-clockwise",
     // 非有限轴同样拒绝。
     const double nan = std::numeric_limits<double>::quiet_NaN();
     CHECK_FALSE(Coordinate2::from_x_axis(Point2{0.0, 0.0}, unit(nan, 0.0)).has_value());
-    // <<< sweep-add
 }
 
 TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate2]") {
@@ -248,7 +244,6 @@ TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate2]
     const Vector2 parent_direction{1.0, 2.0};
     CHECK(frame->to_local(frame->to_parent(parent_direction)) == parent_direction);
 
-    // >>> sweep-add
     // 上面那个标架的两根轴各有一个零分量（x = (0,1)、y = (-1,0)），于是
     // `to_parent` 四项里的 `x_.x() * local.x` 与 `y_.y() * local.y` 恒为零 ——
     // 整个删掉也看不出来。换一个四个系数都非零的标架（x = (0.6,0.8)，
@@ -271,7 +266,6 @@ TEST_CASE("to_parent and to_local carry the whole frame", "[linear][coordinate2]
     // 往返（这个标架下两个方向都要走一遍）。
     CHECK(dense->to_parent(dense->to_local(Point2{1.0, 2.0})).x == Approx(1.0));
     CHECK(dense->to_parent(dense->to_local(Point2{1.0, 2.0})).y == Approx(2.0));
-    // <<< sweep-add
 }
 
 TEST_CASE("only a rigid transform is a coordinate frame",
@@ -292,7 +286,6 @@ TEST_CASE("only a rigid transform is a coordinate frame",
 
     CHECK(Coordinate2::from_transform(Transform2::identity()).has_value());
 
-    // >>> sweep-add
     // 只有 origin 被钉住是不够的：一个「原点取平移列、两轴直接给标准基」的实现
     // 能通过上面全部四条。把旋转出来的轴逐分量钉死。
     CHECK(rigid->x_axis().x() == Approx(0.0).margin(1e-15));
@@ -330,7 +323,6 @@ TEST_CASE("only a rigid transform is a coordinate frame",
     CHECK(moved->origin() == Point2{-4.0, 7.0});
     CHECK(moved->x_axis().x() == 1.0);
     CHECK(moved->y_axis().y() == 1.0);
-    // <<< sweep-add
 }
 
 TEST_CASE("from_axes and from_transform thread their tolerance through",

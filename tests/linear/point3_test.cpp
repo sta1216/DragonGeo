@@ -76,6 +76,16 @@ TEST_CASE("Point3 keeps its declaration-level guarantees",
     // noexcept 是 Interfaces 的明文承诺，也要有证据。
     STATIC_REQUIRE(noexcept(Point3{}.distance_to(Point3{})));
 
+    // 同 point2_test.cpp：其余 7 处 noexcept 也要有证据，逐条都有死亡证明。
+    const Point3 sample{1.0, 2.0, 3.0};
+    STATIC_REQUIRE(noexcept(Point3{}.operator[](0)));   // 非 const 重载
+    STATIC_REQUIRE(noexcept(sample[0]));                // const 重载
+    STATIC_REQUIRE(noexcept(Point3{}.to_array()));
+    STATIC_REQUIRE(noexcept(sample + Vector3{1.0, 2.0, 3.0}));
+    STATIC_REQUIRE(noexcept(sample - Vector3{1.0, 2.0, 3.0}));
+    STATIC_REQUIRE(noexcept(sample - sample));
+    STATIC_REQUIRE(noexcept(sample == sample));
+
     // 默认成员初始化值 `Scalar x{}` —— **用常量求值钉，不要用类型特征**。
     // `!is_trivially_default_constructible_v` 看着聪明，实际是**恒真**的：
     // 去掉一个分量的 NSDMI 之后，另外两个还在，构造函数依然非平凡，断言照样

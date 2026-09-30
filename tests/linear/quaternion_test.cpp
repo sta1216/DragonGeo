@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
@@ -13,11 +14,19 @@ using GeoCore::core::half_pi;
 using GeoCore::core::Tolerance;
 using GeoCore::linear::Matrix3;
 using GeoCore::linear::Quaternion;
+using GeoCore::linear::QuaternionT;
+using GeoCore::linear::Quaternionf;
 using GeoCore::linear::UnitVector3;
 using GeoCore::linear::Vector3;
 
 namespace {
 const UnitVector3 z_axis = UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0});
+}
+
+TEST_CASE("the float alias really is the float instantiation",
+          "[linear][quaternion]") {
+    // 同 vector4_test.cpp：Quaternionf 此前零命中，误绑定不会被断言发现。
+    STATIC_REQUIRE(std::is_same_v<Quaternionf, QuaternionT<float>>);
 }
 
 TEST_CASE("default-constructed quaternion is the identity rotation",

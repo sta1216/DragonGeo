@@ -15,7 +15,7 @@ template <typename Scalar> class UnitVector2T;
 /// 二维向量：纯代数载体，不含任何几何语义。
 ///
 /// 与 Point2 的区别是语义而非存储 —— 两个点相加没有意义，因此
-/// 类型系统不允许它。（Point2 属于 prim 层。）
+/// 类型系统不允许它。（Point2 与本类型同处 linear 层。）
 template <typename Scalar>
 struct Vector2T {
     using scalar_type = Scalar;

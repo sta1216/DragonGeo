@@ -143,8 +143,7 @@ public:
         const UnitVector3T<Scalar> z = UnitVector3T<Scalar>::from_normalized_unchecked(
             Vector3T<Scalar>{m.data[0][2], m.data[1][2], m.data[2][2]});
 
-        const Vector3T<Scalar> moved = transform.apply(Vector3T<Scalar>{});
-        return from_axes(Point3T<Scalar>{moved.x, moved.y, moved.z}, x, y, z, tolerance);
+        return from_axes(transform.transform_point(Point3T<Scalar>{}), x, y, z, tolerance);
     }
 
     /// 原点。

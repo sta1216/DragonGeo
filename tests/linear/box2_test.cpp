@@ -21,7 +21,6 @@ using GeoCore::linear::Vector2;
 TEST_CASE("the float alias really is the float instantiation", "[linear][box2]") {
     STATIC_REQUIRE(std::is_same_v<Box2f, Box2T<float>>);
 
-    // >>> sweep-add
     // 与 Task 4/5 同一条判据：**两个实例化都要钉**。只钉 float 时，一个把
     // `Box2` 绑到 `Box2T<float>`（或反之）的写法照样全绿。
     STATIC_REQUIRE(std::is_same_v<Box2, Box2T<double>>);
@@ -32,7 +31,6 @@ TEST_CASE("the float alias really is the float instantiation", "[linear][box2]")
     // 加一个构造函数就悄悄丢掉它，而本文件里处处都在用聚合初始化。
     STATIC_REQUIRE(std::is_aggregate_v<Box2T<double>>);
     STATIC_REQUIRE(std::is_aggregate_v<Box2T<float>>);
-    // <<< sweep-add
 }
 
 TEST_CASE("an empty box contains nothing and merges as identity",
@@ -72,13 +70,11 @@ TEST_CASE("box corners pin every index bit", "[linear][box2]") {
     CHECK(box.half_extent() == Vector2{0.5, 1.0});
     CHECK(box.extent() == Vector2{1.0, 2.0});
 
-    // >>> sweep-add
     // 二维只有四个索引，上面的两条单位置位之外没有别的组合可补；补的是
     // 两条**自指**的边界：corner(3) 必须是 max、corner(0) 必须是 min。
     // 非均匀盒（1,2）让轴向互换、甚至单个分量的交叉引用都无处可藏。
     CHECK(box.corner(3) == box.max);
     CHECK(box.corner(0) == box.min);
-    // <<< sweep-add
 }
 
 TEST_CASE("box overlap is closed and empty boxes intersect nothing",
@@ -112,7 +108,6 @@ TEST_CASE("box extent and center are defined on the empty box",
     CHECK(Box2{Point2{1e308, 0.0}, Point2{1e308, 0.0}}.center().x == 1e308);
     CHECK(Box2{Point2{-1e308, 0.0}, Point2{1e308, 0.0}}.center().x == 0.0);
 
-    // >>> sweep-add
     // 上面两条只钉住 x。`(min+max)*0.5` 与 `min+(max-min)*0.5` 这两个溢出陷阱
     // 在 y 上是**独立的**代码路径（逐分量写出来就是两段独立的算术），
     // 一条 x 的证据不能替 y 提供证据 —— 只把 y 写成溢出式照样全绿。
@@ -122,7 +117,6 @@ TEST_CASE("box extent and center are defined on the empty box",
     // 空盒的半测度同样是 0（空集的测度是 0，它的一半也是 0）。
     // 少了 `extent()` 那道判空而直写 `(max - min) * 0.5` 会得到 -inf。
     CHECK(Box2::empty().half_extent() == Vector2{0.0, 0.0});
-    // <<< sweep-add
 }
 
 TEST_CASE("merged and expanded keep the canonical empty box",
@@ -140,7 +134,6 @@ TEST_CASE("merged and expanded keep the canonical empty box",
     // 空盒膨胀后仍是空盒，不会变成整个空间。
     CHECK(Box2::empty().expanded(1.0) == Box2::empty());
 
-    // >>> sweep-add
     // 上面 `a.merged(b)` 的两个操作数都是**关于原点对称**的（min = -max），
     // 于是四个结果分量里每一对都各自相等，某个分量取错操作数完全看不出来。
     // 下面这组：p 与 q 的四个分量互不相同、且**每一项的赢家混合来自双方**
@@ -175,7 +168,6 @@ TEST_CASE("merged and expanded keep the canonical empty box",
     const Box2 grown_empty = non_canonical_empty.expanded(1.0);
     CHECK(grown_empty.is_empty());
     CHECK(grown_empty == Box2::empty());
-    // <<< sweep-add
 }
 
 TEST_CASE("from_corners accepts the two corners in either order",
@@ -187,7 +179,6 @@ TEST_CASE("from_corners accepts the two corners in either order",
     CHECK(forward.min == Point2{0.0, 0.0});
     CHECK(forward.max == Point2{1.0, 2.0});
 
-    // >>> sweep-add
     // 上面两条只覆盖「整个点整体顺序正确 / 整体反序」两种输入，它们**区分不出**
     // 「按某一个分量决定要不要交换两个点」（整点交换）与「逐分量取 min/max」：
     // 一个 `a.x <= b.x ? Box2{a,b} : Box2{b,a}` 的实现让上面三条全部通过。
@@ -196,7 +187,6 @@ TEST_CASE("from_corners accepts the two corners in either order",
     CHECK_FALSE(mixed.is_empty());   // 整点交换会得到一个 y 倒置的空盒
     CHECK(mixed.min == Point2{0.0, 0.0});
     CHECK(mixed.max == Point2{1.0, 2.0});
-    // <<< sweep-add
 }
 
 TEST_CASE("box equality has evidence in every component",
@@ -251,7 +241,6 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     CHECK_FALSE(at_infinity.is_empty());
     CHECK(std::isnan(at_infinity.extent().x));
 
-    // >>> sweep-add
     // 上面两条只钉住 x 分量的 NaN。谓词是两个分量的**析取**，把 y 分量漏掉
     // （`!(min.x <= max.x)`）在 x 那一条上照样是真的 —— 而漏判的后果是
     // 这一格谎称「非空」。
@@ -280,7 +269,6 @@ TEST_CASE("the empty predicate is total, including on non-finite input",
     // 一个只在「空输入 + NaN 增量」这一格上偏离的实现在其余各格上与正确实现
     // **逐位相同**，只有这里看得见。
     CHECK(Box2::empty().expanded(nan) == Box2::empty());
-    // <<< sweep-add
 }
 
 TEST_CASE("the consumers agree with the total empty predicate",
@@ -311,7 +299,6 @@ TEST_CASE("the consumers agree with the total empty predicate",
     CHECK(nan_box.merged(non_canonical_empty) == Box2::empty());
     CHECK(non_canonical_empty.merged(nan_box) == Box2::empty());
 
-    // >>> sweep-add
     // 空盒的测度是 0，含 NaN 的空盒也一样 —— `extent()` 的守卫若从全函数
     // 谓词退化成 `min.x > max.x`，这一格会返回 `NaN - NaN` 而不是 0。
     CHECK(nan_box.extent() == Vector2{0.0, 0.0});
@@ -326,10 +313,8 @@ TEST_CASE("the consumers agree with the total empty predicate",
     // 少了 `if (other.is_empty()) return *this;` 会退化成逐分量取外扩，
     // 于是把 `{-1,-1}` 这个**假的** max 端吃进结果里。
     CHECK(normal.merged(non_canonical_empty) == normal);
-    // <<< sweep-add
 }
 
-// >>> sweep-add
 TEST_CASE("the canonical empty box is pinned component by component",
           "[linear][box2]") {
     // 规范表示是本任务的关键约定（Task 8 明写依赖它）。只断言
@@ -579,4 +564,3 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE(Box2T<double>::from_corners(inner_min, inner_max).max.y == 1.0);
     STATIC_REQUIRE(box == box);
 }
-// <<< sweep-add
