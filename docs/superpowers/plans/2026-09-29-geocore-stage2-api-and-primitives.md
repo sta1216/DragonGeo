@@ -2154,6 +2154,20 @@ README 的 quick start 改用成员形式（`a.dot(b)`、`a.normalized()`），�
 
 **顺带修**（Task 1 的复核留下的）：`examples/vector_basics.cpp:39` 打印的字符串 `"normalize(zero) correctly returned nullopt"` 里那个函数名已不存在，改成 `normalized`。
 
+- [ ] **Step 1d: 清掉测试文件里的工具标记**
+
+开发期有几轮实现者用 `// >>> sweep-add` / `// <<< sweep-add` 标记「超出计划逐字文本的断言」，以便抽出来与计划逐字节比对。**这套约定已经混进公共仓库**：`tests/linear/` 下五个文件共 **58 行**（`box2_test.cpp` 16、`box3_test.cpp` 16、`interval_test.cpp` 12、`coordinate2_test.cpp` 8、`coordinate3_test.cpp` 6）。
+
+它们是**控制侧的工具产物，不是库的文档**，而且其中一条还带着面向工具的中文说明（提到「与计划文本逐字节比对」）—— 读测试的人看到只会困惑。**请只删标记行本身，标记对之间那些解释断言的注释全部保留**（它们是有价值的）。
+
+```bash
+grep -rn "sweep-add" tests/          # 删之前先看清楚
+# 删除形如  `    // >>> sweep-add`  与  `    // <<< sweep-add`  的整行
+grep -rn "sweep-add" tests/          # 删之后必须为空
+```
+
+注意工作区是 CRLF，用能正确处理行尾符的方式删除（Python 的 universal newlines 或 sed 均可），别把整文件的行尾改掉。
+
 - [ ] **Step 1c: 给全库每一个类型别名补一条绑定断言（含阶段 1 的）**
 
 **背景（已实测，不是推测）**：把 `Point3f` 绑成 `Point3T<double>`，全库 134 个用例全绿、退出码 0。原因是别名若未被任何测试**命名**，其成员连一次实例化都不会发生。全库审计结果：
