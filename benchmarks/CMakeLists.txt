@@ -10,5 +10,5 @@ set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)   # 别把第三方的 install 规则带进我们的安装包
 FetchContent_MakeAvailable(GoogleBenchmark)
 
-add_executable(GeoCoreBenchmarks linear_benchmarks.cpp)
-target_link_libraries(GeoCoreBenchmarks PRIVATE GeoCore::GeoCore benchmark::benchmark)
+add_executable(DragonGeoBenchmarks LinearBenchmarks.cpp)
+target_link_libraries(DragonGeoBenchmarks PRIVATE DragonGeo::DragonGeo benchmark::benchmark)

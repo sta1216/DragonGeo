@@ -1,8 +1,8 @@
-add_executable(hello_geocore hello_geocore.cpp)
-target_link_libraries(hello_geocore PRIVATE GeoCore::GeoCore)
+add_executable(HelloDragonGeo HelloDragonGeo.cpp)
+target_link_libraries(HelloDragonGeo PRIVATE DragonGeo::DragonGeo)
 
-add_executable(vector_basics vector_basics.cpp)
-target_link_libraries(vector_basics PRIVATE GeoCore::GeoCore)
+add_executable(VectorBasics VectorBasics.cpp)
+target_link_libraries(VectorBasics PRIVATE DragonGeo::DragonGeo)
 
-add_executable(transform_pipeline transform_pipeline.cpp)
-target_link_libraries(transform_pipeline PRIVATE GeoCore::GeoCore)
+add_executable(TransformPipeline TransformPipeline.cpp)
+target_link_libraries(TransformPipeline PRIVATE DragonGeo::DragonGeo)

@@ -1,5 +1,7 @@
 # GeoCore 阶段 1：工程地基与数值核心 实施计划
 
+> **项目已更名为 DragonGeo。** 本文件是更名之前的实施记录，文中的 GeoCore 是当时的项目名。现行设计见 `docs/superpowers/specs/2026-09-29-dragongeo-design.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 建立 GeoCore 的构建 / 测试 / CI 地基，并完整实现 `core` 与 `linear` 两层 —— 使使用者能用上向量、单位向量、矩阵、四元数与仿射变换。
@@ -8,7 +10,7 @@
 
 **Tech Stack:** C++20 · CMake ≥ 3.20 · Catch2 v3（经 FetchContent 引入，仅开发期依赖）· GitHub Actions · Visual Studio 2022 / GCC / Clang / AppleClang。
 
-**Spec:** `docs/superpowers/specs/2026-09-29-geocore-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-29-dragongeo-design.md`
 
 ## Global Constraints
 

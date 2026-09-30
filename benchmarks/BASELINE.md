@@ -1,6 +1,6 @@
-# GeoCore 线性代数基准基线
+# DragonGeo 线性代数基准基线
 
-阶段 2 的可执行基线：`benchmarks/linear_benchmarks.cpp` 覆盖会被上层高频调用的
+阶段 2 的可执行基线：`benchmarks/LinearBenchmarks.cpp` 覆盖会被上层高频调用的
 线性代数原子操作。**基准数字脱离环境没有意义**，所以先固定环境，再谈数字。
 
 ## 环境与构建配置
@@ -24,9 +24,9 @@ catalog_productDisplayVersion` 读出。**命令行构建时 MSBuild 自报的 `
 复现命令（Git Bash，仓库根目录）：
 
 ```bash
-cmake --preset windows-vs -DGEOCORE_BUILD_BENCHMARKS=ON
-cmake --build --preset windows-vs-release --target GeoCoreBenchmarks
-./build/windows-vs/benchmarks/Release/GeoCoreBenchmarks.exe --benchmark_min_time=0.5s
+cmake --preset windows-vs -DDRAGONGEO_BUILD_BENCHMARKS=ON
+cmake --build --preset windows-vs-release --target DragonGeoBenchmarks
+./build/windows-vs/benchmarks/Release/DragonGeoBenchmarks.exe --benchmark_min_time=0.5s
 ```
 
 ## 基线结果
@@ -38,50 +38,50 @@ cmake --build --preset windows-vs-release --target GeoCoreBenchmarks
 ---------------------------------------------------------------------
 Benchmark                           Time             CPU   Iterations
 ---------------------------------------------------------------------
-bench_empty                     0.464 ns        0.460 ns   1493333333
-bench_dot                        1.65 ns         1.65 ns    407272727
-bench_cross                      1.86 ns         1.84 ns    373333333
-bench_length                     6.51 ns         6.56 ns    112000000
-bench_normalized                 8.72 ns         8.72 ns     89600000
-bench_subscript                  2.10 ns         2.09 ns    344615385
-bench_matrix_vector              3.26 ns         3.22 ns    213333333
-bench_matrix_inverse             51.2 ns         51.6 ns     10000000
-bench_quaternion_rotate          2.92 ns         2.93 ns    224000000
-bench_box_contains               1.99 ns         1.99 ns    344615385
-bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
+BenchEmpty                     0.464 ns        0.460 ns   1493333333
+BenchDot                        1.65 ns         1.65 ns    407272727
+BenchCross                      1.86 ns         1.84 ns    373333333
+BenchLength                     6.51 ns         6.56 ns    112000000
+BenchNormalized                 8.72 ns         8.72 ns     89600000
+BenchSubscript                  2.10 ns         2.09 ns    344615385
+BenchMatrixVector              3.26 ns         3.22 ns    213333333
+BenchMatrixInverse             51.2 ns         51.6 ns     10000000
+BenchQuaternionRotate          2.92 ns         2.93 ns    224000000
+BenchBoxContains               1.99 ns         1.99 ns    344615385
+BenchCoordinateToParent       2.33 ns         2.34 ns    320000000
 ```
 
-同一二进制复跑（审查后重跑确认量级不变）：`bench_empty` 0.436、`bench_dot` 1.52、
-`bench_cross` 1.76、`bench_length` 6.20、`bench_normalized` 7.92、`bench_subscript`
-1.98、`bench_matrix_vector` 3.07、`bench_matrix_inverse` 48.5、
-`bench_quaternion_rotate` 2.82、`bench_box_contains` 1.93、
-`bench_coordinate_to_parent` 2.21 ns。
+同一二进制复跑（审查后重跑确认量级不变）：`BenchEmpty` 0.436、`BenchDot` 1.52、
+`BenchCross` 1.76、`BenchLength` 6.20、`BenchNormalized` 7.92、`BenchSubscript`
+1.98、`BenchMatrixVector` 3.07、`BenchMatrixInverse` 48.5、
+`BenchQuaternionRotate` 2.82、`BenchBoxContains` 1.93、
+`BenchCoordinateToParent` 2.21 ns。
 
 ## 反空转验证
 
 这一节要防的是**假快**，不是假慢。一个被常量传播掉的基准会给出零点几纳秒的
 漂亮数字，而"越快越好"的直觉会把它当成好消息。所以数字之下必须先有证据。
 
-### 1. 零点：`bench_empty`
+### 1. 零点：`BenchEmpty`
 
-`bench_empty` = 空循环 + 一次 `DoNotOptimize(sink)`，**0.464 ns**。它是这套
+`BenchEmpty` = 空循环 + 一次 `DoNotOptimize(sink)`，**0.464 ns**。它是这套
 基准的分辨率下限：比它明显快的东西只能是"编译器把活干掉了"。
 
 ### 2. 各基准与零点的比值
 
-| 基准 | Time | 相对 `bench_empty` |
+| 基准 | Time | 相对 `BenchEmpty` |
 | --- | --- | --- |
-| bench_empty | 0.464 ns | 1.0× |
-| bench_dot | 1.65 ns | 3.6× |
-| bench_cross | 1.86 ns | 4.0× |
-| bench_subscript | 2.10 ns | 4.5× |
-| bench_box_contains | 1.99 ns | 4.3× |
-| bench_coordinate_to_parent | 2.33 ns | 5.0× |
-| bench_quaternion_rotate | 2.92 ns | 6.3× |
-| bench_matrix_vector | 3.26 ns | 7.0× |
-| bench_length | 6.51 ns | 14.0× |
-| bench_normalized | 8.72 ns | 18.8× |
-| bench_matrix_inverse | 51.2 ns | 110× |
+| BenchEmpty | 0.464 ns | 1.0× |
+| BenchDot | 1.65 ns | 3.6× |
+| BenchCross | 1.86 ns | 4.0× |
+| BenchSubscript | 2.10 ns | 4.5× |
+| BenchBoxContains | 1.99 ns | 4.3× |
+| BenchCoordinateToParent | 2.33 ns | 5.0× |
+| BenchQuaternionRotate | 2.92 ns | 6.3× |
+| BenchMatrixVector | 3.26 ns | 7.0× |
+| BenchLength | 6.51 ns | 14.0× |
+| BenchNormalized | 8.72 ns | 18.8× |
+| BenchMatrixInverse | 51.2 ns | 110× |
 
 **每个基准都明显慢于零点**（最接近的 `dot` 也有 3.6×），没有出现"零点几纳秒"
 那一类被折叠的信号。
@@ -98,21 +98,21 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 的算式替换成一个**平凡表达式**，保持 `DoNotOptimize` 的次数与实参类型完全同形，
 其余一字不动。若耗时几乎不变，原基准测的就是空气；耗时之差才是算式本身的成本。
 
-探针跑在同一二进制里（探针版临时加进 `linear_benchmarks.cpp`，测完已撤回；
-下面右列是探针版的实测值，该次运行 `bench_empty` 为 0.471 ns）：
+探针跑在同一二进制里（探针版临时加进 `LinearBenchmarks.cpp`，测完已撤回；
+下面右列是探针版的实测值，该次运行 `BenchEmpty` 为 0.471 ns）：
 
 | 基准 | 原样 | 同形平凡探针 | 差值 = 算式本身 | 判断 |
 | --- | --- | --- | --- | --- |
-| bench_dot | 1.61 ns | 1.38 ns | **0.23 ns** | 算式未被消除，但已被屏障盖住 |
-| bench_cross | 1.81 ns | 1.37 ns | 0.44 ns | 同上，接近分辨率下限 |
-| bench_subscript | 2.10 ns | 0.978 ns | 1.12 ns | 可测 |
-| bench_length | 6.74 ns | 0.944 ns | 5.80 ns | 可测 |
-| bench_normalized | 8.53 ns | 0.902 ns | 7.63 ns | 可测 |
-| bench_matrix_vector | 3.25 ns | 1.38 ns | 1.87 ns | 可测 |
-| bench_matrix_inverse | 51.3 ns | 0.913 ns | 50.4 ns | 可测 |
-| bench_quaternion_rotate | 3.08 ns | 1.44 ns | 1.64 ns | 可测 |
-| bench_box_contains | 2.03 ns | 1.62 ns | 0.41 ns | 接近分辨率下限 |
-| bench_coordinate_to_parent | 2.33 ns | 1.37 ns | 0.96 ns | 可测 |
+| BenchDot | 1.61 ns | 1.38 ns | **0.23 ns** | 算式未被消除，但已被屏障盖住 |
+| BenchCross | 1.81 ns | 1.37 ns | 0.44 ns | 同上，接近分辨率下限 |
+| BenchSubscript | 2.10 ns | 0.978 ns | 1.12 ns | 可测 |
+| BenchLength | 6.74 ns | 0.944 ns | 5.80 ns | 可测 |
+| BenchNormalized | 8.53 ns | 0.902 ns | 7.63 ns | 可测 |
+| BenchMatrixVector | 3.25 ns | 1.38 ns | 1.87 ns | 可测 |
+| BenchMatrixInverse | 51.3 ns | 0.913 ns | 50.4 ns | 可测 |
+| BenchQuaternionRotate | 3.08 ns | 1.44 ns | 1.64 ns | 可测 |
+| BenchBoxContains | 2.03 ns | 1.62 ns | 0.41 ns | 接近分辨率下限 |
+| BenchCoordinateToParent | 2.33 ns | 1.37 ns | 0.96 ns | 可测 |
 
 **没有一个基准的差值为零**，即每一处算式都真的在循环里执行了。
 
@@ -121,16 +121,16 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 时序证据之外，直接把基准 TU 编到汇编（`cl /O2 /FAs`，产物在 `build/asm_probe/`，
 不进仓库）核对循环体：
 
-- `bench_dot` 的循环里是 **6 次 `movsd` 内存加载 + 3 次 `mulsd` + 2 次 `addsd`**，
+- `BenchDot` 的循环里是 **6 次 `movsd` 内存加载 + 3 次 `mulsd` + 2 次 `addsd`**，
   从 `a`、`b` 的栈槽真读真算，最后把结果写进临时槽 —— 没有折叠成常数 `32`。
   `DoNotOptimize(a)`/`DoNotOptimize(b)` 迫使两个向量留在栈上，阻断了常量传播。
-- `bench_length` 的循环里是 **3 次 `divsd` + `sqrtpd` + 一次对 `sqrt` 的非内联调用**。
-- `bench_matrix_inverse` 的 `inverse()` 没有内联，循环里是**每次迭代一次真实的
+- `BenchLength` 的循环里是 **3 次 `divsd` + `sqrtpd` + 一次对 `sqrt` 的非内联调用**。
+- `BenchMatrixInverse` 的 `inverse()` 没有内联，循环里是**每次迭代一次真实的
   出线调用**（返回 `std::optional<Matrix3>`），不存在被提出循环的迹象。
-- `bench_subscript` 的循环里是 **3 次非内联的 `call Vector3T<double>::operator[](int)`
+- `BenchSubscript` 的循环里是 **3 次非内联的 `call Vector3T<double>::operator[](int)`
   + 2 次屏障** —— 它的 2.1 ns 主要是**调用 + 屏障**开销，不是"下标访问本身的成本"
   （MSVC 没有内联这个成员）。
-- `bench_normalized` 的循环里有一次**非内联的 `call Vector3T<double>::length`**，
+- `BenchNormalized` 的循环里有一次**非内联的 `call Vector3T<double>::length`**，
   再叠加屏障。
 
 这解释了差值表的形状：`length`/`normalized` 的 6~9 ns 不是屏障开销，而是
@@ -145,14 +145,14 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 
 | 变体 | 实测 | 与提交版对比 | 判定 |
 | --- | --- | --- | --- |
-| `folded_dot`：字面量 `const` 输入、只 `DoNotOptimize` 结果（**计划原来的缺陷**） | 0.645 ns | 提交版 `bench_dot` 1.51 ns，快 2.3×，贴近零点 0.437 | **时序即可判定** |
+| `folded_dot`：字面量 `const` 输入、只 `DoNotOptimize` 结果（**计划原来的缺陷**） | 0.645 ns | 提交版 `BenchDot` 1.51 ns，快 2.3×，贴近零点 0.437 | **时序即可判定** |
 | `hoisted_dot`：算式提到循环外，循环内屏障形状不变 | 1.29 ns | 比提交版 1.51 ns 只快 15% | **时序判定不了，只能靠反汇编** |
-| `hoisted_length`：算式提到循环外 | 0.862 ns | 提交版 `bench_length` 6.19 ns，差 7.2× | 时序即可判定 |
+| `hoisted_length`：算式提到循环外 | 0.862 ns | 提交版 `BenchLength` 6.19 ns，差 7.2× | 时序即可判定 |
 | `hoisted_matrix_inverse`：算式提到循环外 | 0.879 ns | 提交版 50.2 ns，差 57× | 时序即可判定 |
 | `folded_length`：字面量输入、只 `DoNotOptimize` 结果 | 6.17 ns | 与提交版 6.19 ns 相同 | **该结构折叠不掉** |
 | `folded_matrix_inverse`：字面量输入、只 `DoNotOptimize` 结果 | 50.5 ns | 与提交版 50.2 ns 相同 | **该结构折叠不掉** |
 
-（这一轮校准里 `bench_empty` = 0.437 ns。审查者独立造的同款对照给出
+（这一轮校准里 `BenchEmpty` = 0.437 ns。审查者独立造的同款对照给出
 0.665 / 1.34 / 0.878 / 0.905 ns，与本表逐项一致，差异在运行波动之内。）
 
 三点结论，比单个数字有用：
@@ -168,7 +168,7 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 
 ### 6. 结论
 
-`bench_empty` 之上每一项都有可归因的真实成本，反证 A、B 与反面校准三者一致，
+`BenchEmpty` 之上每一项都有可归因的真实成本，反证 A、B 与反面校准三者一致，
 并且反面校准划清了"哪些基准时序就能判定、哪些只能靠反汇编"。本基线可作为后续
 阶段的回归参考。
 
@@ -191,15 +191,15 @@ bench_coordinate_to_parent       2.33 ns         2.34 ns    320000000
 4. **`length`/`normalized` 比 `dot` 贵一个数量级**（6.5 / 8.7 ns，差值 5.8 /
    7.6 ns），原因是防溢出的缩放算法本身要做 3 次除法，再加 sqrt。
    `length_squared()` 没有基准 —— 若上层只需要比较长度，用它。
-5. **`bench_subscript` 的 2.1 ns 是"调用 + 屏障"，不是"下标本身的成本"。**
+5. **`BenchSubscript` 的 2.1 ns 是"调用 + 屏障"，不是"下标本身的成本"。**
    反汇编显示它每次迭代要做 3 次**非内联的** `operator[](int)` 调用（MSVC 没内联
-   这个 `constexpr` 成员），外加 2 次 `DoNotOptimize` 屏障；`bench_normalized`
+   这个 `constexpr` 成员），外加 2 次 `DoNotOptimize` 屏障；`BenchNormalized`
    的循环里则有一次非内联的 `length()` 调用。数字是真的（探针差值为正），但
    解读时不要把 `subscript` 的 2 ns 当成"下标访问要 2 ns"。这与第 2 条"`dot`
    只有上界"是同一类诚实要求。
 6. **比值不是证明。** 见第 2 节的限定与第 5 节的反面校准：一个纯空气基准
    （1.29 ns ≈ 3.0× 零点）照样"明显慢于零点"。要判定某项没被优化掉，用
    `build/calib/` 那套反面校准，或直接看反汇编。
-7. **已知波动**：同一二进制重复运行，各项约 ±5%~8%（例：`bench_dot` 1.51~1.72 ns、
-   `bench_empty` 0.436~0.464 ns、`bench_matrix_inverse` 48.5~53.0 ns）。跑基线时
+7. **已知波动**：同一二进制重复运行，各项约 ±5%~8%（例：`BenchDot` 1.51~1.72 ns、
+   `BenchEmpty` 0.436~0.464 ns、`BenchMatrixInverse` 48.5~53.0 ns）。跑基线时
    关注趋势与数量级，别对着末位数字做判断。

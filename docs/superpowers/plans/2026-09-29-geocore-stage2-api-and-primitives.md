@@ -1,5 +1,7 @@
 # GeoCore 阶段 2：API 成员化与基础类型 实施计划
 
+> **项目已更名为 DragonGeo。** 本文件是更名之前的实施记录，文中的 GeoCore 是当时的项目名。现行设计见 `docs/superpowers/specs/2026-09-29-dragongeo-design.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 `linear` 层的具名运算从自由函数改为成员函数，并补齐 `Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3` 五组基础类型。
@@ -8,7 +10,7 @@
 
 **Tech Stack:** C++20 · CMake ≥ 3.20 · Catch2 v3（FetchContent）· 既有 `GeoCore::GeoCore` target。
 
-**Spec:** `docs/superpowers/specs/2026-09-29-geocore-design.md`（§3 分层、§5.0 linear 清单、§9 决策 15–17）
+**Spec:** `docs/superpowers/specs/2026-09-29-dragongeo-design.md`（§3 分层、§5.0 linear 清单、§9 决策 15–17）
 
 > **给负责派发的人：每次改动本文件之后，都要重新生成当前任务的 brief，并核对生成的文本确实含这次改动。**
 > brief 是从本文件抽出来的快照，`.superpowers/sdd/` 被 gitignore，**没有任何机制防止它漂移**。Task 4 的修复轮就踩过：计划已改，brief 仍是旧版，而派发时被口头告知「已重新生成」。实现者自己去比对才发现，若它照旧 brief 干活，补的断言会缺三条而无人察觉。
