@@ -265,6 +265,28 @@ TEST_CASE("expanded never produces a negative half extent",
     CHECK(unbounded.to_axis_aligned() == Box2::empty());
     // 反方向：`h.i + (-inf) = -inf`，夹取后全是 0 —— 与「收缩过头」同一条规则。
     CHECK(box.expanded(-infinity).half_extent == Vector2{0.0, 0.0});
+
+    // **`to_axis_aligned()` 的出口规范化**（与三维同名用例逐条对应）：上面那
+    // 个标架每一行都含 0（`0 * inf` 把角点毒成 NaN），得到的是**规范**空盒 ——
+    // 那是运气。单位标架 + 半轴 `(+inf, 2)` 给的是
+    // `min = (-inf,+inf)` / `max = (+inf,-inf)`：`is_empty()` 为真而
+    // `!= empty()`；`Box2T` 的不变量要求出口给出规范形式。
+    const OrientedBox2 mixed_inf{Coordinate2::identity(), Vector2{infinity, 2.0}};
+    CHECK(mixed_inf.to_axis_aligned().is_empty());
+    CHECK(mixed_inf.to_axis_aligned() == Box2::empty());
+
+    // 另一个极端（规范化**不**该动的情形）：45° 标架 + 全 +inf 半轴给出的是
+    // **整个平面**（实测 `min = (-inf,-inf)` / `max = (+inf,+inf)`），
+    // `is_empty()` 为假 → 原样返回；规范化只处理「空」这一种出口。
+    const auto x45 = Vector2{1.0, 1.0}.normalized();
+    REQUIRE(x45.has_value());
+    const auto frame45 = Coordinate2::from_x_axis(Point2{0.0, 0.0}, *x45);
+    REQUIRE(frame45.has_value());
+    const Box2 whole_plane =
+        OrientedBox2{*frame45, Vector2{infinity, infinity}}.to_axis_aligned();
+    CHECK_FALSE(whole_plane.is_empty());
+    CHECK(whole_plane.min.x == -infinity);
+    CHECK(whole_plane.max.x == infinity);
 }
 
 TEST_CASE("corner maps the local box through the frame",

@@ -279,6 +279,21 @@ TEST_CASE("expanded never produces a negative half extent",
     CHECK(unbounded.to_axis_aligned() == Box3::empty());
     // 反方向：`h.i + (-inf) = -inf`，夹取后全是 0 —— 与「收缩过头」同一条规则。
     CHECK(box.expanded(-infinity).half_extent == Vector3{0.0, 0.0, 0.0});
+
+    // **`to_axis_aligned()` 的出口规范化**：上面那个标架的每一行都含 0
+    // （`0 * inf` 把角点毒成 NaN），八个角全 NaN、min/max 留在初始的 ±inf 上，
+    // 于是**恰好**是规范空盒 —— 那是运气。一般标架不是这样：实测本用例的
+    // `from_z_axis(o, (1,1,1)/√3)` 给出 `min = (+inf,-inf,-inf)` /
+    // `max = (-inf,+inf,+inf)`，`is_empty()` 为真而 `!= empty()`。`Box3T`
+    // 的不变量是「凡是产出空盒的运算都必须给出规范形式」（`Box3T::expanded`
+    // / `IntervalT` 同一条规则），所以出口要显式规范化一次。
+    const auto general_z = Vector3{1.0, 1.0, 1.0}.normalized();
+    REQUIRE(general_z.has_value());
+    const auto general_frame = Coordinate3::from_z_axis(Point3{0.0, 0.0, 0.0}, *general_z);
+    REQUIRE(general_frame.has_value());
+    const OrientedBox3 general_inf{*general_frame, Vector3{infinity, infinity, infinity}};
+    CHECK(general_inf.to_axis_aligned().is_empty());
+    CHECK(general_inf.to_axis_aligned() == Box3::empty());
 }
 
 TEST_CASE("corner maps the local box through the frame",
@@ -447,8 +462,9 @@ TEST_CASE("containment's tolerance absorbs the local round trip",
     //   在各自「决定它在外」的那根轴上都有约 **36 ulp** 的余量（实测）；
     //   原点取 (0,0,0) 时只有 1 ulp —— 把 `to_local` 的结果整体下移 1 ulp
     //   （GCC/Clang 默认把 `x*ox + y*oy + z*oz` 收缩成 FMA，正是这个量级的
-    //   差异）就会让一个**完全正确**的实现在那一版上失败（实测：
-    //   `oriented_box3_test.cpp:432`）。本版对 32 ulp 的整体系下移仍然通过。
+    //   差异）就会让一个**完全正确**的实现在那一版上失败（实测：修前版本的
+    //   `oriented_box3_test.cpp:432`）。本版对 35 ulp 的整体系下移仍然通过
+    //   （K=36 才失败 —— 余量就是这 36 ulp）。
     const auto z = Vector3{1.0, 1.0, 1.0}.normalized();
     REQUIRE(z.has_value());
     const auto frame = Coordinate3::from_z_axis(Point3{1000.0, 1000.0, 1000.0}, *z);

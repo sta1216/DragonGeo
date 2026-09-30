@@ -67,8 +67,9 @@ struct OrientedBox2T {
     ///
     /// **半轴为 ±inf 同样不特判**：`+inf` 让右端恒大于任何有限的 `|local.i|`，
     /// 于是「什么都装得下」；`-inf` 让右端算出 NaN，于是「什么都装不下」。
-    /// 两者都不是合法状态。尤其 `+inf` 与 `to_axis_aligned()`（那边给**规范
-    /// 空盒**）**互相矛盾** —— 完整的说明在 `expanded` 的非有限半轴一节。
+    /// 两者都是**契约外**输入：`+inf` 与 `to_axis_aligned()` 给出的结果没有
+    /// 几何意义上的对应物（那一边的结果由标架决定）—— 见 `to_axis_aligned`
+    /// 与 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool contains(Point2T<Scalar> point,
                                           core::Tolerance tolerance = {}) const noexcept {
         const Point2T<Scalar> local = frame.to_local(point);
@@ -92,8 +93,15 @@ struct OrientedBox2T {
 
     /// 紧致的轴对齐包围盒。
     ///
-    /// 取**四个角**在父坐标系下的实际 min/max。两种常见替代写法都是错的，且
-    /// **错的方向相反**，测试对两者都有检出能力（各由不同的断言杀死）：
+    /// 取**四个角**在父坐标系下的实际 min/max；**结果为空则返回规范空盒**
+    /// （`Box2T` 的不变量：凡是产出空盒的运算都必须给出规范形式 —— 与
+    /// `Box2T::expanded` / `IntervalT` 同一条规则）。出口那一步规范化不是装饰：
+    /// 四个角的极值在非有限输入下会留下**非规范**的端点组合（实测
+    /// `min = (-inf,+inf)` / `max = (+inf,-inf)`：`is_empty()` 为真而
+    /// `!= empty()`）。
+    ///
+    /// 两种常见替代写法都是错的，且**错的方向相反**，测试对两者都有检出能力
+    /// （各由不同的断言杀死）：
     ///   - 用「包围球半径」（半轴向量长度 `|half_extent|`；边长 2 的正方形绕原点
     ///     转 45° 时是 √2）：旋转后**过松**；
     ///   - 只把中心变换过去、半轴沿用局部值（同一例子里是 1）：**过紧** ——
@@ -103,13 +111,16 @@ struct OrientedBox2T {
     /// 起点用 `Box2T::empty()`（其 `min = +inf` / `max = -inf`，使首轮比较自然
     /// 成立）。**不能改用零盒起步**：整体落在正卦限的盒子会得到 `min = 0`。
     ///
-    /// 半轴含 NaN **或 ±inf** 时四个角全是 NaN（`±inf` 的情形是 `to_parent` 里
-    /// `0 * inf` 的产物）、逐分量比较一律为假，每一个 min/max 分量都留在初始的
-    /// ±inf 上，于是返回**规范空盒** —— 「不含任何点」的诚实答案，
-    /// 与 `contains` 对 NaN 恒假同源。**注意 `+inf` 半轴下这里与 `contains`
-    /// 互相矛盾**（那边什么都收、这里是空盒，见 `expanded` 的非有限半轴一节）：
-    /// 这不是本成员的缺陷，是「±inf 半轴不是合法状态」在两个成员上的两种暴露
-    /// 方式。
+    /// **±inf 半轴是契约外输入**（`expanded(+inf)` 是一条可达路径）：角点里会
+    /// 出现 NaN 或 ±inf，极值取决于标架，结果不保证几何意义 —— 可能为空（此时
+    /// 按上面的规则给规范空盒）、也可能是整个空间。**不要**拿它跟
+    /// `Box2T::expanded(+inf)`（那边给**整个空间**）对齐：同一个词在两种类型上
+    /// 没有对等的语义，因为「无限大的有向盒」本身没有良定义。本成员只保证
+    /// 一件事：返回的永远是一个守规矩的 `Box2T`。
+    ///
+    /// 半轴含 NaN 时四个角全是 NaN、逐分量比较一律为假，min/max 各自留在初始的
+    /// ±inf 上（即规范空盒）——「不含任何点」的诚实答案，与 `contains` 对 NaN
+    /// 恒假同源。
     [[nodiscard]] constexpr Box2T<Scalar> to_axis_aligned() const noexcept {
         Box2T<Scalar> result = Box2T<Scalar>::empty();
         for (int i = 0; i < 4; ++i) {
@@ -119,7 +130,7 @@ struct OrientedBox2T {
             result.max.x = c.x > result.max.x ? c.x : result.max.x;
             result.max.y = c.y > result.max.y ? c.y : result.max.y;
         }
-        return result;
+        return result.is_empty() ? Box2T<Scalar>::empty() : result;
     }
 
     /// 逐分量把半轴加上 amount 并**夹到非负**：`max(0, half_extent.i + amount)`。
@@ -142,11 +153,13 @@ struct OrientedBox2T {
     ///     0 —— 本类型没有空盒可以落回，把非有限输入伪装成一个完全正常的退化盒
     ///     比留下 NaN 更危险。下游是确定的：`contains` 全假、`to_axis_aligned()`
     ///     给出规范空盒（见各自的文档）；
-    ///   - `amount = +inf`：这是一条**公开路径**（有限盒 + inf 增量），半轴全变成
-    ///     +inf。这样的盒 `contains` **什么都收**，`to_axis_aligned()` 却是**规范
-    ///     空盒** —— 两个说法互相矛盾。对照 `Box2T::expanded(+inf)`：那边给出的是
-    ///     **整个空间** `[-inf,+inf]²`。同一个语义在两个类型上给出相反答案，
-    ///     差别来自本类型**没有空盒**可以落回（见类文档），只能把矛盾暴露出来；
+    ///   - `amount = +inf`：这是一条**可达路径**（有限盒 + inf 增量），半轴全变成
+    ///     +inf。这样的盒 `contains` **什么都收**，而 `to_axis_aligned()` 的结果
+    ///     由标架决定（角点含 NaN / ±inf：可能为空 —— 此时按上面的规则给**规范**
+    ///     空盒 —— 也可能是整个平面），没有几何意义。**不要**拿它跟
+    ///     `Box2T::expanded(+inf)` 对齐：那边给出的是**整个空间** `[-inf,+inf]²`，
+    ///     而「无限大的有向盒」没有良定义（见 `to_axis_aligned` 的契约外输入
+    ///     一节）；
     ///   - `amount = -inf`：逐分量算出 `-inf`，夹取后全是 0 —— 与「收缩过头」
     ///     同一条规则，不再单列。
     ///
