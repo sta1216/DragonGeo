@@ -11,6 +11,7 @@ set(GEOCORE_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include
 
 option(GEOCORE_BUILD_TESTS "Build GeoCore tests" ON)
 option(GEOCORE_BUILD_EXAMPLES "Build GeoCore examples" ON)
+option(GEOCORE_BUILD_BENCHMARKS "Build GeoCore benchmarks" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,6 +42,10 @@ endif()
 
 if(GEOCORE_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+if(GEOCORE_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 # ---- 安装与导出 ----
