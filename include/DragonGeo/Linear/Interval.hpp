@@ -11,7 +11,7 @@ namespace DragonGeo::Linear {
 ///
 /// **空区间的规范表示是 [+inf, -inf]**，由 `Empty()` 给出；无界区间是
 /// [-inf, +inf]，由 `Unbounded()` 给出。**凡是产出空区间的运算都必须给出这个
-/// 规范形式** —— `clipped` 无交集、`expanded` 收缩过头或空进空出时返回的必须是
+/// 规范形式** —— `Intersection` 无交集、`expanded` 收缩过头或空进空出时返回的必须是
 /// `Empty()`，不能是 [2, 0] 这种「倒置但不规范」的区间。
 ///
 /// 理由是同一个数学量不该有两种表示：若两处都算「空」，`==`、`Length()`、
@@ -21,10 +21,10 @@ namespace DragonGeo::Linear {
 /// 说谎（见该成员函数）。谓词必须是全函数，否则上面那条「生产者一律规范化」的
 /// 不变量会在非有限输入上被绕过。
 ///
-/// **注意：谓词全函数化之后，`merged` / `intersects` / `clipped` 都需要显式判空
+/// **注意：谓词全函数化之后，`merged` / `intersects` / `Intersection` 都需要显式判空
 /// —— 「规范空的表示让它们无需特判」这句话现在是假的。** 规范空 [+inf, -inf] 确实
 /// 能在朴素比较下自然得解，但含 NaN 的空区间不行：比较碰上 NaN 一律返回 false，
-/// 于是结果会取决于操作数顺序（`intersects` 反方向翻面、`clipped` 被空集裁剪却
+/// 于是结果会取决于操作数顺序（`intersects` 反方向翻面、`Intersection` 被空集裁剪却
 /// 返回全部、`merged` 不满足交换律）。三个消费函数各有一道
 /// `IsEmpty()` 判定，它们是「不与空集相交」与「一个空 + 一个非空时取另一个」的
 /// 保证，并消除了上面那三处顺序依赖（`merged` 另需一道判空，用于两个「空」表示不同时
@@ -33,6 +33,9 @@ namespace DragonGeo::Linear {
 /// 谓词（`IsEmpty` / `contains` / `intersects`）全部是**精确比较**，不含容差 ——
 /// 带容差的包含会让「这个点是否在区间内」随上下文变化。需要容差的比较应由调用方
 /// 显式完成，因此本类型不依赖 Core::Tolerance。
+template <typename Scalar>
+struct IntervalDifferenceT;
+
 template <typename Scalar>
 struct IntervalT {
     using ScalarType = Scalar;
@@ -61,7 +64,7 @@ struct IntervalT {
     /// `Min > Max` 对 `{NaN, NaN}` 返回 **false**，也就是谎称自己是一个正常的非空
     /// 区间。`!(Min <= Max)` 对 NaN、对倒置、对规范空三种情形都返回真。
     ///
-    /// 为什么这一条特别重要：`expanded` 与 `clipped` 都靠
+    /// 为什么这一条特别重要：`expanded` 与 `Intersection` 都靠
     /// `result.IsEmpty() ? Empty() : result` 做规范化。谓词不全时，
     /// **有限区间的 NaN 增量**会算出 `{NaN, NaN}`（`1 - NaN` 是 NaN）、
     /// 再被 `Min > Max` 判成「非空」，于是交出一个看似成功却含 NaN 的结果；
@@ -92,7 +95,7 @@ struct IntervalT {
 
     /// 闭区间相交：端点相接算相交（[1, 5] 与 [5, 9] 相交于单点 5）。
     ///
-    /// 返回 bool 而非区间 —— 需要交集本身请用 Clipped()。
+    /// 返回 bool 而非区间 —— 需要交集本身请用 Intersection()。
     ///
     /// **两个操作数都要非空才算相交，必须显式判空。** 只靠下面那两行比较是不够的：
     /// 规范空 [+inf, -inf] 确实会被顶成假，但含 NaN 的空区间不会 —— 比较碰上 NaN
@@ -105,7 +108,7 @@ struct IntervalT {
     /// `upper = -inf`；NaN 空给出 `lower = NaN` 或 `upper = NaN`）。已用 121×121 组
     /// 含 NaN / ±inf / 非规范空的差分探针实测：去掉它以后**逐字节相同**（同一装置对
     /// 「整块去掉判空」报出 848 行差异，证明装置有效）。**删掉它的是等价变异体，
-    /// 不改变任何结果，后续轮次不必再追。** 保留它的理由是与 `clipped` / `merged`
+    /// 不改变任何结果，后续轮次不必再追。** 保留它的理由是与 `Intersection` / `merged`
     /// 的写法对称、可读，且比较式将来一改它就会重新变得必要。
     [[nodiscard]] constexpr bool Intersects(IntervalT other) const noexcept {
         if (IsEmpty() || other.IsEmpty()) {
@@ -184,7 +187,7 @@ struct IntervalT {
     /// - 开头这一句管**输入侧**：只靠末尾那次规范化，只有在输入是**规范**空时才
     ///   兑现「空进空出」；非规范空 `[1, 0]` 膨胀 1 会得到 `[0, 1]` ——
     ///   一个看起来完全正常的**非空**区间从一个空输入产生。此外，每个消费输入的
-    ///   操作都该查一次 `IsEmpty()`（`intersects` / `merged` / `clipped` 都查），
+    ///   操作都该查一次 `IsEmpty()`（`intersects` / `merged` / `Intersection` 都查），
     ///   `expanded` 不该是例外。
     /// - 末尾那一句管**结果侧**：收缩过头（`[1, 5]` 扩 -3 → `[4, 2]`）与
     ///   **有限区间的 NaN 增量**（`[1, 5].Expanded(NaN)` → `{NaN, NaN}`）都靠它
@@ -212,8 +215,8 @@ struct IntervalT {
     /// **任一操作数为空则直接返回规范空区间，同样必须显式判空。** 只靠末尾那次
     /// `result.IsEmpty()` 规范化不够：含 NaN 的空区间与别的区间取交时，
     /// 比较碰上 NaN 会把结果算成对方的一个正常区间
-    /// （实测 `{1,5}.Clipped({NaN,NaN})` 曾返回整个 `{1,5}` —— 被空集裁剪却得到全部）。
-    [[nodiscard]] constexpr IntervalT Clipped(IntervalT other) const noexcept {
+    /// （实测 `{1,5}.Intersection({NaN,NaN})` 曾返回整个 `{1,5}` —— 被空集裁剪却得到全部）。
+    [[nodiscard]] constexpr IntervalT Intersection(IntervalT other) const noexcept {
         if (IsEmpty() || other.IsEmpty()) {
             return Empty();
         }
@@ -222,10 +225,56 @@ struct IntervalT {
         const IntervalT result{lower, upper};
         return result.IsEmpty() ? Empty() : result;
     }
+
+    /// 差集：属于自身、不属于 other 的部分。
+    ///
+    /// 闭区间的差集不一定仍是闭区间，也不一定仍是**一段**。本函数返回差集的
+    /// **闭包**，最多两段，装在 `IntervalDifferenceT` 里：
+    ///
+    /// - `Below` 是挖掉的那段左侧（较小坐标），没有则为规范空区间；
+    /// - `Above` 是挖掉的那段右侧，没有则为规范空区间。
+    ///
+    /// 被挖掉的重叠若只有一个点（或根本不相交），闭包仍是原来的整段，放在
+    /// `Below`，`Above` 为空 —— 去掉一个点不改变闭区间的闭包，因此**不会**拆成
+    /// 两段。只有重叠的长度大于 0 时才会裁掉一截或从中间挖开。
+    ///
+    /// 裁切留下的端点仍算在结果里（闭包）。因此 `Below` / `Above` 可能与 other
+    /// 在单个端点上 `Intersects`。这是闭区间表达不了半开区间的结果，不是漏判。
+    ///
+    /// 任一操作数为空时与 `Intersection` 同一套判空：自身为空则两段都是规范空；
+    /// other 为空则差集就是自身（非规范空先收成 `Empty()`）。
+    [[nodiscard]] constexpr IntervalDifferenceT<Scalar> Difference(IntervalT other) const noexcept;
 };
+
+/// `IntervalT::Difference` 的结果：最多两段闭区间，按坐标从低到高放在
+/// `Below` 与 `Above`。缺的那一段是规范空区间。
+template <typename Scalar>
+struct IntervalDifferenceT {
+    IntervalT<Scalar> Below = IntervalT<Scalar>::Empty();
+    IntervalT<Scalar> Above = IntervalT<Scalar>::Empty();
+};
+
+template <typename Scalar>
+constexpr IntervalDifferenceT<Scalar> IntervalT<Scalar>::Difference(IntervalT other) const noexcept {
+    const IntervalT overlap = Intersection(other);
+    if (overlap.IsEmpty() || !(overlap.Length() > Scalar{0})) {
+        return {IsEmpty() ? Empty() : *this, Empty()};
+    }
+
+    IntervalDifferenceT<Scalar> result;
+    if (Min < overlap.Min) {
+        result.Below = IntervalT{Min, overlap.Min};
+    }
+    if (Max > overlap.Max) {
+        result.Above = IntervalT{overlap.Max, Max};
+    }
+    return result;
+}
 
 using Interval = IntervalT<double>;
 using Intervalf = IntervalT<float>;
+using IntervalDifference = IntervalDifferenceT<double>;
+using IntervalDifferencef = IntervalDifferenceT<float>;
 
 // ---- 运算符 ----
 
@@ -234,6 +283,12 @@ using Intervalf = IntervalT<float>;
 template <typename Scalar>
 [[nodiscard]] constexpr bool operator==(IntervalT<Scalar> a, IntervalT<Scalar> b) noexcept {
     return a.Min == b.Min && a.Max == b.Max;
+}
+
+template <typename Scalar>
+[[nodiscard]] constexpr bool operator==(
+    IntervalDifferenceT<Scalar> a, IntervalDifferenceT<Scalar> b) noexcept {
+    return a.Below == b.Below && a.Above == b.Above;
 }
 
 } // namespace DragonGeo::Linear

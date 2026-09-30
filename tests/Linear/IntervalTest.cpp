@@ -7,12 +7,16 @@
 #include <DragonGeo/Linear/Interval.hpp>
 
 using DragonGeo::Linear::Interval;
+using DragonGeo::Linear::IntervalDifference;
+using DragonGeo::Linear::IntervalDifferencef;
+using DragonGeo::Linear::IntervalDifferenceT;
 using DragonGeo::Linear::IntervalT;
 using DragonGeo::Linear::Intervalf;
 
 TEST_CASE("the float alias really is the float instantiation",
           "[linear][interval]") {
     STATIC_REQUIRE(std::is_same_v<Intervalf, IntervalT<float>>);
+    STATIC_REQUIRE(std::is_same_v<IntervalDifferencef, IntervalDifferenceT<float>>);
 
     // 别名与成员别名都必须被**命名**过 —— 未被命名的绑定写错时连一次实例化
     // 都不会发生（Task 4 实测：把 float 别名绑成 double 实例化，全库 134 个
@@ -103,16 +107,16 @@ TEST_CASE("the sentinels carry the canonical endpoints", "[linear][interval]") {
     // 生产者必须给出**同一个**规范形式，而不是「倒置但不规范」的 {6, 5}：
     // 后者 `IsEmpty()` 同样为真，但 min/max 携带的是错误信息 —— 一个数学量
     // 两种表示，`==`/`Length()`/`Center()` 随之变成「看情况」。
-    const Interval clippedEmpty = Interval{1.0, 5.0}.Clipped(Interval{6.0, 9.0});
-    CHECK(clippedEmpty.Min == std::numeric_limits<double>::infinity());
-    CHECK(clippedEmpty.Max == -std::numeric_limits<double>::infinity());
+    const Interval emptyIntersection = Interval{1.0, 5.0}.Intersection(Interval{6.0, 9.0});
+    CHECK(emptyIntersection.Min == std::numeric_limits<double>::infinity());
+    CHECK(emptyIntersection.Max == -std::numeric_limits<double>::infinity());
 
     const Interval shrunkEmpty = Interval{1.0, 5.0}.Expanded(-3.0);
     CHECK(shrunkEmpty.Min == std::numeric_limits<double>::infinity());
     CHECK(shrunkEmpty.Max == -std::numeric_limits<double>::infinity());
 }
 
-TEST_CASE("intersects and clipped agree, and clipped canonicalises",
+TEST_CASE("intersects and intersection agree, and intersection canonicalises",
           "[linear][interval]") {
     const Interval a{1.0, 5.0};
     const Interval b{4.0, 8.0};
@@ -120,29 +124,29 @@ TEST_CASE("intersects and clipped agree, and clipped canonicalises",
 
     CHECK(a.Intersects(b));
     CHECK_FALSE(a.Intersects(disjoint));
-    CHECK(a.Clipped(b) == Interval{4.0, 5.0});
+    CHECK(a.Intersection(b) == Interval{4.0, 5.0});
 
     // 不相交时必须是规范空区间，不能是 [6.0, 5.0] 那种倒置形式 ——
     // 后者 IsEmpty() 也为真，但 min/max 携带的是错误信息。
-    CHECK(a.Clipped(disjoint) == Interval::Empty());
-    CHECK_FALSE(a.Clipped(disjoint).Intersects(a));
+    CHECK(a.Intersection(disjoint) == Interval::Empty());
+    CHECK_FALSE(a.Intersection(disjoint).Intersects(a));
 
     // 闭区间：端点相接算相交 —— 改成半开比较（`<`）会把它判成不相交，而计划里
     // 的两条用例（{1,5} vs {4,8}、vs {6,9}）**在两种写法下结果完全相同**，
-    // 抓不到这个差异。相接时 `clipped` 的结果是退化的单点区间，不是空区间。
+    // 抓不到这个差异。相接时 `Intersection` 的结果是退化的单点区间，不是空区间。
     CHECK(a.Intersects(Interval{5.0, 9.0}));
-    CHECK(a.Clipped(Interval{5.0, 9.0}) == Interval{5.0, 5.0});
+    CHECK(a.Intersection(Interval{5.0, 9.0}) == Interval{5.0, 5.0});
 }
 
-TEST_CASE("empty intervals stay empty under intersects and clipped",
+TEST_CASE("empty intervals stay empty under intersects and intersection",
           "[linear][interval]") {
     const Interval a{1.0, 5.0};
 
     CHECK_FALSE(Interval::Empty().Intersects(a));
     CHECK_FALSE(a.Intersects(Interval::Empty()));
-    CHECK(Interval::Empty().Clipped(a) == Interval::Empty());
-    CHECK(a.Clipped(Interval::Empty()) == Interval::Empty());
-    CHECK(Interval::Empty().Clipped(Interval::Empty()) == Interval::Empty());
+    CHECK(Interval::Empty().Intersection(a) == Interval::Empty());
+    CHECK(a.Intersection(Interval::Empty()) == Interval::Empty());
+    CHECK(Interval::Empty().Intersection(Interval::Empty()) == Interval::Empty());
 }
 
 TEST_CASE("expanded grows both ends, and a negative amount shrinks",
@@ -227,8 +231,8 @@ TEST_CASE("the consumers agree with the total empty predicate",
     CHECK_FALSE(nanInterval.Intersects(normal));
 
     // 被空区间裁剪，返回的是规范空区间，不是「全部」。
-    CHECK(normal.Clipped(nanInterval) == Interval::Empty());
-    CHECK(nanInterval.Clipped(normal) == Interval::Empty());
+    CHECK(normal.Intersection(nanInterval) == Interval::Empty());
+    CHECK(nanInterval.Intersection(normal) == Interval::Empty());
 
     // 合并：换方向答案相同（交换律）。
     CHECK(nanInterval.Merged(normal) == normal);
@@ -305,6 +309,58 @@ TEST_CASE("the implicitly generated special members carry both endpoints",
     CHECK(target.Max == 5.0);
 }
 
+TEST_CASE("difference returns the closure of the set difference",
+          "[linear][interval]") {
+    const Interval whole{1.0, 10.0};
+
+    // 中间挖开：闭包把切点留在两侧。
+    const IntervalDifference hole = whole.Difference(Interval{3.0, 5.0});
+    CHECK(hole.Below == Interval{1.0, 3.0});
+    CHECK(hole.Above == Interval{5.0, 10.0});
+    CHECK(hole.Below.Intersects(Interval{3.0, 5.0}));
+
+    // 只裁掉左端 / 右端：剩下的一段落在对应的槽里。
+    const IntervalDifference cutLeft = whole.Difference(Interval{0.0, 4.0});
+    CHECK(cutLeft.Below == Interval::Empty());
+    CHECK(cutLeft.Above == Interval{4.0, 10.0});
+
+    const IntervalDifference cutRight = whole.Difference(Interval{7.0, 12.0});
+    CHECK(cutRight.Below == Interval{1.0, 7.0});
+    CHECK(cutRight.Above == Interval::Empty());
+
+    // 完全盖住，以及与自身相减，差集为空。
+    const IntervalDifference covered = whole.Difference(Interval{0.0, 10.0});
+    CHECK(covered.Below == Interval::Empty());
+    CHECK(covered.Above == Interval::Empty());
+    CHECK(whole.Difference(whole) == covered);
+
+    // 不相交，或只重叠一个点：闭包仍是整段，不拆开。
+    CHECK(whole.Difference(Interval{11.0, 12.0}).Below == whole);
+    CHECK(whole.Difference(Interval{11.0, 12.0}).Above == Interval::Empty());
+    CHECK(whole.Difference(Interval{-2.0, -1.0}).Below == whole);
+    CHECK(whole.Difference(Interval{4.0, 4.0}).Below == whole);
+    CHECK(whole.Difference(Interval{4.0, 4.0}).Above == Interval::Empty());
+
+    // 空操作数：自身为空则两段都空；对方为空则差集是自身。非规范空先收成规范空。
+    const Interval inverted{2.0, 0.0};
+    CHECK(Interval::Empty().Difference(whole).Below == Interval::Empty());
+    CHECK(Interval::Empty().Difference(whole).Above == Interval::Empty());
+    CHECK(inverted.Difference(whole).Below == Interval::Empty());
+    CHECK(whole.Difference(Interval::Empty()).Below == whole);
+    CHECK(whole.Difference(inverted).Below == whole);
+    CHECK(whole.Difference(inverted).Above == Interval::Empty());
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK(whole.Difference(Interval{nan, nan}).Below == whole);
+
+    constexpr IntervalDifference finite =
+        IntervalT<double>{1.0, 10.0}.Difference(IntervalT<double>{3.0, 5.0});
+    STATIC_REQUIRE(finite.Below.Min == 1.0);
+    STATIC_REQUIRE(finite.Below.Max == 3.0);
+    STATIC_REQUIRE(finite.Above.Min == 5.0);
+    STATIC_REQUIRE(finite.Above.Max == 10.0);
+}
+
 TEST_CASE("every declared callable is noexcept", "[linear][interval]") {
     // Interfaces 对本类型的两个工厂明文写了 noexcept，成员一律 noexcept 是全库
     // 惯例。Task 4 把「其余 noexcept 无证据」留成了显式取舍；这里一次钉全 ——
@@ -318,6 +374,8 @@ TEST_CASE("every declared callable is noexcept", "[linear][interval]") {
     STATIC_REQUIRE(noexcept(IntervalT<double>{}.Center()));
     STATIC_REQUIRE(noexcept(IntervalT<double>{}.Merged(IntervalT<double>{})));
     STATIC_REQUIRE(noexcept(IntervalT<double>{}.Expanded(0.0)));
-    STATIC_REQUIRE(noexcept(IntervalT<double>{}.Clipped(IntervalT<double>{})));
+    STATIC_REQUIRE(noexcept(IntervalT<double>{}.Intersection(IntervalT<double>{})));
+    STATIC_REQUIRE(noexcept(IntervalT<double>{}.Difference(IntervalT<double>{})));
+    STATIC_REQUIRE(noexcept(IntervalDifferenceT<double>{} == IntervalDifferenceT<double>{}));
     STATIC_REQUIRE(noexcept(IntervalT<double>{} == IntervalT<double>{}));
 }

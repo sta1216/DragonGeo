@@ -566,6 +566,32 @@ TEST_CASE("the implicitly generated special members carry both corners",
     STATIC_REQUIRE(std::is_trivially_destructible_v<Box3T<double>>);
 }
 
+TEST_CASE("intersection is the overlap and canonicalises emptiness",
+          "[linear][box3]") {
+    const Box3 a{Point3{0.0, 0.0, 0.0}, Point3{2.0, 2.0, 2.0}};
+    const Box3 b{Point3{1.0, 1.0, 1.0}, Point3{3.0, 4.0, 5.0}};
+    const Box3 overlap{Point3{1.0, 1.0, 1.0}, Point3{2.0, 2.0, 2.0}};
+
+    CHECK(a.Intersection(b) == overlap);
+    CHECK(b.Intersection(a) == overlap);
+
+    // z 轴错开，xy 仍重叠：交集必须是空盒。
+    const Box3 beside{Point3{0.0, 0.0, 3.0}, Point3{2.0, 2.0, 4.0}};
+    CHECK(a.Intersection(beside) == Box3::Empty());
+    CHECK_FALSE(a.Intersects(beside));
+
+    // 面相接：闭盒，交集退化成一个面。
+    const Box3 touching{Point3{2.0, 0.0, 0.0}, Point3{3.0, 2.0, 2.0}};
+    CHECK(a.Intersection(touching) == Box3{Point3{2.0, 0.0, 0.0}, Point3{2.0, 2.0, 2.0}});
+
+    CHECK(Box3::Empty().Intersection(a) == Box3::Empty());
+    CHECK(a.Intersection(Box3::Empty()) == Box3::Empty());
+
+    const Box3 inverted{Point3{1.0, 1.0, 1.0}, Point3{0.0, 0.0, 0.0}};
+    CHECK(a.Intersection(inverted) == Box3::Empty());
+    CHECK(inverted.Intersection(a) == Box3::Empty());
+}
+
 TEST_CASE("every declared callable is noexcept", "[linear][box3]") {
     // Interfaces 对本类型的两个工厂明文写了 noexcept，成员一律 noexcept 是全库
     // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败 ——
@@ -580,6 +606,7 @@ TEST_CASE("every declared callable is noexcept", "[linear][box3]") {
     STATIC_REQUIRE(noexcept(Box3T<double>{}.Extent()));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.HalfExtent()));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.Merged(Box3T<double>{})));
+    STATIC_REQUIRE(noexcept(Box3T<double>{}.Intersection(Box3T<double>{})));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.Expanded(0.0)));
     STATIC_REQUIRE(noexcept(Box3T<double>{}.Corner(0)));
     STATIC_REQUIRE(noexcept(Box3T<double>{} == Box3T<double>{}));
@@ -621,6 +648,7 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE(box.HalfExtent().X == 1.0);
     STATIC_REQUIRE(box.Center().X == 1.0);
     STATIC_REQUIRE(box.Merged(box) == box);
+    STATIC_REQUIRE(box.Intersection(inner) == inner);
     STATIC_REQUIRE(box.Expanded(1.0).Min.X == -1.0);
     STATIC_REQUIRE(box.Corner(1) == cornerOne);
     STATIC_REQUIRE(canonicalEmpty.IsEmpty());

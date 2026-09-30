@@ -526,6 +526,38 @@ TEST_CASE("the implicitly generated special members carry both corners",
     STATIC_REQUIRE(std::is_trivially_destructible_v<Box2T<double>>);
 }
 
+TEST_CASE("intersection is the overlap and canonicalises emptiness",
+          "[linear][box2]") {
+    const Box2 a{Point2{0.0, 0.0}, Point2{2.0, 2.0}};
+    const Box2 b{Point2{1.0, 1.0}, Point2{3.0, 4.0}};
+    const Box2 overlap{Point2{1.0, 1.0}, Point2{2.0, 2.0}};
+
+    CHECK(a.Intersection(b) == overlap);
+    CHECK(b.Intersection(a) == overlap);
+    CHECK(a.Intersects(b));
+
+    // 只在一个轴上错开：另一轴重叠也得是空盒。
+    const Box2 beside{Point2{3.0, 0.0}, Point2{4.0, 1.0}};
+    CHECK(a.Intersection(beside) == Box2::Empty());
+    CHECK_FALSE(a.Intersects(beside));
+
+    // 边相接：闭盒，交集退化成一条边，不是空。
+    const Box2 touching{Point2{2.0, 0.0}, Point2{3.0, 2.0}};
+    CHECK(a.Intersection(touching) == Box2{Point2{2.0, 0.0}, Point2{2.0, 2.0}});
+
+    CHECK(Box2::Empty().Intersection(a) == Box2::Empty());
+    CHECK(a.Intersection(Box2::Empty()) == Box2::Empty());
+
+    const Box2 inverted{Point2{1.0, 1.0}, Point2{0.0, 0.0}};
+    CHECK(a.Intersection(inverted) == Box2::Empty());
+    CHECK(inverted.Intersection(a) == Box2::Empty());
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Box2 nanBox{Point2{nan, 0.0}, Point2{1.0, 1.0}};
+    CHECK(a.Intersection(nanBox) == Box2::Empty());
+    CHECK(nanBox.Intersection(a) == Box2::Empty());
+}
+
 TEST_CASE("every declared callable is noexcept", "[linear][box2]") {
     // Interfaces 对本类型的两个工厂明文写了 noexcept，成员一律 noexcept 是全库
     // 惯例。各条之间无依赖，去掉**任意一处** noexcept 都会单独失败 ——
@@ -540,6 +572,7 @@ TEST_CASE("every declared callable is noexcept", "[linear][box2]") {
     STATIC_REQUIRE(noexcept(Box2T<double>{}.Extent()));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.HalfExtent()));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.Merged(Box2T<double>{})));
+    STATIC_REQUIRE(noexcept(Box2T<double>{}.Intersection(Box2T<double>{})));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.Expanded(0.0)));
     STATIC_REQUIRE(noexcept(Box2T<double>{}.Corner(0)));
     STATIC_REQUIRE(noexcept(Box2T<double>{} == Box2T<double>{}));
@@ -575,6 +608,7 @@ TEST_CASE("every callable is usable in a constant expression",
     STATIC_REQUIRE(box.HalfExtent().X == 1.0);
     STATIC_REQUIRE(box.Center().X == 1.0);
     STATIC_REQUIRE(box.Merged(box) == box);
+    STATIC_REQUIRE(box.Intersection(inner) == inner);
     STATIC_REQUIRE(box.Expanded(1.0).Min.X == -1.0);
     STATIC_REQUIRE(box.Corner(1) == cornerOne);
     STATIC_REQUIRE(canonicalEmpty.IsEmpty());

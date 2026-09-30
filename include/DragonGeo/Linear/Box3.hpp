@@ -15,10 +15,8 @@ namespace DragonGeo::Linear {
 /// 只写本类型特有的约定。
 ///
 /// **对齐的是语义，不是接口面**：一维测度在 `IntervalT` 里叫 `Length()`，在本
-/// 类型里叫 `Extent()` / `HalfExtent()`；`Unbounded()` 与 `Clipped()` 在本类型
-/// **没有对应物**（裁剪与求交归后续的 `query` 层，见 spec §5.2）。不要为了
-/// 「整齐」在本阶段补这些 API —— 它们的名字与归属是后续阶段的决定，提前长出来
-/// 只会把接口面钉错。
+/// 类型里叫 `Extent()` / `HalfExtent()`。`Intersection()` 是逐分量的交集，与
+/// `IntervalT::Intersection()` 对齐。`Unbounded()` 仍没有对应物。
 ///
 /// **空盒的规范表示是 `Min` 的每个分量为 +inf、`Max` 的每个分量为 -inf**，
 /// 由 `Empty()` 给出。**凡是产出空盒的运算都必须给出这个规范形式**
@@ -239,6 +237,25 @@ struct Box3T {
                      Point3T<Scalar>{Max.X > other.Max.X ? Max.X : other.Max.X,
                                      Max.Y > other.Max.Y ? Max.Y : other.Max.Y,
                                      Max.Z > other.Max.Z ? Max.Z : other.Max.Z}};
+    }
+
+    /// 与 other 的交集（逐分量取两端的内缩）。
+    ///
+    /// 不相交时返回**规范空盒**。面、边或角相接仍是闭盒相交，结果是退化的非空盒，
+    /// 不是空盒。任一操作数为空（含非规范空与含 NaN 的空）则直接返回规范空盒。
+    /// 规则与 `IntervalT::Intersection()`、`Box2T::Intersection()` 相同。
+    [[nodiscard]] constexpr Box3T Intersection(Box3T<Scalar> other) const noexcept {
+        if (IsEmpty() || other.IsEmpty()) {
+            return Empty();
+        }
+        const Box3T result{
+            Point3T<Scalar>{Min.X > other.Min.X ? Min.X : other.Min.X,
+                            Min.Y > other.Min.Y ? Min.Y : other.Min.Y,
+                            Min.Z > other.Min.Z ? Min.Z : other.Min.Z},
+            Point3T<Scalar>{Max.X < other.Max.X ? Max.X : other.Max.X,
+                            Max.Y < other.Max.Y ? Max.Y : other.Max.Y,
+                            Max.Z < other.Max.Z ? Max.Z : other.Max.Z}};
+        return result.IsEmpty() ? Empty() : result;
     }
 
     /// 三轴各向两侧扩 amount（负值即收缩）。

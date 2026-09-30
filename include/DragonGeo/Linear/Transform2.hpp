@@ -12,7 +12,13 @@
 namespace DragonGeo::Linear {
 
 /// 二维仿射变换，内部为 3×3 齐次矩阵（行主序）。
-/// 三种「施加」语义的分工同 Transform3T，详见该类型的文档。
+///
+/// 两种「施加」语义不要混用 ——
+///   operator*(Point2T)    施加完整仿射变换，输入按**位置**解读
+///   operator*(Vector2T)   只施加线性部分，输入按**方向**解读（平移不生效）
+/// TransformPoint(Point2T) 与 operator*(Point2T) 等价，名字更直白。
+/// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让
+/// `a * b.Apply(v)` 静默丢掉 a 的平移。三维的 Apply 仍保留，见 Transform3T。
 template <typename Scalar>
 struct Transform2T {
     using ScalarType = Scalar;
@@ -66,21 +72,7 @@ struct Transform2T {
 
     /// 施加完整仿射变换，输入按**位置**解读。
     ///
-    /// 历史用法：位置以 Vector2T 承载时的入口。它仍然有效，但**新代码请用
-    /// TransformPoint(Point2T)**，或等价的 operator*(Point2T) —— 位置由
-    /// Point2T 承载，语义在类型上就是对的。
-    [[nodiscard]] constexpr Vector2T<Scalar> Apply(Vector2T<Scalar> position) const noexcept {
-        const MatrixT<Scalar, 3>& m = Matrix;
-        return Vector2T<Scalar>{
-            m.Data[0][0] * position.X + m.Data[0][1] * position.Y + m.Data[0][2],
-            m.Data[1][0] * position.X + m.Data[1][1] * position.Y + m.Data[1][2],
-        };
-    }
-
-    /// 施加完整仿射变换，输入按**位置**解读。
-    ///
-    /// 与 operator*(Point2T) 等价，名字更直白。与 Apply() 的数学内容完全相同，
-    /// 只是接受并返回 Point2T —— 因此它是 Apply() 的替代入口，不是它的补充。
+    /// 与 operator*(Point2T) 等价，名字更直白。
     [[nodiscard]] constexpr Point2T<Scalar> TransformPoint(Point2T<Scalar> position) const noexcept {
         const MatrixT<Scalar, 3>& m = Matrix;
         return Point2T<Scalar>{
