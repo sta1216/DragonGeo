@@ -1890,7 +1890,9 @@ git commit -m "feat(linear): add Coordinate2T and Coordinate3T"
   - `bool contains(Point3T, Tolerance = {}) const` —— 先把点 `to_local`，再逐轴比较 `|local.i| <= half_extent.i`，**闭区间**（边界算在内），容差加在比较的右侧
   - `Point3T corner(int index) const` —— 8 个角，索引约定与 `Box3T::corner` **完全一致**（bit0/bit1/bit2 依次选 x/y/z）
   - **`Box3T to_axis_aligned() const`** —— 紧致地包住旋转后的盒子
-  - `OrientedBox3T expanded(Scalar) const` —— **逐分量把半轴夹到非负**：`max(0, half_extent.i + amount)`。负的半轴不是「有向盒」的合法状态，放它过去会让 `to_axis_aligned()` 给出一个倒置的、悄悄错的盒子
+  - `OrientedBox3T expanded(Scalar) const` —— **逐分量把半轴夹到非负**：`max(0, half_extent.i + amount)`。负的半轴不是「有向盒」的合法状态，放它过去会让 `to_axis_aligned()` 给出一个倒置的、悄悄错的盒子。
+    **`amount = NaN` 时让 NaN 传播，不要夹成 0。** 这个类型**没有「空」可以落回**（半轴夹在非负），把 NaN 悄悄变成一个正常的退化盒，比让它明着是 NaN 更危险 —— 前者是伪装成合法值的坏数据，后者调用者一眼可见。这与 `Interval`/`Box` 的「产出空必须规范化」不冲突：那两者有规范空这个归宿，本类型没有。
+    **半轴为负是契约外状态，必须写进文档。** `OrientedBox3T` 是聚合（公开成员），调用者可以直接写入负半轴；此时 `corner()` 按 `±h` 取角而 `contains()` 的 `|local.i| <= h.i` 恒假 —— **同一个盒子两种说法互相矛盾**。文档要写明半轴必须非负，且 `expanded` 是收缩运算得到合法半轴的途径。不为此加运行时检查（聚合类型不做不变量强制，与 `Box`/`Interval` 一致）。
   - `bool operator==(OrientedBox3T, OrientedBox3T) noexcept`（自由函数；`!=` 由 C++20 生成）
   - `OrientedBox2T` 同构，`corner` 有 4 个，二维的 `from_axes` 取两轴
 
@@ -1953,18 +1955,33 @@ TEST_CASE("a non-cubic oriented box pins every axis separately",
         UnitVector3::from_normalized_unchecked(Vector3{0.0, 0.0, 1.0}));
     REQUIRE(frame.has_value());
 
-    const OrientedBox3 box{*frame, Vector3{1.0, 2.0, 3.0}};
-    const Box3 aabb = box.to_axis_aligned();
+    // **先把这个标架本身钉死，再谈角点。** 它不是单位标架！
+    // `from_z_axis(o, 世界 z)` 的参考向量选择器取 `ax <= ay && ax <= az` 那一支
+    // （三个分量的绝对值并列时取 x 方向），于是 `x = (1,0,0) × z = (0,-1,0)`，
+    // 补全出来的是**绕 z 轴 +90° 的旋转**：
+    //   x_axis = (0,-1,0)   y_axis = (1,0,0)   z_axis = (0,0,1)
+    // 这一点在立方体用例里**看不出来**（立方体绕 z 转 90° 映到自身），
+    // 所以必须先在这里钉住，否则后面每个期望值都会算错。
+    CHECK(frame->x_axis().x() == Approx(0.0).margin(1e-15));
+    CHECK(frame->x_axis().y() == Approx(-1.0));
+    CHECK(frame->y_axis().x() == Approx(1.0));
+    CHECK(frame->y_axis().y() == Approx(0.0).margin(1e-15));
+    CHECK(frame->z_axis().z() == Approx(1.0));
 
-    CHECK(aabb.min == Point3{-1.0, -2.0, -3.0});
-    CHECK(aabb.max == Point3{1.0, 2.0, 3.0});
+    const OrientedBox3 box{*frame, Vector3{1.0, 2.0, 3.0}};
+
+    // 于是世界坐标与局部坐标的关系是 `world.x = local.y`、`world.y = -local.x`、
+    // `world.z = local.z` —— 一次实打实的轴置换，正是这个用例要暴露的东西。
+    const Box3 aabb = box.to_axis_aligned();
+    CHECK(aabb.min == Point3{-2.0, -1.0, -3.0});
+    CHECK(aabb.max == Point3{2.0, 1.0, 3.0});
 
     // corner 的 bit0/bit1/bit2 依次选 x/y/z，置位取 max。
-    CHECK(box.corner(0) == Point3{-1.0, -2.0, -3.0});
-    CHECK(box.corner(1) == Point3{1.0, -2.0, -3.0});
-    CHECK(box.corner(2) == Point3{-1.0, 2.0, -3.0});
-    CHECK(box.corner(4) == Point3{-1.0, -2.0, 3.0});
-    CHECK(box.corner(7) == Point3{1.0, 2.0, 3.0});
+    CHECK(box.corner(0) == Point3{-2.0, 1.0, -3.0});
+    CHECK(box.corner(1) == Point3{-2.0, -1.0, -3.0});
+    CHECK(box.corner(2) == Point3{2.0, 1.0, -3.0});
+    CHECK(box.corner(4) == Point3{-2.0, 1.0, 3.0});
+    CHECK(box.corner(7) == Point3{2.0, -1.0, 3.0});
 
     CHECK(box.center() == Point3{0.0, 0.0, 0.0});
 }
