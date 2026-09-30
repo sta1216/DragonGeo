@@ -60,9 +60,15 @@ jobs:
 
   # 安装包消费方冒烟。上面的矩阵全部在仓库自己的 CMake 树里构建，使用的
   # 编码选项来自顶层 add_compile_options —— 正因为如此，导出目标漏掉
-  # INTERFACE_COMPILE_OPTIONS 这件事在那些腿上永远看不见（cp936 主机上
-  # 消费方会直接编译失败）。这里刻意绕开 in-tree 构建：install 到临时前缀，
-  # 再用 find_package 构建 ci/consumer，最后跑起来。
+  # INTERFACE_COMPILE_OPTIONS 这件事在那些腿上永远看不见。这里刻意绕开
+  # in-tree 构建：install 到临时前缀，再用 find_package 构建 ci/consumer，
+  # 最后跑起来。
+  #
+  # 这条防线的强度来自 ci/consumer 里的 /WX。实测（cp936 主机）：缺 /utf-8
+  # 时只会产生 C4819 警告、0 个 error —— MSBuild 命令行（摘要）为
+  # `/W1 /WX- /external:W0 /external:I "<prefix>/include"`：安装前缀被当作
+  # 外部头、其警告被压到 0 级，警告本身又永不致失败，而作业只看退出码，
+  # 于是整条流程照样全绿。/WX 把 C4819 变成硬失败，这才守住了回归。
   consumer-smoke:
     name: Windows MSVC (installed package consumer)
     runs-on: windows-latest
