@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <type_traits>          // 本任务新用 STATIC_REQUIRE(std::is_same_v<...>)
+
 #include <GeoCore/core/Constants.hpp>
 #include <GeoCore/linear/Transform2.hpp>
 
@@ -8,6 +10,7 @@ using Catch::Approx;
 
 using GeoCore::core::half_pi;
 using GeoCore::core::quarter_pi;
+using GeoCore::linear::Point2;
 using GeoCore::linear::Transform2;
 using GeoCore::linear::Vector2;
 
@@ -84,4 +87,76 @@ TEST_CASE("Transform2 identity leaves a position unchanged", "[linear][transform
     const Transform2 unit = Transform2::identity();
 
     CHECK(unit.apply(Vector2{1.0, 2.0}) == Vector2{1.0, 2.0});
+}
+
+TEST_CASE("a 2D transform carries points, not just vectors",
+          "[linear][transform2]") {
+    const Transform2 t = Transform2::translation(Vector2{10.0, 0.0});
+    const Point2 p{1.0, 2.0};
+
+    // 点被平移
+    STATIC_REQUIRE(std::is_same_v<decltype(t * p), Point2>);
+    CHECK(t * p == Point2{11.0, 2.0});
+    CHECK(t.transform_point(p) == Point2{11.0, 2.0});
+
+    // 方向不被平移 —— 这是 operator* 与 transform_point 的分工
+    CHECK(t * Vector2{1.0, 2.0} == Vector2{1.0, 2.0});
+}
+
+TEST_CASE("2D transform_point is the explicit spelling of carrying a position",
+          "[linear][transform2]") {
+    // 两轴互不相等的缩放 + 两轴互不相等的平移：(x,y) -> (2x+1, 3y+10)。
+    // 这些数全部精确可表示，== 是安全的。轴不同、平移列不同，因此任一处轴
+    // 错位、系数张冠李戴、丢掉平移列或丢掉线性部分，都会改变某个分量。
+    const Transform2 t = Transform2::translation(Vector2{1.0, 10.0})
+                       * Transform2::scaling(Vector2{2.0, 3.0});
+
+    // 返回类型是 Point2（不是 Vector2）—— 类型层面的分工也钉住
+    STATIC_REQUIRE(std::is_same_v<decltype(t.transform_point(Point2{1.0, 2.0})), Point2>);
+
+    CHECK(t.transform_point(Point2{1.0, 2.0}) == Point2{3.0, 16.0});
+
+    // operator*(Point2) 与 transform_point 是同一件事的两种拼写
+    CHECK(t * Point2{1.0, 2.0} == t.transform_point(Point2{1.0, 2.0}));
+
+    // 历史入口 apply() 在相同数值上给出相同的数（只是类型仍是 Vector2）
+    CHECK(t.apply(Vector2{1.0, 2.0}) == Vector2{3.0, 16.0});
+
+    // 同一个矩阵、同一组数字：点吃平移、方向不吃，两者之差恰是平移量。
+    CHECK((t * Point2{1.0, 2.0}) - (t * Vector2{1.0, 2.0}) == Point2{1.0, 10.0});
+}
+
+TEST_CASE("a 2D rotation carries points off the diagonal", "[linear][transform2]") {
+    // 45° 旋转把非对角系数牵进来：对 (1,2) 有 (x,y) -> ((x-y)/√2, (x+y)/√2)。
+    // 纯对角矩阵的用例看不见转置或轴错位，这一格专门喂非对角项。
+    // √2/2 在浮点下不精确，故沿用本文件既有的 margin 约定。
+    const Transform2 spin = Transform2::rotation(quarter_pi);
+    const Point2 p{1.0, 2.0};
+
+    const Point2 carried = spin.transform_point(p);
+    CHECK(carried.x == Approx(-0.7071067811865476).margin(1e-15));
+    CHECK(carried.y == Approx(2.1213203435596424).margin(1e-15));
+
+    const Point2 carried_by_operator = spin * p;
+    CHECK(carried_by_operator.x == Approx(-0.7071067811865476).margin(1e-15));
+    CHECK(carried_by_operator.y == Approx(2.1213203435596424).margin(1e-15));
+}
+
+TEST_CASE("2D transform_point is constexpr and noexcept, like apply",
+          "[linear][transform2]") {
+    // apply() 是 constexpr；数学内容相同的 transform_point 没有理由不能用于
+    // 常量表达式 —— 这一格把口径钉住。
+    constexpr Transform2 t = Transform2::translation(Vector2{1.0, 10.0})
+                           * Transform2::scaling(Vector2{2.0, 3.0});
+    constexpr Point2 p{1.0, 2.0};
+
+    STATIC_REQUIRE(t.transform_point(p) == Point2{3.0, 16.0});
+    STATIC_REQUIRE(t * p == Point2{3.0, 16.0});
+
+    STATIC_REQUIRE(noexcept(t.transform_point(p)));
+    STATIC_REQUIRE(noexcept(t * p));
+
+    // 单位变换的两种拼写都原样送回原点。
+    CHECK(Transform2::identity().transform_point(p) == p);
+    CHECK(Transform2::identity() * p == p);
 }

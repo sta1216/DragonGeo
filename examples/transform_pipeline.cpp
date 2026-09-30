@@ -2,7 +2,8 @@
 //
 // 演示三件事：
 //   1. 变换可以像数值一样相乘来复合
-//   2. apply() 变换位置，operator* 变换方向（平移不作用于方向）
+//   2. operator* 对 Point 施加完整仿射变换（输入按位置解读），对 Vector 只
+//      施加线性部分（输入按方向解读）—— 平移只作用于前者
 //   3. inverse() 用 optional 表达「不可逆」这一数学事实
 
 #include <iostream>
@@ -10,6 +11,7 @@
 #include <GeoCore/GeoCore.hpp>
 
 using GeoCore::core::half_pi;
+using GeoCore::linear::Point3;
 using GeoCore::linear::Transform3;
 using GeoCore::linear::UnitVector3;
 using GeoCore::linear::Vector3;
@@ -18,6 +20,10 @@ namespace {
 
 void print(const char* label, const Vector3& v) {
     std::cout << label << " = (" << v.x << ", " << v.y << ", " << v.z << ")\n";
+}
+
+void print(const char* label, const Point3& p) {
+    std::cout << label << " = (" << p.x << ", " << p.y << ", " << p.z << ")\n";
 }
 
 } // namespace
@@ -31,9 +37,9 @@ int main() {
                            * Transform3::rotation(z_axis, half_pi)
                            * Transform3::scaling(2.0);
 
-    const Vector3 position{1.0, 0.0, 0.0};
+    const Point3 position{1.0, 0.0, 0.0};
     print("position          ", position);
-    print("transformed       ", model.apply(position));
+    print("transformed       ", model * position);
 
     // 方向不受平移影响。
     //
@@ -46,7 +52,7 @@ int main() {
 
     // 求逆并回代。
     if (const auto undo = model.inverse()) {
-        const Vector3 round_trip = undo->apply(model.apply(position));
+        const Point3 round_trip = undo->transform_point(model * position);
         print("round trip        ", round_trip);
     }
 

@@ -5,6 +5,7 @@
 
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Matrix.hpp>
+#include <GeoCore/linear/Point3.hpp>
 #include <GeoCore/linear/Quaternion.hpp>
 #include <GeoCore/linear/UnitVector3.hpp>
 #include <GeoCore/linear/Vector3.hpp>
@@ -17,11 +18,11 @@ namespace GeoCore::linear {
 /// 第 4 行假定为 (0,0,0,1)，且 apply / operator* 都不读取它 —— 直接改写
 /// matrix 而破坏这个前提时，两者的结果不再被保证。类型不做这项检查。
 ///
-/// 两种「施加」语义不要混用 ——
-///   operator*(v)          只施加线性部分，用于变换方向
-///   apply(v)              施加完整仿射变换，v 被解读为位置
-/// 作用于 Point3 的成员（transform_point）在同一类型上一并提供，随 Point3
-/// 落地（Task 9）。
+/// 三种「施加」语义不要混用 ——
+///   operator*(Point3T)    施加完整仿射变换，输入按**位置**解读
+///   operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
+///   apply(Vector3T)       施加完整仿射变换，把 Vector 读作位置（历史用法，新代码请用 transform_point）
+/// transform_point(Point3T) 与 operator*(Point3T) 等价，名字更直白。
 template <typename Scalar>
 struct Transform3T {
     using scalar_type = Scalar;
@@ -80,9 +81,26 @@ struct Transform3T {
     }
 
     /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
+    ///
+    /// 历史用法：位置以 Vector3T 承载时的入口。它仍然有效，但**新代码请用
+    /// transform_point(Point3T)**，或等价的 operator*(Point3T) —— 位置由
+    /// Point3T 承载，语义在类型上就是对的。
     [[nodiscard]] constexpr Vector3T<Scalar> apply(Vector3T<Scalar> position) const noexcept {
         const MatrixT<Scalar, 4>& m = matrix;
         return Vector3T<Scalar>{
+            m.data[0][0] * position.x + m.data[0][1] * position.y + m.data[0][2] * position.z + m.data[0][3],
+            m.data[1][0] * position.x + m.data[1][1] * position.y + m.data[1][2] * position.z + m.data[1][3],
+            m.data[2][0] * position.x + m.data[2][1] * position.y + m.data[2][2] * position.z + m.data[2][3],
+        };
+    }
+
+    /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
+    ///
+    /// 与 operator*(Point3T) 等价，名字更直白。与 apply() 的数学内容完全相同，
+    /// 只是接受并返回 Point3T —— 因此它是 apply() 的替代入口，不是它的补充。
+    [[nodiscard]] constexpr Point3T<Scalar> transform_point(Point3T<Scalar> position) const noexcept {
+        const MatrixT<Scalar, 4>& m = matrix;
+        return Point3T<Scalar>{
             m.data[0][0] * position.x + m.data[0][1] * position.y + m.data[0][2] * position.z + m.data[0][3],
             m.data[1][0] * position.x + m.data[1][1] * position.y + m.data[1][2] * position.z + m.data[1][3],
             m.data[2][0] * position.x + m.data[2][1] * position.y + m.data[2][2] * position.z + m.data[2][3],
@@ -122,6 +140,16 @@ template <typename Scalar>
 [[nodiscard]] constexpr Transform3T<Scalar> operator*(
     const Transform3T<Scalar>& a, const Transform3T<Scalar>& b) noexcept {
     return Transform3T<Scalar>{a.matrix * b.matrix};
+}
+
+/// 施加完整仿射变换，输入按**位置**解读（平移生效）。
+///
+/// 与 transform_point 等价。注意它与上面的 operator*(Vector3T) 是**两个语义
+/// 不同**的重载：点吃平移，方向不吃 —— 两者不可互相替代。
+template <typename Scalar>
+[[nodiscard]] constexpr Point3T<Scalar> operator*(
+    const Transform3T<Scalar>& t, Point3T<Scalar> point) noexcept {
+    return t.transform_point(point);
 }
 
 } // namespace GeoCore::linear

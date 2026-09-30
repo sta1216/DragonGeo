@@ -6,12 +6,13 @@
 
 #include <GeoCore/core/Tolerance.hpp>
 #include <GeoCore/linear/Matrix.hpp>
+#include <GeoCore/linear/Point2.hpp>
 #include <GeoCore/linear/Vector2.hpp>
 
 namespace GeoCore::linear {
 
 /// 二维仿射变换，内部为 3×3 齐次矩阵（行主序）。
-/// 两种「施加」语义的分工同 Transform3T，详见该类型的文档。
+/// 三种「施加」语义的分工同 Transform3T，详见该类型的文档。
 template <typename Scalar>
 struct Transform2T {
     using scalar_type = Scalar;
@@ -64,9 +65,25 @@ struct Transform2T {
     }
 
     /// 施加完整仿射变换，输入按**位置**解读。
+    ///
+    /// 历史用法：位置以 Vector2T 承载时的入口。它仍然有效，但**新代码请用
+    /// transform_point(Point2T)**，或等价的 operator*(Point2T) —— 位置由
+    /// Point2T 承载，语义在类型上就是对的。
     [[nodiscard]] constexpr Vector2T<Scalar> apply(Vector2T<Scalar> position) const noexcept {
         const MatrixT<Scalar, 3>& m = matrix;
         return Vector2T<Scalar>{
+            m.data[0][0] * position.x + m.data[0][1] * position.y + m.data[0][2],
+            m.data[1][0] * position.x + m.data[1][1] * position.y + m.data[1][2],
+        };
+    }
+
+    /// 施加完整仿射变换，输入按**位置**解读。
+    ///
+    /// 与 operator*(Point2T) 等价，名字更直白。与 apply() 的数学内容完全相同，
+    /// 只是接受并返回 Point2T —— 因此它是 apply() 的替代入口，不是它的补充。
+    [[nodiscard]] constexpr Point2T<Scalar> transform_point(Point2T<Scalar> position) const noexcept {
+        const MatrixT<Scalar, 3>& m = matrix;
+        return Point2T<Scalar>{
             m.data[0][0] * position.x + m.data[0][1] * position.y + m.data[0][2],
             m.data[1][0] * position.x + m.data[1][1] * position.y + m.data[1][2],
         };
@@ -104,6 +121,16 @@ template <typename Scalar>
 [[nodiscard]] constexpr Transform2T<Scalar> operator*(
     const Transform2T<Scalar>& a, const Transform2T<Scalar>& b) noexcept {
     return Transform2T<Scalar>{a.matrix * b.matrix};
+}
+
+/// 施加完整仿射变换，输入按**位置**解读（平移生效）。
+///
+/// 与 transform_point 等价。注意它与上面的 operator*(Vector2T) 是**两个语义
+/// 不同**的重载：点吃平移，方向不吃 —— 两者不可互相替代。
+template <typename Scalar>
+[[nodiscard]] constexpr Point2T<Scalar> operator*(
+    const Transform2T<Scalar>& t, Point2T<Scalar> point) noexcept {
+    return t.transform_point(point);
 }
 
 } // namespace GeoCore::linear
