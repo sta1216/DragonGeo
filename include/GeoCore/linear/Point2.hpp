@@ -37,8 +37,12 @@ struct Point2T {
 
     /// 两点间的欧几里得距离。
     ///
-    /// 经 Vector2T::length() 实现，因此继承它的一切行为 —— 包括任一分量含 ±inf
-    /// 时返回 inf 而非 NaN。那正是长度的既定语义，不为此加特判。
+    /// 经 Vector2T::length() 实现，因此继承它的一切行为 —— 包括**差向量**的任一
+    /// 分量含 ±inf 时返回 inf 而非 NaN。那正是长度的既定语义，不为此加特判。
+    ///
+    /// 限定语「**差向量**」不可省：两个点在同一位上都是同一个 ±inf 时，差是
+    /// NaN（`(+inf) - (+inf)`），距离随之是 NaN —— 与 `length()` 的规则一致
+    /// （任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN），不是漏判。
     [[nodiscard]] Scalar distance_to(Point2T other) const noexcept {
         return (*this - other).length();
     }

@@ -187,6 +187,23 @@ TEST_CASE("from_corners accepts the two corners in either order",
     CHECK_FALSE(mixed.is_empty());   // 整点交换会得到一个 y 倒置的空盒
     CHECK(mixed.min == Point2{0.0, 0.0});
     CHECK(mixed.max == Point2{1.0, 2.0});
+
+    // NaN 角点 → **规范空盒**（不是含 NaN 的盒），且与实参顺序无关。
+    // 朴素逐分量 min/max 在这里两处都错：一个顺序得到含 NaN 的盒
+    // （is_empty() 为真、却不等于 empty()），交换实参后 NaN 被静默丢掉、
+    // 得到一个**看似完全正常**的盒 —— 于是 from_corners(a,b) != from_corners(b,a)。
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const Box2 nan_second = Box2::from_corners(Point2{1.0, 1.0}, Point2{nan, 0.0});
+    CHECK(nan_second == Box2::empty());
+    CHECK(Box2::from_corners(Point2{nan, 0.0}, Point2{1.0, 1.0}) == nan_second);
+
+    // 逐分量：NaN 出现在任何一个槽位都要接住（只查 x 的实现看不出来）。
+    CHECK(Box2::from_corners(Point2{1.0, 1.0}, Point2{0.0, nan}) == Box2::empty());
+
+    // **±inf 不是 NaN**：异号无穷角点给出整个空间，不能被「非有限一律空盒」误伤。
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Box2::from_corners(Point2{-infinity, -infinity}, Point2{infinity, infinity})
+          == Box2{Point2{-infinity, -infinity}, Point2{infinity, infinity}});
 }
 
 TEST_CASE("box equality has evidence in every component",

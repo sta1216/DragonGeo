@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <cmath>
+#include <limits>
 #include <type_traits>
 
 #include <GeoCore/linear/Point2.hpp>
@@ -123,4 +125,10 @@ TEST_CASE("Point2 distance_to", "[linear][point2]") {
     // 3D 侧正因为下面第三条用了非原点对才被杀掉）。
     CHECK(Point2{0.0, 0.0}.distance_to(Point2{3.0, 4.0}) == Approx(5.0));
     CHECK(Point2{1.0, 2.0}.distance_to(Point2{4.0, 6.0}) == Approx(5.0));
+
+    // 非有限输入：文档里的规则说的是**差向量**。异号无穷 → 差向量含 ±inf → inf；
+    // 两端是同一个无穷 → 差向量是 NaN（inf - inf）→ NaN。两句各要一条证据。
+    const double infinity = std::numeric_limits<double>::infinity();
+    CHECK(Point2{-infinity, 0.0}.distance_to(Point2{infinity, 0.0}) == infinity);
+    CHECK(std::isnan(Point2{infinity, 0.0}.distance_to(Point2{infinity, 0.0})));
 }

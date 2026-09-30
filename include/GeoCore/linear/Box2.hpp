@@ -14,9 +14,16 @@ namespace GeoCore::linear {
 /// 合取，`merged` 是两个一维合并）。Interval 那边已经裁定的规则这里不重新讨论，
 /// 只写本类型特有的约定。
 ///
+/// **对齐的是语义，不是接口面**：一维测度在 `IntervalT` 里叫 `length()`，在本
+/// 类型里叫 `extent()` / `half_extent()`；`unbounded()` / `clipped()` /
+/// `contains(IntervalT)` 在本类型**没有对应物**（求交与裁剪归后续的 `query` 层，
+/// 见 spec §5.2）。不要为了「整齐」在本阶段补这些 API —— 它们的名字与归属是
+/// 后续阶段的决定，提前长出来只会把接口面钉错。
+///
 /// **空盒的规范表示是 `min` 的每个分量为 +inf、`max` 的每个分量为 -inf**，
 /// 由 `empty()` 给出。**凡是产出空盒的运算都必须给出这个规范形式**
-/// （`expanded` 收缩过头时即为一例），不能给「只有 x 分量倒置」的盒。
+/// （`expanded` 收缩过头、`from_corners` 遇到 NaN 角点时都是例子），
+/// 不能给「只有 x 分量倒置」的盒。
 /// 理由是同一个数学量不该有两种表示：若两处都算「空」，`==`、`extent()`、
 /// `center()` 都会变成「看情况」，调用者无从判断手里的是哪一种。
 /// 二维与三维用同一套表示（`Box2T` / `Box3T` 是同族的两个实例，不是两套约定）。
@@ -58,8 +65,21 @@ struct Box2T {
     ///
     /// 「逐分量」是接口的一部分：`from_corners({1, 0}, {0, 2})` 得到
     /// `[{0, 0}, {1, 2}]`，而**不是**按某个分量决定要不要整体交换两个点。
+    ///
+    /// **任一角点含 NaN 分量时返回规范空盒**（`empty()`）；**±inf 不在此列** ——
+    /// `from_corners((-inf,-inf), (+inf,+inf))` 得到整个空间，语义正确。
+    /// NaN 必须**显式检测**，不能只靠出口的 `is_empty()` 兜底：逐分量比较碰上
+    /// NaN 一律返回 false，于是朴素实现的结果取决于实参顺序 —— 一个顺序得到含
+    /// NaN 的盒（`is_empty()` 为真、却不等于 `empty()`），交换实参后 NaN 被静默
+    /// 丢给另一个操作数、得到一个**看似完全正常**的盒。空盒是「不含任何点」的
+    /// 诚实答案，与 `OrientedBox2T::to_axis_aligned()` 对 NaN 角点的处置同源。
     [[nodiscard]] static constexpr Box2T from_corners(Point2T<Scalar> a,
                                                       Point2T<Scalar> b) noexcept {
+        // NaN 检测用 `v != v`（NaN 是唯一不等于自身的值）—— 同 core::is_finite
+        // 里 `value == value` 的写法。只查 NaN：±inf 是合法端点。
+        if (a.x != a.x || a.y != a.y || b.x != b.x || b.y != b.y) {
+            return empty();
+        }
         return Box2T{Point2T<Scalar>{a.x < b.x ? a.x : b.x, a.y < b.y ? a.y : b.y},
                      Point2T<Scalar>{a.x > b.x ? a.x : b.x, a.y > b.y ? a.y : b.y}};
     }
@@ -172,9 +192,12 @@ struct Box2T {
     /// 注意这里不能直写 `min * 0.5 + max * 0.5` 这种向量式 —— `Point2T` 刻意
     /// 没有 `operator*`（标量）也没有 `Point2T + Point2T`，必须逐分量做标量算术。
     ///
-    /// **空盒、以及任一端点无穷的盒，结果是 NaN**（`(+inf) + (-inf)`）—— 这是
-    /// 刻意的哨兵，是「没有中心」的诚实答案，不是漏判。调用者应先 `is_empty()`
-    /// 或先判端点有限性，不要指望这里返回一个看似成功的点。
+    /// **规范空盒、以及任一端点无穷的盒，结果是 NaN**（`(+inf) + (-inf)`）——
+    /// 这是刻意的哨兵，是「没有中心」的诚实答案，不是漏判。**非规范空盒不在
+    /// 此列**：`{2,0}`–`{0,1}`（`is_empty()` 为真，聚合初始化随手就能造出来）
+    /// 的中心是有限的 `(1, 0.5)`，一个看似完全正常的点 —— 本函数不判空，
+    /// 区分不了两种「空」的表示，这正是「生产者一律规范化」的用途之一。
+    /// 调用者应先 `is_empty()` 或先判端点有限性，不要指望这里返回一个看似成功的点。
     [[nodiscard]] constexpr Point2T<Scalar> center() const noexcept {
         return Point2T<Scalar>{min.x * Scalar{0.5} + max.x * Scalar{0.5},
                                min.y * Scalar{0.5} + max.y * Scalar{0.5}};

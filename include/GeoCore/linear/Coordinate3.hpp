@@ -111,6 +111,11 @@ public:
     ///
     /// 与 `from_axes` 一样返回 `optional`（补全出来的轴理论上不可能退化，
     /// 但那要押在参考向量的选择上；交给同一个校验出口更诚实）。
+    ///
+    /// **这是本家族唯一的非 `constexpr` 工厂**：它经过 `Vector3T::normalized`
+    /// （内部 `std::sqrt`，C++20 尚非 `constexpr`），而二维的 `from_x_axis` 只做
+    /// 一次 90° 旋转、全程 `constexpr`。差异是固有的，不是遗漏 ——
+    /// `from_transform` 不归一化，因此仍是 `constexpr`。
     [[nodiscard]] static std::optional<Coordinate3T> from_z_axis(
         Point3T<Scalar> origin, UnitVector3T<Scalar> z,
         core::Tolerance tolerance = {}) noexcept;
