@@ -17,7 +17,7 @@
 - C++20。CMake ≥ 3.20。零运行时依赖。命名沿用总览：文件名与公开方法大驼峰，非公开数据成员 `m_` + 小驼峰，注释中文。
 - 命名空间 `DragonGeo::Prim` 与 `DragonGeo::Query`。目录 `include/DragonGeo/Prim/` 与 `include/DragonGeo/Query/`。
 - 聚合类型公开字段，不设工厂。`NaN` 允许存在。`IsValid` 要求坐标有限；射线、直线、平面的方向或法向必须是有限单位向量（长度平方与 1 的差用精确比较 `== 1` 不要求，单位性由 `UnitVector` 类型保证，`IsValid` 只拒绝非有限分量）。
-- 相等是表示相等，逐字段精确比较。
+- 相等是表示相等，逐字段精确比较。`operator==` 写成类外自由函数，与 `Box2` 相同；`operator!=` 不手写。不要在类内默认生成比较。
 - 线段参数 `t` 在 `[0, 1]`，`PointAt(t) = (1 - t) * A + t * B`。射线与直线是 `Origin + t * Direction`，`t` 是有符号距离。射线要求 `t ≥ 0`。
 - 零长度线段、零面积三角形允许存在，构造时不拒绝。
 - 查询碰到非有限输入时不抛异常，返回值不作规定，测试不断言那种输入。
@@ -99,7 +99,7 @@ Expected: 编译失败，找不到 `Segment2.hpp`。
 
 - [ ] **Step 3: 实现类型壳**
 
-`Segment2.hpp` 包含 `Point2.hpp` 与 `Core/Numeric.hpp`。`IsValid` 对 `A.X`、`A.Y`、`B.X`、`B.Y` 调用 `Core::IsFinite`。`operator==` 默认生成。`Prim.hpp` 包含该头。
+`Segment2.hpp` 包含 `Point2.hpp` 与 `Core/Numeric.hpp`。`IsValid` 对 `A.X`、`A.Y`、`B.X`、`B.Y` 调用 `Core::IsFinite`。`operator==` 是类外逐字段自由函数。`Prim.hpp` 包含该头。
 
 - [ ] **Step 4: 运行测试，确认通过**
 
