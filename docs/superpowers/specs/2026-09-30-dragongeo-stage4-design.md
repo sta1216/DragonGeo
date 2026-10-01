@@ -21,7 +21,7 @@
 8. **`Intersects` 按闭集回答，并且该用谓词的地方用精确谓词。** 交点坐标是普通 `double` 运算，不保证正好落在两端对象上。重合、共线重叠、共面重叠用结果里的种类表示，不伪装成一个点。
 9. **`Polyline` 存放 `Segment2` 序列。** 连续指后一段的 `A` 与前一段的 `B` 精确相等，不容差。调用方要传递同一个点值。`Polygon` 的每一环存放顶点，不把首顶点在末尾再存一次；最后一条边由类型闭合。
 10. **曲线协议是一组同名方法，不是公共基类。** 第 4.1 节列出全部二维、三维曲线。`Query` 继续不用虚函数。`Clone` 就是按值拷贝。
-11. **洞在 `Polygon` 和 `CurvePolygon` 上，只有一层。** 一个外环加零个或多个洞环。洞自己不再带洞。洞里的岛是 `MultiPolygon` 里的另一个多边形。`MultiPolygon` 不嵌套，只按顺序存放 `Polygon` 与 `CurvePolygon`。构造时不检验洞是否落在外环内部，也不检验成员之间是否重叠。
+11. **洞在 `Polygon` 和 `CurvePolygon` 上，只有一层。** 一个外环加零个或多个洞环。洞自己不再带洞。洞里的岛是 `MultiPolygon` 里的另一个多边形。`MultiPolygon` 不嵌套，只按顺序存放 `Polygon` 与 `CurvePolygon`。构造时不拒绝自交，也不拒绝落在外面的洞。这些情况由第 4.2 节的检查函数报告。
 12. **凸包点数不够时没有多边形。** `ConvexHull` 在不共线的点少于 3 个时返回 `std::nullopt`。结果是严格凸的、逆时针的 `Polygon`，边上的共线点不保留。
 13. **查询只提供 `double`。** 形状类型仍是 `Scalar` 模板，并提供 `float` 别名，以便存储。用到 `Orient2d` 等谓词的方法只在 `Scalar` 为 `double` 时存在。
 14. **有限圆柱是带平底的实心体。** 轴是两端盖圆心之间的 `Segment3`，零长度轴构造失败。胶囊允许零长度轴，此时它是一个球。`Disk` 是三维里的填充圆盘（曲面），不列入体积包含。
@@ -31,6 +31,8 @@
 18. **`Transformed` 不改变具体类型，矩形是例外。** 圆和圆弧只接受相似变换：平移、旋转、镜像、均匀缩放。非均匀缩放返回 `std::nullopt`。要得到椭圆时，调用方从椭圆类型出发。椭圆接受可逆仿射，结果仍是椭圆。线段和三角形接受任意仿射，三角形结果仍是三角形。变换把方向缩成零向量，或结果非有限时，返回 `std::nullopt`。矩形在结果仍然轴对齐且面积为正时保持 `Rectangle2`，否则 `Transformed`、`Rotated`、`Mirrored` 返回 `Polygon`。
 19. **`Rectangle2`、`Triangle2`、`Triangle3` 是没有洞的闭合多边形。** 它们实现第 4.1 节。子曲线看参数区间落在边界的哪一段：落在同一条直线边上时是线段，跨过顶点时才是折线。三维三角形的折线类型是 `Polyline3`。
 20. **`CurveCollection` 不是一条曲线。** 它只实现集合上有定义的那部分协议：包围盒、长度、面积、包含、重心、移动、镜像、旋转、`Transform`、反向、克隆、是否有效。没有单一的起点、切向、参数域或子曲线。
+21. **能唯一确定的转换直接返回目标类型，缺了范围就由调用方补上。** 线段可以变成射线或直线。射线和直线变成线段时必须给出有限的参数范围。圆变成圆弧、椭圆变成椭圆弧时必须给出起始角和扫掠角。
+22. **多边形的几何检查不改变对象。** `IsValid` 仍只看结构：有限坐标、环的顶点数、连续性。自交和洞是否有效由单独的函数回答。检查失败的多边形仍然可以求包含和面积。
 
 ---
 
@@ -38,7 +40,7 @@
 
 阶段 4 交付 §5.1 的原语、§5.6 的类型关系，以及 §5.2 里标记为 ★ 的查询。交付顺序见第 7 节。后一步开始时，前一步的类型和查询已经可用。
 
-闭合曲线的面积、方向、重心、长度，以及曲线上的移动、镜像、旋转和 `Transform`，都在本阶段跟对应类型一起交付。阶段 5 才做：自交检测、三角剖分、布尔、偏移、简化。曲线与曲线的求交只做第 6 节列出的那些。曲线离散、SVG、JSON 不在本阶段。
+闭合曲线的面积、方向、重心、长度，以及曲线上的移动、镜像、旋转和 `Transform`，都在本阶段跟对应类型一起交付。自交和洞的有效性检查也在本阶段，见第 4.2 节。阶段 5 才做：三角剖分、布尔、偏移、简化。曲线与曲线的求交只做第 6 节列出的那些。曲线离散里，只有 `CurvePolyline` / `CurvePolygon` 按给定偏差退化为折线或多边形；其它离散、SVG、JSON 不在本阶段。
 
 `Plane`，以及球、圆柱、胶囊、圆盘、视锥不是曲线，不实现第 4.1 节。`MultiPolygon` 也不是一条曲线。`CurveCollection` 只实现第 4.1 节末尾列出的那一部分。第 7 节的分步顺序先留着，需求收齐之前不据此安排实现。
 
@@ -159,6 +161,47 @@ NURBS 骨架上，不求值也能实现的方法现在就实现：`Domain`、`Bo
 
 集合不提供 `StartPoint`、`EndPoint`、`MidPoint`、三处切向、`IsClosed`、`Orientation`、`Domain`、`PointAt`、`ParameterOf`、`TangentAt`、`Subcurve`。这些都要求一条连续曲线。
 
+### 4.2 类型转换与多边形检查
+
+转换失败时返回 `std::nullopt`，不改原对象。含 NURBS、因而无法判断闭合或无法求值的转换抛 `std::logic_error`。
+
+**直线、射线、线段。** 二维与三维同一规则。
+
+| 方法 | 结果 |
+|---|---|
+| `Segment::AsRay`、`Segment::AsLine` | 起点是 `A`，方向从 `A` 指向 `B`。`A == B` 时为空 |
+| `Ray::AsLine` | 原点和方向原样带走 |
+| `Line::AsRay` | 用这条直线自己存放的原点和方向。这是表示上的选择，换一个基点会得到另一条射线 |
+| `Ray::AsSegment(length)`、`Line::AsSegment(parameterStart, parameterEnd)` | 结果必须是有限且长度不为 0 的线段。`length` 要有限且大于 0。直线的两个参数都要有限，并且不能相等。参数的先后决定线段方向 |
+
+**圆与圆弧，椭圆与椭圆弧。** 二维与三维的圆使用同一套名字。
+
+| 方法 | 结果 |
+|---|---|
+| `Arc::AsCircle`、`EllipseArc::AsEllipse` | 去掉起止角，得到支撑曲线。二维方向取 `+1`。三维圆保留圆心、法向和半径 |
+| `Circle2::AsArc(startAngle, sweep)`、`Ellipse2::AsEllipseArc(startAngle, sweep)` | 起始角和扫掠角必须构成合法的弧，否则为空。角度约定与对应弧类型相同 |
+| `Circle3::AsArc(zeroDirection, startAngle, sweep, tolerance = {})` | 与 `Arc3` 的工厂使用同一套垂直检查 |
+
+**折线与多边形，曲线折线与曲线多边形。**
+
+| 方法 | 结果 |
+|---|---|
+| `Polyline::AsPolygon`、`CurvePolyline::AsCurvePolygon` | 必须闭合，并且至少能形成三个顶点。结果没有洞。不闭合或顶点不够时为空 |
+| `Polygon::AsPolyline`、`CurvePolygon::AsCurvePolyline` | 只在没有洞时成功，结果是外环构成的闭合折线。有洞时为空 |
+| `Polygon` 的外环和每一个洞、`CurvePolygon` 的每一环 | `AsPolyline` 或 `AsCurvePolyline` 始终可以取出这一环，不受其它环影响 |
+
+**按偏差退化。** `CurvePolyline::ToPolyline(deviation)` 得到 `Polyline`。`CurvePolygon::ToPolygon(deviation)` 得到 `Polygon`，洞逐环保留。`deviation` 是绝对距离：原曲线上每一点到结果折线的距离不超过它。它不是 `Tolerance` 的相对项。`deviation` 必须有限且大于 0，否则为空。直线段原样保留。圆弧和椭圆弧按这个偏差加密。任一环退化后不足三个顶点时，`ToPolygon` 为空。环上有 NURBS 段时抛 `std::logic_error`。
+
+**多边形检查。** `Polygon` 与 `CurvePolygon` 提供下面三个函数。构造函数不调用它们。`CurvePolygon` 的环上有 NURBS 段时，三个函数都抛 `std::logic_error`。只对 `double` 提供，因为判断走精确谓词。
+
+| 方法 | 为真的条件 |
+|---|---|
+| `HasSelfIntersection` | 两条不相邻的边在内部相交、有正长度重叠，或一个顶点落在另一条不相邻边的内部。相邻边可以共顶点，也可以共线 |
+| `HolesAreValid` | 没有洞时为真。每个洞的顶点都在外环内部或边界上。洞的边不穿越外环或其它洞，也不与它们正长度重叠；只在顶点相接是允许的。一个洞的内部不包含另一个洞。环的顺逆时针不参与这项判断 |
+| `HasDegenerateEdge` | 某一环上有零长度边 |
+
+三角形只有三条边，每两条都相邻，所以 `Triangle2` / `Triangle3` 不另报自交。矩形的四条边只在顶点相接。这两个类型没有洞，不提供 `HolesAreValid`。
+
 ---
 
 ## 5. 类型
@@ -189,7 +232,7 @@ NURBS 骨架上，不求值也能实现的方法现在就实现：`Domain`、`Bo
 
 `Circle2` 的数据是圆心、半径，以及参数方向 `+1` 或 `-1`。半径必须有限且大于 0。默认方向 `+1`，接缝在世界 +X。访问器是 `Center`、`Radius`。它始终闭合。`Contains` 是闭圆盘。`Reversed` 只翻转参数方向。
 
-`Arc2` 在同一组圆心、半径上增加 `StartAngle` 与 `Sweep`。`StartAngle` 保留调用方传入的值，不折进 `[0, 2π)`，这样表示相等可预期。`IsClosed` 为 false。方法 `Circle` 去掉角度后得到方向为 `+1` 的整圆。
+`Arc2` 在同一组圆心、半径上增加 `StartAngle` 与 `Sweep`。`StartAngle` 保留调用方传入的值，不折进 `[0, 2π)`，这样表示相等可预期。`IsClosed` 为 false。`AsCircle` 去掉角度后得到方向为 `+1` 的整圆。
 
 `Circle3` 的数据是圆心、单位法向、半径。法向同时是参数方向：逆着法向看去，参数增加为逆时针。`Reversed` 翻转法向。`Contains` 是该平面上的闭圆盘，不共面的点不包含。`Arc3` 再增加与法向垂直的 `ZeroDirection`、`StartAngle`、`Sweep`。工厂 `Arc3::FromCircle(circle, zeroDirection, startAngle, sweep, tolerance = {})` 在 `zeroDirection · normal` 不能视为 0 时返回 `std::nullopt`。`Arc3` 不闭合。
 
@@ -201,9 +244,9 @@ NURBS 骨架上，不求值也能实现的方法现在就实现：`Domain`、`Bo
 
 ### 5.3 折线与多边形
 
-`Polyline::FromSegments(span<const Segment2>)` 至少要有一段，并且 `segments[i].B == segments[i + 1].A`。失败返回 `std::nullopt`。方法有 `SegmentCount`、`Segment(index)`、`PointCount`、`Point(index)`，以及第 4.1 节。不要求闭合。首段起点与末段终点是同一个点值时 `IsClosed` 为 true，此时面积和方向按这一环计算。闭合的折线不会自动变成 `Polygon`。
+`Polyline::FromSegments(span<const Segment2>)` 至少要有一段，并且 `segments[i].B == segments[i + 1].A`。失败返回 `std::nullopt`。方法有 `SegmentCount`、`Segment(index)`、`PointCount`、`Point(index)`，以及第 4.1 节。不要求闭合。首段起点与末段终点是同一个点值时 `IsClosed` 为 true，此时面积和方向按这一环计算。闭合的折线不会自动变成 `Polygon`。要得到多边形时调用 `AsPolygon`。
 
-`Polygon` 有一个外环和零个或多个洞环。`FromVertices(span<const Point2>)` 构造没有洞的多边形，至少三个顶点。`FromRings(outer, span<const Ring>)` 增加洞。`Ring` 就是顶点序列，规则与外环相同。若某一环的最后一个顶点与第一个相等，返回 `std::nullopt`，避免闭合边有两种写法。连续重复顶点允许存在，表示零长度边。自交允许存在，构造时不检查，也不检查洞是否在外环内部，也不检查洞与洞是否重叠。方法有 `VertexCount`、`Vertex`、`Edge`（都指外环；最后一条边连接末顶点与首顶点）、`HoleCount`、`Hole(index)`，以及第 4.1 节。`IsConvex` 仅 `double`。有洞时 `IsConvex` 为 false。
+`Polygon` 有一个外环和零个或多个洞环。`FromVertices(span<const Point2>)` 构造没有洞的多边形，至少三个顶点。`FromRings(outer, span<const Ring>)` 增加洞。`Ring` 就是顶点序列，规则与外环相同。若某一环的最后一个顶点与第一个相等，返回 `std::nullopt`，避免闭合边有两种写法。连续重复顶点允许存在，表示零长度边。自交允许存在，构造时不检查，也不检查洞是否在外环内部，也不检查洞与洞是否重叠。这些检查是 `HasSelfIntersection`、`HolesAreValid` 和 `HasDegenerateEdge`，见第 4.2 节。方法还有 `VertexCount`、`Vertex`、`Edge`（都指外环；最后一条边连接末顶点与首顶点）、`HoleCount`、`Hole(index)`，以及第 4.1 节。`IsConvex` 仅 `double`。有洞时 `IsConvex` 为 false。
 
 `IsConvex` 在无洞时看外环每个顶点的转向。顶点 `i` 的转向是 `Orient2d(Vertex(i - 1), Vertex(i), Vertex(i + 1))`，下标按顶点数循环。全部转向 `≥ 0`，或全部 `≤ 0`，即为凸。共线转向（0）可以混在其中。三点共线的退化多边形因此是凸的。它不另外查找自交。
 
@@ -415,6 +458,8 @@ struct ConvexContact3 {
 沿用仓库规则：每个新的公开方法都有直接调用它的用例。构造失败、空盒、零长度线段、零面积三角形、共线重叠、共面重叠、扫掠角为 0、扫掠角绝对值为 `2π`、非有限半径、NURBS 结构非法、NURBS 求值抛异常，都要有断言。
 
 曲线协议按类型抽查：线段的中点与两端切向、直线没有起点和中点、圆的反向使方向变号而圆盘包含不变、圆弧不是闭合所以面积为空、椭圆参数中点不同于弧长中点、多边形的洞会减小面积并排除洞内的点、洞边界仍算包含、`Subcurve` 越界为空、直线与射线的有限子区间是线段、圆和圆弧的子区间是圆弧、矩形一条边上的子曲线是线段、跨过顶点才是折线、轨迹上的点能取回参数且接缝点取参数下端、不在轨迹上时参数为空、非均匀缩放作用在圆上得到空。
+
+转换与检查另有直接用例：零长度线段不能变成射线，射线按正长度变成线段，有洞的多边形不能整份变成一条折线，偏差不是正数时退化为空，不相邻边相交时 `HasSelfIntersection` 为真，洞穿出外环时 `HolesAreValid` 为假，相邻边共线不算自交。
 
 `Intersects` 的共线、共面、端点相接用例锁定布尔值。`Intersection` 的对应用例锁定 `Kind`，不只锁定一个交点坐标。凸包用例锁定起点选择、逆时针、共线点被去掉，以及少于 3 个不共线点时返回空。
 
