@@ -14,6 +14,11 @@
 
 namespace DragonGeo::Prim {
 
+template <typename Scalar>
+struct Ray2T;
+template <typename Scalar>
+struct Line2T;
+
 /// 二维线段：由两个端点 `A`、`B` 给出的有限曲线段。
 ///
 /// 参数域是 `[0, 1]`，`PointAt(t) = A + t (B - A)`。`t` 不在域内或非有限时为空。
@@ -215,6 +220,12 @@ struct Segment2T {
         }
         return Segment2T{Locate(interval.Min), Locate(interval.Max)};
     }
+
+    /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
+    [[nodiscard]] std::optional<Ray2T<Scalar>> AsRay() const noexcept;
+
+    /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
+    [[nodiscard]] std::optional<Line2T<Scalar>> AsLine() const noexcept;
 
 private:
     [[nodiscard]] constexpr Linear::Point2T<Scalar> Locate(Scalar t) const noexcept {

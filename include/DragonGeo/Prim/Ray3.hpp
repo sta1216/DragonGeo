@@ -15,6 +15,9 @@
 
 namespace DragonGeo::Prim {
 
+template <typename Scalar>
+struct Line3T;
+
 /// 三维射线：从 `Origin` 沿 `Direction` 伸出的半直线。
 ///
 /// 参数域是 `[0, +inf)`，`PointAt(t) = Origin + t Direction`。`t` 是沿方向的
@@ -204,6 +207,17 @@ struct Ray3T {
         return Segment3T<Scalar>{Locate(interval.Min), Locate(interval.Max)};
     }
 
+    /// 原点和方向原样带走。
+    [[nodiscard]] Line3T<Scalar> AsLine() const noexcept;
+
+    /// `length` 有限且大于 0 时，从原点到 `Origin + length * Direction` 的线段；否则为空。
+    [[nodiscard]] constexpr std::optional<Segment3T<Scalar>> AsSegment(Scalar length) const noexcept {
+        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
+            return std::nullopt;
+        }
+        return Segment3T<Scalar>{Origin, Locate(length)};
+    }
+
 private:
     [[nodiscard]] constexpr Linear::Point3T<Scalar> Locate(Scalar t) const noexcept {
         return Origin + Direction * t;
@@ -234,5 +248,16 @@ template <typename Scalar>
 
 using Ray3 = Ray3T<double>;
 using Ray3f = Ray3T<float>;
+
+} // namespace DragonGeo::Prim
+
+#include <DragonGeo/Prim/Line3.hpp>
+
+namespace DragonGeo::Prim {
+
+template <typename Scalar>
+[[nodiscard]] Line3T<Scalar> Ray3T<Scalar>::AsLine() const noexcept {
+    return {Origin, Direction};
+}
 
 } // namespace DragonGeo::Prim

@@ -23,6 +23,7 @@ using DragonGeo::Linear::Vector2;
 using DragonGeo::Prim::Line2;
 using DragonGeo::Prim::Line2T;
 using DragonGeo::Prim::Line2f;
+using DragonGeo::Prim::Ray2;
 using DragonGeo::Prim::Segment2;
 
 TEST_CASE("Line2 is an aggregate of an origin and a direction", "[prim][line2]") {
@@ -135,4 +136,22 @@ TEST_CASE("Line2 protocol copies, reflects and cuts a finite span", "[prim][line
     STATIC_REQUIRE(noexcept(line.Clone()));
     STATIC_REQUIRE(noexcept(line.Transformed(Transform2::Identity())));
     STATIC_REQUIRE(noexcept(line.Subcurve(Interval{})));
+    STATIC_REQUIRE(noexcept(line.AsRay()));
+    STATIC_REQUIRE(noexcept(line.AsSegment(0.0, 1.0)));
+}
+
+TEST_CASE("Line2 AsSegment uses parameter order for endpoints", "[prim][line2]") {
+    const Line2 line{Point2{0.0, 0.0}, UnitVector2::XAxis};
+    const auto segment = line.AsSegment(1.0, -1.0);
+    REQUIRE(segment.has_value());
+    CHECK(segment->A == Point2{1.0, 0.0});
+    CHECK(segment->B == Point2{-1.0, 0.0});
+    CHECK_FALSE(line.AsSegment(1.0, 1.0).has_value());
+}
+
+TEST_CASE("Line2 AsRay keeps the same origin and direction", "[prim][line2]") {
+    const Line2 line{Point2{2.0, 3.0}, UnitVector2::XAxis};
+    const Ray2 ray = line.AsRay();
+    CHECK(ray.Origin == line.Origin);
+    CHECK(ray.Direction == line.Direction);
 }

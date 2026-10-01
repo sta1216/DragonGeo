@@ -13,6 +13,11 @@
 
 namespace DragonGeo::Prim {
 
+template <typename Scalar>
+struct Ray3T;
+template <typename Scalar>
+struct Line3T;
+
 /// 三维线段：由两个端点 `A`、`B` 给出的有限曲线段。
 ///
 /// 参数域是 `[0, 1]`，`PointAt(t) = A + t (B - A)`。`t` 不在域内或非有限时为空。
@@ -218,6 +223,12 @@ struct Segment3T {
         }
         return Segment3T{Locate(interval.Min), Locate(interval.Max)};
     }
+
+    /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
+    [[nodiscard]] std::optional<Ray3T<Scalar>> AsRay() const noexcept;
+
+    /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
+    [[nodiscard]] std::optional<Line3T<Scalar>> AsLine() const noexcept;
 
 private:
     [[nodiscard]] constexpr Linear::Point3T<Scalar> Locate(Scalar t) const noexcept {

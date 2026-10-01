@@ -15,6 +15,9 @@
 
 namespace DragonGeo::Prim {
 
+template <typename Scalar>
+struct Ray3T;
+
 /// 三维直线：过 `Origin`、方向为 `Direction` 的双向直线。
 ///
 /// 参数域是 `IntervalT::Unbounded()`，即 `[-inf, +inf]`。`PointAt(t) = Origin + t Direction`，
@@ -204,6 +207,24 @@ struct Line3T {
         return Segment3T<Scalar>{Locate(interval.Min), Locate(interval.Max)};
     }
 
+    /// 用这条直线存放的原点和方向。
+    [[nodiscard]] Ray3T<Scalar> AsRay() const noexcept;
+
+    /// 两参数均有限且不相等时，从 `PointAt(parameterStart)` 到 `PointAt(parameterEnd)` 的线段；否则为空。
+    [[nodiscard]] std::optional<Segment3T<Scalar>> AsSegment(
+        Scalar parameterStart, Scalar parameterEnd) const noexcept {
+        if (!Core::IsFinite(parameterStart) || !Core::IsFinite(parameterEnd)
+            || parameterStart == parameterEnd) {
+            return std::nullopt;
+        }
+        const auto start = PointAt(parameterStart);
+        const auto end = PointAt(parameterEnd);
+        if (!start.has_value() || !end.has_value()) {
+            return std::nullopt;
+        }
+        return Segment3T<Scalar>{*start, *end};
+    }
+
 private:
     [[nodiscard]] constexpr Linear::Point3T<Scalar> Locate(Scalar t) const noexcept {
         return Origin + Direction * t;
@@ -234,5 +255,34 @@ template <typename Scalar>
 
 using Line3 = Line3T<double>;
 using Line3f = Line3T<float>;
+
+} // namespace DragonGeo::Prim
+
+#include <DragonGeo/Prim/Ray3.hpp>
+
+namespace DragonGeo::Prim {
+
+template <typename Scalar>
+[[nodiscard]] std::optional<Ray3T<Scalar>> Segment3T<Scalar>::AsRay() const noexcept {
+    const auto unitDirection = Direction();
+    if (!unitDirection.has_value()) {
+        return std::nullopt;
+    }
+    return Ray3T<Scalar>{A, *unitDirection};
+}
+
+template <typename Scalar>
+[[nodiscard]] std::optional<Line3T<Scalar>> Segment3T<Scalar>::AsLine() const noexcept {
+    const auto unitDirection = Direction();
+    if (!unitDirection.has_value()) {
+        return std::nullopt;
+    }
+    return Line3T<Scalar>{A, *unitDirection};
+}
+
+template <typename Scalar>
+[[nodiscard]] Ray3T<Scalar> Line3T<Scalar>::AsRay() const noexcept {
+    return {Origin, Direction};
+}
 
 } // namespace DragonGeo::Prim

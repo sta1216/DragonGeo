@@ -21,6 +21,7 @@ using DragonGeo::Linear::Point2;
 using DragonGeo::Linear::Transform2;
 using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Vector2;
+using DragonGeo::Prim::Line2;
 using DragonGeo::Prim::Ray2;
 using DragonGeo::Prim::Ray2T;
 using DragonGeo::Prim::Ray2f;
@@ -161,4 +162,22 @@ TEST_CASE("Ray2 protocol keeps the origin and cuts a finite segment", "[prim][ra
     STATIC_REQUIRE(noexcept(ray.Clone()));
     STATIC_REQUIRE(noexcept(ray.Transformed(Transform2::Identity())));
     STATIC_REQUIRE(noexcept(ray.Subcurve(Interval{})));
+    STATIC_REQUIRE(noexcept(ray.AsLine()));
+    STATIC_REQUIRE(noexcept(ray.AsSegment(1.0)));
+}
+
+TEST_CASE("Ray2 AsSegment builds a finite segment along the ray", "[prim][ray2]") {
+    const Ray2 ray{Point2{0.0, 0.0}, UnitVector2::XAxis};
+    const auto segment = ray.AsSegment(2.0);
+    REQUIRE(segment.has_value());
+    CHECK(segment->A == Point2{0.0, 0.0});
+    CHECK(segment->B == Point2{2.0, 0.0});
+    CHECK_FALSE(ray.AsSegment(0.0).has_value());
+}
+
+TEST_CASE("Ray2 AsLine keeps the same origin and direction", "[prim][ray2]") {
+    const Ray2 ray{Point2{1.0, 2.0}, UnitVector2::YAxis};
+    const Line2 line = ray.AsLine();
+    CHECK(line.Origin == ray.Origin);
+    CHECK(line.Direction == ray.Direction);
 }

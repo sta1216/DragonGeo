@@ -22,6 +22,7 @@ using DragonGeo::Linear::Point3;
 using DragonGeo::Linear::Transform3;
 using DragonGeo::Linear::UnitVector3;
 using DragonGeo::Linear::Vector3;
+using DragonGeo::Prim::Ray3;
 using DragonGeo::Prim::Segment3;
 using DragonGeo::Prim::Segment3T;
 using DragonGeo::Prim::Segment3f;
@@ -122,4 +123,12 @@ TEST_CASE("Segment3 midpoint is PointAt one half", "[prim][segment3]") {
     STATIC_REQUIRE(noexcept(segment.Mirrored(Point3{}, UnitVector3::ZAxis)));
     STATIC_REQUIRE(noexcept(segment.Transformed(Transform3::Identity())));
     STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
+}
+
+TEST_CASE("Segment3 along +Z converts to a Ray3 from the start", "[prim][segment3]") {
+    const Segment3 segment{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 4.0}};
+    const auto ray = segment.AsRay();
+    REQUIRE(ray.has_value());
+    CHECK(ray->Origin == Point3{0.0, 0.0, 0.0});
+    CHECK(ray->Direction == UnitVector3::ZAxis);
 }

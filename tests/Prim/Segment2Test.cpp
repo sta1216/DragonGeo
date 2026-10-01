@@ -11,6 +11,7 @@
 #include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
 #include <DragonGeo/Linear/Vector2.hpp>
+#include <DragonGeo/Prim/Line2.hpp>
 #include <DragonGeo/Prim/Segment2.hpp>
 
 using Catch::Approx;
@@ -27,6 +28,8 @@ using DragonGeo::Linear::Point2;
 using DragonGeo::Linear::Transform2;
 using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Vector2;
+using DragonGeo::Prim::Line2;
+using DragonGeo::Prim::Ray2;
 using DragonGeo::Prim::Segment2;
 using DragonGeo::Prim::Segment2f;
 using DragonGeo::Prim::Segment2T;
@@ -208,6 +211,8 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(noexcept(segment.Reversed()));
     STATIC_REQUIRE(noexcept(segment.Clone()));
     STATIC_REQUIRE(noexcept(segment.Transformed(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(segment.AsRay()));
+    STATIC_REQUIRE(noexcept(segment.AsLine()));
     STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
 
     constexpr Segment2 axis{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
@@ -220,4 +225,18 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE_FALSE(axis.Contains(Point2{}));
     STATIC_REQUIRE(axis.Reversed().A == Point2{3.0, 0.0});
     STATIC_REQUIRE(axis.Reversed().B == Point2{0.0, 0.0});
+}
+
+TEST_CASE("zero-length Segment2 AsRay and AsLine are empty", "[prim][segment2]") {
+    const Segment2 segment{Point2{1.0, 2.0}, Point2{1.0, 2.0}};
+    CHECK_FALSE(segment.AsRay().has_value());
+    CHECK_FALSE(segment.AsLine().has_value());
+}
+
+TEST_CASE("Segment2 along +X converts to a Ray2 from the start", "[prim][segment2]") {
+    const Segment2 segment{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
+    const auto ray = segment.AsRay();
+    REQUIRE(ray.has_value());
+    CHECK(ray->Origin == Point2{0.0, 0.0});
+    CHECK(ray->Direction == UnitVector2::XAxis);
 }
