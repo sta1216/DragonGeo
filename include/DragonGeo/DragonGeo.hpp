@@ -27,3 +27,5 @@
 #include <DragonGeo/Linear/OrientedBox2.hpp>
 #include <DragonGeo/Linear/OrientedBox3.hpp>
 #include <DragonGeo/Predicates/Predicates.hpp>
+#include <DragonGeo/Prim/Prim.hpp>
+#include <DragonGeo/Query/Query.hpp>
