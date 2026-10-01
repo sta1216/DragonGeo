@@ -15,11 +15,8 @@ namespace DragonGeo::Linear {
 
 /// 四元数，表示三维旋转。
 ///
-/// 成员顺序为标量部分在前（W, X, Y, Z）。默认构造得到**单位四元数**
-/// 而非全零 —— 本类型表示旋转，默认值必须表示恒等旋转，否则默认构造
-/// 的对象会静默地成为一个不可用的零旋转。
-template <typename Scalar>
-struct QuaternionT {
+/// 成员顺序为标量部分在前（W, X, Y, Z）。默认构造得到**单位四元数** 而非全零 —— 本类型表示旋转，默认值必须表示恒等旋转，否则默认构造的对象会静默地成为一个不可用的零旋转。
+template <typename Scalar> struct QuaternionT {
     using ScalarType = Scalar;
 
     Scalar W{1};
@@ -53,9 +50,7 @@ struct QuaternionT {
             return Scalar{0};
         }
         if (!Core::IsFinite(scale)) {
-            // 与 Vector3T::Length 保持一致，规则同为：任一无穷分量 ⇒ ±inf；
-            // 否则含 NaN ⇒ NaN。两条路径的语义必须一致，否则调用方在模长的
-            // 两个来源上会得到互相矛盾的结果。
+            // 与 Vector3T::Length 保持一致，规则同为：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。两条路径的语义必须一致，否则调用方在模长的两个来源上会得到互相矛盾的结果。
             return scale;
         }
         const Scalar sw = W / scale;
@@ -66,30 +61,17 @@ struct QuaternionT {
     }
 
     /// 归一化。模长在给定容差下可视为零、或本身不是有限值时返回 std::nullopt。
-    [[nodiscard]] std::optional<QuaternionT> Normalized(
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+    [[nodiscard]] std::optional<QuaternionT> Normalized(Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const Scalar magnitude = Norm();
-        // 与 UnitVector3T::normalized / MatrixT::inverse 同一条原则：绝不交出一个
-        // has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会
-        // 污染后续全部计算。
-        if (!Core::IsFinite(static_cast<double>(magnitude))
-            || tolerance.IsZero(magnitude)) {
+        // 与 UnitVector3T::normalized / MatrixT::inverse 同一条原则：绝不交出一个 has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会污染后续全部计算。
+        if (!Core::IsFinite(static_cast<double>(magnitude)) || tolerance.IsZero(magnitude)) {
             return std::nullopt;
         }
         const Scalar inverseMagnitude = Scalar{1} / magnitude;
-        const QuaternionT<Scalar> result{
-            W * inverseMagnitude,
-            X * inverseMagnitude,
-            Y * inverseMagnitude,
-            Z * inverseMagnitude,
-        };
-        // 模长有限并不保证倒数有限：|q| 是次正规数时（例如 5e-324）1/|q| 就是
-        // inf，分量乘上去即得 inf。与 MatrixT::inverse 还原尺度后的检查是同一件
-        // 事 —— 绝不交出 has_value() 为真、内容却是 inf 的结果。
-        if (!Core::IsFinite(static_cast<double>(result.W))
-            || !Core::IsFinite(static_cast<double>(result.X))
-            || !Core::IsFinite(static_cast<double>(result.Y))
-            || !Core::IsFinite(static_cast<double>(result.Z))) {
+        const QuaternionT<Scalar> result{W * inverseMagnitude, X * inverseMagnitude, Y * inverseMagnitude, Z * inverseMagnitude};
+        // 模长有限并不保证倒数有限：|q| 是次正规数时（例如 5e-324）1/|q| 就是 inf，分量乘上去即得 inf。与 MatrixT::inverse 还原尺度后的检查是同一件事 —— 绝不交出 has_value() 为真、内容却是 inf 的结果。
+        if (!Core::IsFinite(static_cast<double>(result.W)) || !Core::IsFinite(static_cast<double>(result.X))
+            || !Core::IsFinite(static_cast<double>(result.Y)) || !Core::IsFinite(static_cast<double>(result.Z))) {
             return std::nullopt;
         }
         return result;
@@ -97,18 +79,11 @@ struct QuaternionT {
 
     /// 由单位轴与弧度角构造旋转。
     ///
-    /// 轴参数刻意接受 UnitVector3T 而非 Vector3T：非单位轴会让结果不再是
-    /// 单位四元数，这个前置条件由类型系统表达比写在文档里更可靠。
-    [[nodiscard]] static QuaternionT FromAxisAngle(
-        UnitVector3T<Scalar> axis, Scalar angleRadians) noexcept {
+    /// 轴参数刻意接受 UnitVector3T 而非 Vector3T：非单位轴会让结果不再是单位四元数，这个前置条件由类型系统表达比写在文档里更可靠。
+    [[nodiscard]] static QuaternionT FromAxisAngle(UnitVector3T<Scalar> axis, Scalar angleRadians) noexcept {
         const Scalar halfAngle = angleRadians / Scalar{2};
         const Scalar sine = std::sin(halfAngle);
-        return QuaternionT<Scalar>{
-            std::cos(halfAngle),
-            axis.X() * sine,
-            axis.Y() * sine,
-            axis.Z() * sine,
-        };
+        return QuaternionT<Scalar>{std::cos(halfAngle), axis.X() * sine, axis.Y() * sine, axis.Z() * sine};
     }
 
     /// 从 3×3 旋转矩阵提取四元数。非正交或 det ≠ +1 时返回空。
@@ -148,26 +123,22 @@ struct QuaternionT {
             result.X = (rotation.Data[2][1] - rotation.Data[1][2]) * scale;
             result.Y = (rotation.Data[0][2] - rotation.Data[2][0]) * scale;
             result.Z = (rotation.Data[1][0] - rotation.Data[0][1]) * scale;
-        } else if (rotation.Data[0][0] > rotation.Data[1][1]
-                   && rotation.Data[0][0] > rotation.Data[2][2]) {
-            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[0][0] - rotation.Data[1][1]
-                                            - rotation.Data[2][2]);
+        } else if (rotation.Data[0][0] > rotation.Data[1][1] && rotation.Data[0][0] > rotation.Data[2][2]) {
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[0][0] - rotation.Data[1][1] - rotation.Data[2][2]);
             const Scalar scale = Scalar{0.5} * root;
             result.W = (rotation.Data[2][1] - rotation.Data[1][2]) / scale;
             result.X = Scalar{0.25} / scale;
             result.Y = (rotation.Data[0][1] + rotation.Data[1][0]) / scale;
             result.Z = (rotation.Data[0][2] + rotation.Data[2][0]) / scale;
         } else if (rotation.Data[1][1] > rotation.Data[2][2]) {
-            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[1][1] - rotation.Data[0][0]
-                                            - rotation.Data[2][2]);
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[1][1] - rotation.Data[0][0] - rotation.Data[2][2]);
             const Scalar scale = Scalar{0.5} * root;
             result.W = (rotation.Data[0][2] - rotation.Data[2][0]) / scale;
             result.X = (rotation.Data[0][1] + rotation.Data[1][0]) / scale;
             result.Y = Scalar{0.25} / scale;
             result.Z = (rotation.Data[1][2] + rotation.Data[2][1]) / scale;
         } else {
-            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[2][2] - rotation.Data[0][0]
-                                            - rotation.Data[1][1]);
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[2][2] - rotation.Data[0][0] - rotation.Data[1][1]);
             const Scalar scale = Scalar{0.5} * root;
             result.W = (rotation.Data[1][0] - rotation.Data[0][1]) / scale;
             result.X = (rotation.Data[0][2] + rotation.Data[2][0]) / scale;
@@ -180,8 +151,7 @@ struct QuaternionT {
 
     /// 用四元数旋转向量。要求旋转是单位四元数。
     [[nodiscard]] constexpr Vector3T<Scalar> Rotate(Vector3T<Scalar> v) const noexcept {
-        // 旋转公式：v' = v + 2 * qVec × (qVec × v + W * v)
-        // 比 q * (0,v) * conj(q) 少了两次四元数乘法，且不必构造纯四元数。
+        // 旋转公式：v' = v + 2 * qVec × (qVec × v + W * v) 比 q * (0,v) * conj(q) 少了两次四元数乘法，且不必构造纯四元数。
         const Vector3T<Scalar> qVector{X, Y, Z};
         const Vector3T<Scalar> t = qVector.Cross(v) + v * W;
         return v + qVector.Cross(t) * Scalar{2};
@@ -217,37 +187,27 @@ using Quaternion = QuaternionT<double>;
 using Quaternionf = QuaternionT<float>;
 
 /// 四元数乘法，对应旋转的复合。`a * b` 表示先施加 b 再施加 a。
-template <typename Scalar>
-[[nodiscard]] constexpr QuaternionT<Scalar> operator*(
-    QuaternionT<Scalar> a, QuaternionT<Scalar> b) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr QuaternionT<Scalar> operator*(QuaternionT<Scalar> a, QuaternionT<Scalar> b) noexcept {
     return QuaternionT<Scalar>{
         a.W * b.W - a.X * b.X - a.Y * b.Y - a.Z * b.Z,
-        a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y,
-        a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X,
-        a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
+        a.W * b.X + a.X * b.W + a.Y * b.Z - a.Z * b.Y, a.W * b.Y - a.X * b.Z + a.Y * b.W + a.Z * b.X, a.W * b.Z + a.X * b.Y - a.Y * b.X + a.Z * b.W,
     };
 }
 
-template <typename Scalar, typename Factor>
-    requires std::convertible_to<Factor, Scalar>
-[[nodiscard]] constexpr QuaternionT<Scalar> operator*(
-    QuaternionT<Scalar> q, Factor factor) noexcept {
+template <typename Scalar, typename Factor> requires std::convertible_to<Factor, Scalar>
+[[nodiscard]] constexpr QuaternionT<Scalar> operator*(QuaternionT<Scalar> q, Factor factor) noexcept {
     const auto scale = static_cast<Scalar>(factor);
     return QuaternionT<Scalar>{q.W * scale, q.X * scale, q.Y * scale, q.Z * scale};
 }
 
-/// 标量 × 四元数。与 operator*(quaternion, factor) 对称 —— 缺了它
-/// `2.0 * q` 会编译失败，而 Vector 与 UnitVector 都提供两种写法。
-template <typename Scalar, typename Factor>
-    requires std::convertible_to<Factor, Scalar>
-[[nodiscard]] constexpr QuaternionT<Scalar> operator*(
-    Factor factor, QuaternionT<Scalar> q) noexcept {
+/// 标量 × 四元数。与 operator*(quaternion, factor) 对称 —— 缺了它 `2.0 * q` 会编译失败，而 Vector 与 UnitVector 都提供两种写法。
+template <typename Scalar, typename Factor> requires std::convertible_to<Factor, Scalar>
+[[nodiscard]] constexpr QuaternionT<Scalar> operator*(Factor factor, QuaternionT<Scalar> q) noexcept {
     return q * factor;
 }
 
 /// 逐分量取负。q 与 -q 表示同一个旋转，故取负不影响旋转语义。
-template <typename Scalar>
-[[nodiscard]] constexpr QuaternionT<Scalar> operator-(QuaternionT<Scalar> q) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr QuaternionT<Scalar> operator-(QuaternionT<Scalar> q) noexcept {
     return QuaternionT<Scalar>{-q.W, -q.X, -q.Y, -q.Z};
 }
 

@@ -8,10 +8,8 @@
 
 namespace DragonGeo::Linear {
 
-/// 四维向量：纯代数载体。齐次坐标与四元数的底层表示都用它，
-/// 因此本层刻意不赋予它任何几何语义。
-template <typename Scalar>
-struct Vector4T {
+/// 四维向量：纯代数载体。齐次坐标与四元数的底层表示都用它，因此本层刻意不赋予它任何几何语义。
+template <typename Scalar> struct Vector4T {
     using ScalarType = Scalar;
 
     // 同 Vector2T：不声明任何构造函数，以保持聚合性。
@@ -20,8 +18,7 @@ struct Vector4T {
     Scalar Z{};
     Scalar W{};
 
-    /// 零向量，各分量都是 0。加法单位元，与值初始化的向量相同。
-    /// 类型在定义内部不完整，常量定义在类型之后。
+    /// 零向量，各分量都是 0。加法单位元，与值初始化的向量相同。类型在定义内部不完整，常量定义在类型之后。
     static const Vector4T Zero;
 
     [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
@@ -42,8 +39,7 @@ struct Vector4T {
         const Scalar scaledY = Y / scale;
         const Scalar scaledZ = Z / scale;
         const Scalar scaledW = W / scale;
-        return scale * std::sqrt(scaledX * scaledX + scaledY * scaledY
-                                 + scaledZ * scaledZ + scaledW * scaledW);
+        return scale * std::sqrt(scaledX * scaledX + scaledY * scaledY + scaledZ * scaledZ + scaledW * scaledW);
     }
 
     /// 下标访问。索引 0/1/2/3 依次对应 X/Y/Z/W。
@@ -73,51 +69,43 @@ struct Vector4T {
     }
 };
 
-template <typename Scalar>
-const Vector4T<Scalar> Vector4T<Scalar>::Zero{};
+template <typename Scalar> const Vector4T<Scalar> Vector4T<Scalar>::Zero{};
 
 using Vector4 = Vector4T<double>;
 using Vector4f = Vector4T<float>;
 
 // ---- 运算符 ----
 
-template <typename Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator+(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator+(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
     return Vector4T<Scalar>{a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.W + b.W};
 }
 
-template <typename Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator-(Vector4T<Scalar> v) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator-(Vector4T<Scalar> v) noexcept {
     return Vector4T<Scalar>{-v.X, -v.Y, -v.Z, -v.W};
 }
 
-template <typename Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator-(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator-(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
     return Vector4T<Scalar>{a.X - b.X, a.Y - b.Y, a.Z - b.Z, a.W - b.W};
 }
 
 template <typename Scalar, typename Factor>
-    requires std::convertible_to<Factor, Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator*(Vector4T<Scalar> v, Factor factor) noexcept {
+    requires std::convertible_to<Factor, Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator*(Vector4T<Scalar> v, Factor factor) noexcept {
     const auto scale = static_cast<Scalar>(factor);
     return Vector4T<Scalar>{v.X * scale, v.Y * scale, v.Z * scale, v.W * scale};
 }
 
 template <typename Scalar, typename Factor>
-    requires std::convertible_to<Factor, Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator*(Factor factor, Vector4T<Scalar> v) noexcept {
+    requires std::convertible_to<Factor, Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator*(Factor factor, Vector4T<Scalar> v) noexcept {
     return v * factor;
 }
 
 template <typename Scalar, typename Divisor>
-    requires std::convertible_to<Divisor, Scalar>
-[[nodiscard]] constexpr Vector4T<Scalar> operator/(Vector4T<Scalar> v, Divisor divisor) noexcept {
+    requires std::convertible_to<Divisor, Scalar> [[nodiscard]] constexpr Vector4T<Scalar> operator/(Vector4T<Scalar> v, Divisor divisor) noexcept {
     const auto scale = static_cast<Scalar>(divisor);
     return Vector4T<Scalar>{v.X / scale, v.Y / scale, v.Z / scale, v.W / scale};
 }
 
-template <typename Scalar>
-[[nodiscard]] constexpr bool operator==(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr bool operator==(Vector4T<Scalar> a, Vector4T<Scalar> b) noexcept {
     return a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.W == b.W;
 }
 

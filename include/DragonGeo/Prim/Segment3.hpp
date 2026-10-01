@@ -14,18 +14,13 @@
 
 namespace DragonGeo::Prim {
 
-template <typename Scalar>
-struct Ray3T;
-template <typename Scalar>
-struct Line3T;
+template <typename Scalar> struct Ray3T;
+template <typename Scalar> struct Line3T;
 
 /// 三维线段：由两个端点 `A`、`B` 给出的有限曲线段。
 ///
-/// 参数域是 `[0, 1]`，`PointAt(t) = A + t (B - A)`。`t` 不在域内或非有限时为空。
-/// 零长度（`A == B`）仍然有效：长度为 0，`Direction` 为空，最近点参数是 0。
-/// 非有限坐标可以存入；`IsValid` 仅在六个分量都有限时为真。
-template <typename Scalar>
-struct Segment3T {
+/// 参数域是 `[0, 1]`，`PointAt(t) = A + t (B - A)`。`t` 不在域内或非有限时为空。零长度（`A == B`）仍然有效：长度为 0，`Direction` 为空，最近点参数是 0。非有限坐标可以存入；`IsValid` 仅在六个分量都有限时为真。
+template <typename Scalar> struct Segment3T {
     using ScalarType = Scalar;
 
     // 同 Point3T / Box2T：不声明任何构造函数，以保持聚合性。
@@ -35,8 +30,7 @@ struct Segment3T {
     /// 两个端点的六个分量均为有限值时为真。零长度（`A == B`）仍视为有效。
     [[nodiscard]] constexpr bool IsValid() const noexcept {
         using Core::IsFinite;
-        return IsFinite(A.X) && IsFinite(A.Y) && IsFinite(A.Z) && IsFinite(B.X) && IsFinite(B.Y)
-            && IsFinite(B.Z);
+        return IsFinite(A.X) && IsFinite(A.Y) && IsFinite(A.Z) && IsFinite(B.X) && IsFinite(B.Y) && IsFinite(B.Z);
     }
 
     /// 参数域 `[0, 1]`。
@@ -93,45 +87,31 @@ struct Segment3T {
     /// 线段不填充区域。
     [[nodiscard]] bool Contains(Linear::Point3T<Scalar>) const noexcept;
 
-    /// 点到所在直线的距离不超过 `tolerance.Resolve(尺度)`，并且投影参数落在
-    /// `[-e, 1 + e]` 内，其中 `e = tolerance.Resolve(1)`。
-    /// 尺度是包围盒对角线，也就是线段长度。零长度线段的对角线是 0，
+    /// 点到所在直线的距离不超过 `tolerance.Resolve(尺度)`，并且投影参数落在 `[-e, 1 + e]` 内，其中 `e = tolerance.Resolve(1)`。尺度是包围盒对角线，也就是线段长度。零长度线段的对角线是 0，
     /// 容差因此是绝对项 `Resolve(0)`，距离是到 `A` 的距离。
-    [[nodiscard]] bool ContainsPoint(
-        Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
+    [[nodiscard]] bool ContainsPoint(Linear::Point3T<Scalar> point, Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
-    /// 未夹紧的直线投影参数。同一容差下 `ContainsPoint` 为假时为空。
-    /// 成功时可以略微落在 `[0, 1]` 之外。零长度线段返回 `0`。
-    [[nodiscard]] std::optional<Scalar> ParameterOf(
-        Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
+    /// 未夹紧的直线投影参数。同一容差下 `ContainsPoint` 为假时为空。成功时可以略微落在 `[0, 1]` 之外。零长度线段返回 `0`。
+    [[nodiscard]] std::optional<Scalar> ParameterOf(Linear::Point3T<Scalar> point, Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
     void Translate(Linear::Vector3T<Scalar> vector) noexcept;
 
     /// 绕过 `origin`、方向为 `axis` 的轴旋转 `radians` 弧度。
-    void Rotate(
-        Linear::Point3T<Scalar> origin,
-        Linear::UnitVector3T<Scalar> axis,
-        Scalar radians) noexcept;
+    void Rotate(Linear::Point3T<Scalar> origin, Linear::UnitVector3T<Scalar> axis, Scalar radians) noexcept;
 
     /// 关于过 `point`、法向为 `unitNormal` 的平面反射。
-    void Mirror(
-        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept;
+    void Mirror(Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept;
 
     /// 交换两端，参数方向相反。
     void Reverse() noexcept;
 
     [[nodiscard]] Segment3T Clone() const noexcept;
 
-    /// 变换两端点。任一结果分量非有限时返回 `false`，字段保持原样。
-    /// 原本能归一化的方向在变换后不能归一化时同样失败；零长度线段没有方向，
-    /// 端点有限时写入两端并返回 `true`。
+    /// 变换两端点。任一结果分量非有限时返回 `false`，字段保持原样。原本能归一化的方向在变换后不能归一化时同样失败；零长度线段没有方向，端点有限时写入两端并返回 `true`。
     [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept;
 
     /// 区间必须落在 `[0, 1]` 内且长度大于 0，否则为空。
-    [[nodiscard]] std::optional<Segment3T> Subcurve(
-        Linear::IntervalT<Scalar> interval) const noexcept;
+    [[nodiscard]] std::optional<Segment3T> Subcurve(Linear::IntervalT<Scalar> interval) const noexcept;
 
     /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
     [[nodiscard]] std::optional<Ray3T<Scalar>> AsRay() const noexcept;
@@ -153,8 +133,7 @@ private:
 };
 
 /// 逐字段比较。`operator!=` 由 C++20 自动生成，不手写。
-template <typename Scalar>
-[[nodiscard]] constexpr bool operator==(Segment3T<Scalar> a, Segment3T<Scalar> b) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr bool operator==(Segment3T<Scalar> a, Segment3T<Scalar> b) noexcept {
     return a.A == b.A && a.B == b.B;
 }
 

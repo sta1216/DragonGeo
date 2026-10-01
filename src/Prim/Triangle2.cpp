@@ -2,35 +2,28 @@
 
 namespace DragonGeo::Prim {
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::SignedArea() const noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::SignedArea() const noexcept {
     return Scalar{0.5} * (B - A).Cross(C - A);
 }
 
-template <typename Scalar>
-[[nodiscard]] Linear::IntervalT<Scalar> Triangle2T<Scalar>::Domain() const noexcept {
+template <typename Scalar> [[nodiscard]] Linear::IntervalT<Scalar> Triangle2T<Scalar>::Domain() const noexcept {
     return {Scalar{0}, Scalar{3}};
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::PointAt(Scalar t) const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::PointAt(Scalar t) const noexcept {
     if (!Detail::IsAcceptedParameter(t, Domain())) {
         return std::nullopt;
     }
     return Locate(t);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::MidPoint() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::MidPoint() const noexcept {
     return PointAt(Scalar{1.5});
 }
 
-template <typename Scalar>
-template <typename S>
-    requires std::same_as<Scalar, double> && std::same_as<S, double>
+template <typename Scalar> template <typename S> requires std::same_as<Scalar, double> && std::same_as<S, double>
     [[nodiscard]] bool Triangle2T<Scalar>::Contains(Linear::Point2T<S> point) const noexcept {
-    const auto onEdge = [](Linear::Point2 start, Linear::Point2 end,
-                           Linear::Point2 query) noexcept {
+    const auto onEdge = [](Linear::Point2 start, Linear::Point2 end, Linear::Point2 query) noexcept {
         if (Predicates::Orient2d(start, end, query) != 0) {
             return false;
         }
@@ -55,33 +48,27 @@ template <typename S>
     return (ab >= 0 && bc >= 0 && ca >= 0) || (ab <= 0 && bc <= 0 && ca <= 0);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::StartPoint() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::StartPoint() const noexcept {
     return A;
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::EndPoint() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::EndPoint() const noexcept {
     return A;
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::StartTangent() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::StartTangent() const noexcept {
     return UnitEdge(A, B);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::EndTangent() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::EndTangent() const noexcept {
     return UnitEdge(C, A);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::MidTangent() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::MidTangent() const noexcept {
     return UnitEdge(B, C);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::TangentAt(Scalar t) const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::TangentAt(Scalar t) const noexcept {
     if (!Detail::IsAcceptedParameter(t, Domain())) {
         return std::nullopt;
     }
@@ -90,23 +77,19 @@ template <typename Scalar>
     return UnitEdge(vertices[edge], vertices[edge + 1]);
 }
 
-template <typename Scalar>
-[[nodiscard]] bool Triangle2T<Scalar>::IsClosed() const noexcept {
+template <typename Scalar> [[nodiscard]] bool Triangle2T<Scalar>::IsClosed() const noexcept {
     return true;
 }
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::Length() const noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::Length() const noexcept {
     return A.DistanceTo(B) + B.DistanceTo(C) + C.DistanceTo(A);
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Scalar> Triangle2T<Scalar>::Area() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Scalar> Triangle2T<Scalar>::Area() const noexcept {
     return Core::AbsoluteValue(SignedArea());
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Winding> Triangle2T<Scalar>::Orientation() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Winding> Triangle2T<Scalar>::Orientation() const noexcept {
     const Scalar signedArea = SignedArea();
     if (signedArea > Scalar{0}) {
         return Winding::CounterClockwise;
@@ -117,32 +100,25 @@ template <typename Scalar>
     return Winding::Degenerate;
 }
 
-template <typename Scalar>
-[[nodiscard]] Linear::Box2T<Scalar> Triangle2T<Scalar>::Box() const noexcept {
+template <typename Scalar> [[nodiscard]] Linear::Box2T<Scalar> Triangle2T<Scalar>::Box() const noexcept {
     const Linear::Point2T<Scalar> vertices[]{A, B, C};
     return Linear::Box2T<Scalar>::FromPoints(std::span<const Linear::Point2T<Scalar>>{vertices});
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::Centroid() const noexcept {
+template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Triangle2T<Scalar>::Centroid() const noexcept {
     if (SignedArea() == Scalar{0}) {
         return std::nullopt;
     }
-    return Linear::Point2T<Scalar>{
-        (A.X + B.X + C.X) / Scalar{3},
-        (A.Y + B.Y + C.Y) / Scalar{3},
-    };
+    return Linear::Point2T<Scalar>{(A.X + B.X + C.X) / Scalar{3}, (A.Y + B.Y + C.Y) / Scalar{3}};
 }
 
 template <typename Scalar>
-[[nodiscard]] bool Triangle2T<Scalar>::ContainsPoint(Linear::Point2T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance) const noexcept {
+[[nodiscard]] bool Triangle2T<Scalar>::ContainsPoint(Linear::Point2T<Scalar> point, Core::ToleranceT<Scalar> tolerance) const noexcept {
     const auto boundary = ClosestBoundary(point);
     return std::sqrt(boundary.DistanceSquared) <= tolerance.Resolve(BoundaryScale());
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<Scalar> Triangle2T<Scalar>::ParameterOf(Linear::Point2T<Scalar> point,
+template <typename Scalar> [[nodiscard]] std::optional<Scalar> Triangle2T<Scalar>::ParameterOf(Linear::Point2T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance) const noexcept {
     if (!ContainsPoint(point, tolerance)) {
         return std::nullopt;
@@ -150,50 +126,41 @@ template <typename Scalar>
     return ClosestBoundary(point).Parameter;
 }
 
-template <typename Scalar>
-void Triangle2T<Scalar>::Translate(Linear::Vector2T<Scalar> vector) noexcept {
+template <typename Scalar> void Triangle2T<Scalar>::Translate(Linear::Vector2T<Scalar> vector) noexcept {
     A = A + vector;
     B = B + vector;
     C = C + vector;
 }
 
-template <typename Scalar>
-void Triangle2T<Scalar>::Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
-    const Linear::Transform2T<Scalar> rotation =
-        Linear::Transform2T<Scalar>::RotationAbout(center, radians);
+template <typename Scalar> void Triangle2T<Scalar>::Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
+    const Linear::Transform2T<Scalar> rotation = Linear::Transform2T<Scalar>::RotationAbout(center, radians);
     A = rotation.TransformPoint(A);
     B = rotation.TransformPoint(B);
     C = rotation.TransformPoint(C);
 }
 
-template <typename Scalar>
-void Triangle2T<Scalar>::Mirror(Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
-    const Linear::Transform2T<Scalar> mirror =
-        Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
+template <typename Scalar> void Triangle2T<Scalar>::Mirror(Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
+    const Linear::Transform2T<Scalar> mirror = Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
     A = mirror.TransformPoint(A);
     B = mirror.TransformPoint(B);
     C = mirror.TransformPoint(C);
 }
 
-template <typename Scalar>
-void Triangle2T<Scalar>::Reverse() noexcept {
+template <typename Scalar> void Triangle2T<Scalar>::Reverse() noexcept {
     const Linear::Point2T<Scalar> vertexB = B;
     B = C;
     C = vertexB;
 }
 
-template <typename Scalar>
-[[nodiscard]] Triangle2T<Scalar> Triangle2T<Scalar>::Clone() const noexcept {
+template <typename Scalar> [[nodiscard]] Triangle2T<Scalar> Triangle2T<Scalar>::Clone() const noexcept {
     return *this;
 }
 
-template <typename Scalar>
-[[nodiscard]] bool Triangle2T<Scalar>::Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
+template <typename Scalar> [[nodiscard]] bool Triangle2T<Scalar>::Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
     const Linear::Point2T<Scalar> movedA = transform.TransformPoint(A);
     const Linear::Point2T<Scalar> movedB = transform.TransformPoint(B);
     const Linear::Point2T<Scalar> movedC = transform.TransformPoint(C);
-    if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)
-        || !Detail::CoordinatesAreFinite(movedC)) {
+    if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB) || !Detail::CoordinatesAreFinite(movedC)) {
         return false;
     }
     A = movedA;
@@ -202,26 +169,22 @@ template <typename Scalar>
     return true;
 }
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::DistanceSquared(Linear::Point2T<Scalar> point) const noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::DistanceSquared(Linear::Point2T<Scalar> point) const noexcept {
     return (point - ClosestPoint(point)).LengthSquared();
 }
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::Distance(Linear::Point2T<Scalar> point) const noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::Distance(Linear::Point2T<Scalar> point) const noexcept {
     return std::sqrt(DistanceSquared(point));
 }
 
-template <typename Scalar>
-[[nodiscard]] Linear::Point2T<Scalar> Triangle2T<Scalar>::ClosestPoint(Linear::Point2T<Scalar> point) const noexcept {
+template <typename Scalar> [[nodiscard]] Linear::Point2T<Scalar> Triangle2T<Scalar>::ClosestPoint(Linear::Point2T<Scalar> point) const noexcept {
     if (ProjectsInside(point)) {
         return point;
     }
     return ClosestBoundary(point).Point;
 }
 
-template <typename Scalar>
-[[nodiscard]] std::optional<std::variant<Segment2T<Scalar>, PolylineT<Scalar>>>
+template <typename Scalar> [[nodiscard]] std::optional<std::variant<Segment2T<Scalar>, PolylineT<Scalar>>>
 Triangle2T<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const {
     using Curve = std::variant<Segment2T<Scalar>, PolylineT<Scalar>>;
     if (!Detail::IsFiniteSubinterval(interval, Domain())) {
@@ -246,16 +209,14 @@ Triangle2T<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const {
     }
     corners[count++] = Locate(interval.Max);
 
-    auto polyline = PolylineT<Scalar>::FromPoints(
-        std::span<const Linear::Point2T<Scalar>>{corners, static_cast<std::size_t>(count)});
+    auto polyline = PolylineT<Scalar>::FromPoints(std::span<const Linear::Point2T<Scalar>>{corners, static_cast<std::size_t>(count)});
     if (!polyline.has_value()) {
         return std::nullopt;
     }
     return Curve{std::move(*polyline)};
 }
 
-template <typename Scalar>
-[[nodiscard]] Linear::Point2T<Scalar> Triangle2T<Scalar>::Locate(Scalar t) const noexcept {
+template <typename Scalar> [[nodiscard]] Linear::Point2T<Scalar> Triangle2T<Scalar>::Locate(Scalar t) const noexcept {
     const Linear::Point2T<Scalar> vertices[]{A, B, C, A};
     const int edge = static_cast<int>(t);
     const int index = edge >= 3 ? 2 : edge;
@@ -263,8 +224,7 @@ template <typename Scalar>
     return vertices[index] + (vertices[index + 1] - vertices[index]) * local;
 }
 
-template <typename Scalar>
-[[nodiscard]] int Triangle2T<Scalar>::EdgeIndex(Scalar t) noexcept {
+template <typename Scalar> [[nodiscard]] int Triangle2T<Scalar>::EdgeIndex(Scalar t) noexcept {
     if (t == Scalar{3}) {
         return 2;
     }
@@ -273,7 +233,8 @@ template <typename Scalar>
 }
 
 template <typename Scalar>
-[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::UnitEdge(Linear::Point2T<Scalar> from, Linear::Point2T<Scalar> to) noexcept {
+[[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::UnitEdge(Linear::Point2T<Scalar> from,
+    Linear::Point2T<Scalar> to) noexcept {
     const Scalar length = from.DistanceTo(to);
     if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
         return std::nullopt;
@@ -281,8 +242,7 @@ template <typename Scalar>
     return (to - from).Normalized();
 }
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryScale() const noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryScale() const noexcept {
     const Scalar diagonal = Box().Extent().Length();
     if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
         return diagonal;
@@ -290,8 +250,7 @@ template <typename Scalar>
     return Scalar{1};
 }
 
-template <typename Scalar>
-[[nodiscard]] bool Triangle2T<Scalar>::ProjectsInside(Linear::Point2T<Scalar> point) const noexcept {
+template <typename Scalar> [[nodiscard]] bool Triangle2T<Scalar>::ProjectsInside(Linear::Point2T<Scalar> point) const noexcept {
     const Linear::Vector2T<Scalar> ab = B - A;
     const Linear::Vector2T<Scalar> ac = C - A;
     const Scalar denominator = ab.Cross(ac);
@@ -314,21 +273,16 @@ template <typename Scalar>
         const Segment2T<Scalar> segment{vertices[edge], vertices[edge + 1]};
         const Linear::Point2T<Scalar> candidate = segment.ClosestPoint(point);
         const Scalar distanceSquared = (point - candidate).LengthSquared();
-        const Scalar parameter =
-            BoundaryParameter(edge, vertices[edge], vertices[edge + 1], candidate);
-        if (edge == 0 || distanceSquared < best.DistanceSquared
-            || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
+        const Scalar parameter = BoundaryParameter(edge, vertices[edge], vertices[edge + 1], candidate);
+        if (edge == 0 || distanceSquared < best.DistanceSquared || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
             best = BoundaryLocation{distanceSquared, parameter, candidate};
         }
     }
     return best;
 }
 
-template <typename Scalar>
-[[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryParameter(int edge,
-        Linear::Point2T<Scalar> from,
-        Linear::Point2T<Scalar> to,
-        Linear::Point2T<Scalar> closest) noexcept {
+template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryParameter(int edge,
+        Linear::Point2T<Scalar> from, Linear::Point2T<Scalar> to, Linear::Point2T<Scalar> closest) noexcept {
     Scalar parameter = static_cast<Scalar>(edge);
     const Scalar length = from.DistanceTo(to);
     if (length > Scalar{0} && Core::IsFinite(length)) {

@@ -12,20 +12,13 @@
 
 namespace DragonGeo::Linear {
 
-/// 三维仿射变换，内部为 4×4 齐次矩阵（行主序，列向量约定 `M * v`）。
-/// 平移量位于第 4 列。
+/// 三维仿射变换，内部为 4×4 齐次矩阵（行主序，列向量约定 `M * v`）。平移量位于第 4 列。
 ///
-/// 第 4 行假定为 (0,0,0,1)，且 TransformPoint / operator* 都不读取它 —— 直接改写
-/// Matrix 而破坏这个前提时，两者的结果不再被保证。类型不做这项检查。
+/// 第 4 行假定为 (0,0,0,1)，且 TransformPoint / operator* 都不读取它 —— 直接改写 Matrix 而破坏这个前提时，两者的结果不再被保证。类型不做这项检查。
 ///
-/// 两种「施加」语义不要混用 ——
-///   operator*(Point3T)    施加完整仿射变换，输入按**位置**解读
-///   operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
-/// TransformPoint(Point3T) 与 operator*(Point3T) 等价，名字更直白。
-/// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让
-/// `a * b.Apply(v)` 静默丢掉 a 的平移。
-template <typename Scalar>
-struct Transform3T {
+/// 两种「施加」语义不要混用 —— operator*(Point3T)    施加完整仿射变换，输入按**位置**解读 operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
+/// TransformPoint(Point3T) 与 operator*(Point3T) 等价，名字更直白。不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让 `a * b.Apply(v)` 静默丢掉 a 的平移。
+template <typename Scalar> struct Transform3T {
     using ScalarType = Scalar;
 
     MatrixT<Scalar, 4> Matrix = MatrixT<Scalar, 4>::Identity();
@@ -57,18 +50,14 @@ struct Transform3T {
 
     /// 各轴相同的缩放。
     ///
-    /// 参数是浮点数（由实参推导），因此调用处写 `Transform3::Scaling(2.0)` 即可。
-    /// 传整数字面量会因不满足 floating_point 约束而编译失败 —— 这是刻意的：
-    /// 缩放因子作用在浮点变换上，应当是浮点数。若确实要写 `Scaling(2)`，请改为
+    /// 参数是浮点数（由实参推导），因此调用处写 `Transform3::Scaling(2.0)` 即可。传整数字面量会因不满足 floating_point 约束而编译失败 —— 这是刻意的：缩放因子作用在浮点变换上，应当是浮点数。若确实要写 `Scaling(2)`，请改为
     /// `2.0`。
-    template <std::floating_point Factor>
-    [[nodiscard]] static constexpr Transform3T Scaling(Factor factor) noexcept {
+    template <std::floating_point Factor> [[nodiscard]] static constexpr Transform3T Scaling(Factor factor) noexcept {
         return Scaling(Vector3T<Scalar>{factor, factor, factor});
     }
 
     /// 绕给定单位轴旋转 angleRadians 弧度。
-    [[nodiscard]] static Transform3T Rotation(
-        UnitVector3T<Scalar> axis, Scalar angleRadians) noexcept {
+    [[nodiscard]] static Transform3T Rotation(UnitVector3T<Scalar> axis, Scalar angleRadians) noexcept {
         const QuaternionT<Scalar> q = QuaternionT<Scalar>::FromAxisAngle(axis, angleRadians);
         const MatrixT<Scalar, 3> rotation = q.ToMatrix();
 
@@ -82,12 +71,9 @@ struct Transform3T {
     }
 
     /// 绕过 `origin`、方向为 `axis` 的轴旋转 `angleRadians` 弧度。
-    [[nodiscard]] static Transform3T RotationAbout(Point3T<Scalar> origin,
-                                                     UnitVector3T<Scalar> axis,
-                                                     Scalar angleRadians) noexcept {
+    [[nodiscard]] static Transform3T RotationAbout(Point3T<Scalar> origin, UnitVector3T<Scalar> axis, Scalar angleRadians) noexcept {
         return Translation(Vector3T<Scalar>{origin.X, origin.Y, origin.Z})
-             * Rotation(axis, angleRadians)
-             * Translation(Vector3T<Scalar>{-origin.X, -origin.Y, -origin.Z});
+             * Rotation(axis, angleRadians) * Translation(Vector3T<Scalar>{-origin.X, -origin.Y, -origin.Z});
     }
 
     /// 变换单位法向：`(L^{-1})^T n` 再归一化。线性部分奇异时返回空。
@@ -109,8 +95,7 @@ struct Transform3T {
     }
 
     /// 线性部分在容差下为旋转时，提取对应四元数。
-    [[nodiscard]] std::optional<QuaternionT<Scalar>> RotationQuaternion(
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+    [[nodiscard]] std::optional<QuaternionT<Scalar>> RotationQuaternion(Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         MatrixT<Scalar, 3> rotation{};
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 3; ++j) {
@@ -122,11 +107,8 @@ struct Transform3T {
 
     /// 关于过 `point`、以 `normal` 为法向的平面做反射：沿法向的分量取反。
     ///
-    /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与
-    /// `-normal` 是同一面镜子。法向须是单位向量；长度不对时结果不是等距，
-    /// 本函数不做检查，与 `Rotation` 对轴的态度相同。
-    [[nodiscard]] static constexpr Transform3T Reflection(
-        Point3T<Scalar> point, UnitVector3T<Scalar> normal) noexcept {
+    /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与 `-normal` 是同一面镜子。法向须是单位向量；长度不对时结果不是等距，本函数不做检查，与 `Rotation` 对轴的态度相同。
+    [[nodiscard]] static constexpr Transform3T Reflection(Point3T<Scalar> point, UnitVector3T<Scalar> normal) noexcept {
         const Scalar nx = normal.X();
         const Scalar ny = normal.Y();
         const Scalar nz = normal.Z();
@@ -150,23 +132,17 @@ struct Transform3T {
 
     /// 关于过原点的 YZ 平面反射，把 `(x, y, z)` 变成 `(−x, y, z)`。法向是 +X。
     [[nodiscard]] static constexpr Transform3T ReflectionYZ() noexcept {
-        return Reflection(Point3T<Scalar>{},
-                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
-                              Vector3T<Scalar>{Scalar{1}, Scalar{0}, Scalar{0}}));
+        return Reflection(Point3T<Scalar>{}, UnitVector3T<Scalar>::FromNormalizedUnchecked(Vector3T<Scalar>{Scalar{1}, Scalar{0}, Scalar{0}}));
     }
 
     /// 关于过原点的 ZX 平面反射，把 `(x, y, z)` 变成 `(x, −y, z)`。法向是 +Y。
     [[nodiscard]] static constexpr Transform3T ReflectionZX() noexcept {
-        return Reflection(Point3T<Scalar>{},
-                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
-                              Vector3T<Scalar>{Scalar{0}, Scalar{1}, Scalar{0}}));
+        return Reflection(Point3T<Scalar>{}, UnitVector3T<Scalar>::FromNormalizedUnchecked(Vector3T<Scalar>{Scalar{0}, Scalar{1}, Scalar{0}}));
     }
 
     /// 关于过原点的 XY 平面反射，把 `(x, y, z)` 变成 `(x, y, −z)`。法向是 +Z。
     [[nodiscard]] static constexpr Transform3T ReflectionXY() noexcept {
-        return Reflection(Point3T<Scalar>{},
-                          UnitVector3T<Scalar>::FromNormalizedUnchecked(
-                              Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}}));
+        return Reflection(Point3T<Scalar>{}, UnitVector3T<Scalar>::FromNormalizedUnchecked(Vector3T<Scalar>{Scalar{0}, Scalar{0}, Scalar{1}}));
     }
 
     /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
@@ -182,8 +158,7 @@ struct Transform3T {
     }
 
     /// 逆变换。线性部分奇异时返回 std::nullopt。
-    [[nodiscard]] std::optional<Transform3T<Scalar>> Inverse(
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+    [[nodiscard]] std::optional<Transform3T<Scalar>> Inverse(Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const auto inverseMatrix = Matrix.Inverse(tolerance);
         if (!inverseMatrix.has_value()) {
             return std::nullopt;
@@ -198,9 +173,7 @@ using Transform3f = Transform3T<float>;
 // ---- 运算符 ----
 
 /// 只施加线性部分，输入按**方向**解读（平移不生效）。
-template <typename Scalar>
-[[nodiscard]] constexpr Vector3T<Scalar> operator*(
-    const Transform3T<Scalar>& t, Vector3T<Scalar> direction) noexcept {
+template <typename Scalar> [[nodiscard]] constexpr Vector3T<Scalar> operator*(const Transform3T<Scalar>& t, Vector3T<Scalar> direction) noexcept {
     const MatrixT<Scalar, 4>& m = t.Matrix;
     return Vector3T<Scalar>{
         m.Data[0][0] * direction.X + m.Data[0][1] * direction.Y + m.Data[0][2] * direction.Z,
@@ -211,18 +184,14 @@ template <typename Scalar>
 
 /// 复合。`a * b` 表示先施加 b 再施加 a。
 template <typename Scalar>
-[[nodiscard]] constexpr Transform3T<Scalar> operator*(
-    const Transform3T<Scalar>& a, const Transform3T<Scalar>& b) noexcept {
+[[nodiscard]] constexpr Transform3T<Scalar> operator*(const Transform3T<Scalar>& a, const Transform3T<Scalar>& b) noexcept {
     return Transform3T<Scalar>{a.Matrix * b.Matrix};
 }
 
 /// 施加完整仿射变换，输入按**位置**解读（平移生效）。
 ///
-/// 与 TransformPoint 等价。注意它与上面的 operator*(Vector3T) 是**两个语义
-/// 不同**的重载：点吃平移，方向不吃 —— 两者不可互相替代。
-template <typename Scalar>
-[[nodiscard]] constexpr Point3T<Scalar> operator*(
-    const Transform3T<Scalar>& t, Point3T<Scalar> point) noexcept {
+/// 与 TransformPoint 等价。注意它与上面的 operator*(Vector3T) 是**两个语义不同**的重载：点吃平移，方向不吃 —— 两者不可互相替代。
+template <typename Scalar> [[nodiscard]] constexpr Point3T<Scalar> operator*(const Transform3T<Scalar>& t, Point3T<Scalar> point) noexcept {
     return t.TransformPoint(point);
 }
 

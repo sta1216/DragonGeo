@@ -6,8 +6,7 @@ using namespace DragonGeo::Linear;
 
 namespace {
 
-// 空循环基准 —— 它是这一节的「零点」，用来发现空转：若某个基准的耗时与它
-// 相差无几，那个基准就是被折叠掉了，不是「快」。
+// 空循环基准 —— 它是这一节的「零点」，用来发现空转：若某个基准的耗时与它相差无几，那个基准就是被折叠掉了，不是「快」。
 void BenchEmpty(benchmark::State& state) {
     double sink = 0.0;
     for (auto _ : state) {
@@ -66,10 +65,7 @@ void BenchSubscript(benchmark::State& state) {
 BENCHMARK(BenchSubscript);
 
 void BenchMatrixVector(benchmark::State& state) {
-    Matrix4 m{{{2.0, 0.0, 0.0, 1.0},
-               {0.0, 3.0, 0.0, 2.0},
-               {0.0, 0.0, 4.0, 3.0},
-               {0.0, 0.0, 0.0, 1.0}}};
+    Matrix4 m{{{2.0, 0.0, 0.0, 1.0}, {0.0, 3.0, 0.0, 2.0}, {0.0, 0.0, 4.0, 3.0}, {0.0, 0.0, 0.0, 1.0}}};
     Vector4 v{1.0, 2.0, 3.0, 4.0};
     for (auto _ : state) {
         benchmark::DoNotOptimize(m);
@@ -100,8 +96,7 @@ void BenchQuaternionRotate(benchmark::State& state) {
 }
 BENCHMARK(BenchQuaternionRotate);
 
-// 本阶段新增的类型也要覆盖 —— 上层会在紧循环里反复调用它们
-// （包围盒剔除、坐标系往返变换），它们才是接下来最可能成为热点的地方。
+// 本阶段新增的类型也要覆盖 —— 上层会在紧循环里反复调用它们 （包围盒剔除、坐标系往返变换），它们才是接下来最可能成为热点的地方。
 void BenchBoxContains(benchmark::State& state) {
     Box3 box{Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 3.0}};
     Point3 p{0.5, 1.0, 1.5};
@@ -114,9 +109,7 @@ void BenchBoxContains(benchmark::State& state) {
 BENCHMARK(BenchBoxContains);
 
 void BenchCoordinateToParent(benchmark::State& state) {
-    const auto frame = Coordinate3::FromZAxis(
-        Point3{1.0, 0.0, 0.0},
-        UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0}));
+    const auto frame = Coordinate3::FromZAxis(Point3{1.0, 0.0, 0.0}, UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0}));
     if (!frame.has_value()) {
         state.SkipWithError("frame construction failed");
         return;

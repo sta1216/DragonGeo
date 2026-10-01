@@ -15,8 +15,7 @@ using DragonGeo::Linear::UnitVector2T;
 using DragonGeo::Linear::UnitVector2f;
 using DragonGeo::Linear::Vector2;
 
-TEST_CASE("the float alias really is the float instantiation",
-          "[linear][unitvector2]") {
+TEST_CASE("the float alias really is the float instantiation", "[linear][unitvector2]") {
     // 同 vector4Test.cpp：UnitVector2f 此前零命中，误绑定不会被断言发现。
     STATIC_REQUIRE(std::is_same_v<UnitVector2f, UnitVector2T<float>>);
 }
@@ -34,8 +33,7 @@ TEST_CASE("normalize rejects the 2D zero vector", "[linear][unitvector2][degener
     CHECK_FALSE(Vector2{0.0, 0.0}.Normalized().has_value());
 }
 
-TEST_CASE("2D cross of unit vectors is the sine of the angle",
-          "[linear][unitvector2]") {
+TEST_CASE("2D cross of unit vectors is the sine of the angle", "[linear][unitvector2]") {
     const auto x = Vector2{1.0, 0.0}.Normalized();
     const auto y = Vector2{0.0, 1.0}.Normalized();
     REQUIRE(x.has_value());
@@ -57,8 +55,7 @@ TEST_CASE("2D cross of unit vectors is the sine of the angle",
     CHECK(*x - *y == Vector2{1.0, -1.0});
 }
 
-TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
-          "[linear][unitvector2][degenerate]") {
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector", "[linear][unitvector2][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
     const double notANumber = std::numeric_limits<double>::quiet_NaN();
 
@@ -88,8 +85,7 @@ TEST_CASE("2D axis constants are the positive unit axes", "[linear][unitvector2]
     CHECK(UnitVector2f::YAxis.Y() == 1.0f);
 }
 
-TEST_CASE("a 2D unit vector's perpendicular is a 90 degree counter-clockwise turn",
-          "[linear][unitvector2]") {
+TEST_CASE("a 2D unit vector's perpendicular is a 90 degree counter-clockwise turn", "[linear][unitvector2]") {
     const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
     const UnitVector2 y = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
 
@@ -109,8 +105,7 @@ TEST_CASE("a 2D unit vector's perpendicular is a 90 degree counter-clockwise tur
     STATIC_REQUIRE(noexcept(axis.Perpendicular()));
 }
 
-TEST_CASE("projecting onto a 2D unit vector keeps only the parallel part",
-          "[linear][unitvector2]") {
+TEST_CASE("projecting onto a 2D unit vector keeps only the parallel part", "[linear][unitvector2]") {
     const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
 
     STATIC_REQUIRE(std::is_same_v<decltype(x.Projected(Vector2{3.0, 4.0})), Vector2>);

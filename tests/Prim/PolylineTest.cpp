@@ -139,12 +139,7 @@ TEST_CASE("an open two-point polyline is one segment without area", "[prim][poly
 }
 
 TEST_CASE("a closed triangle polyline reports area, winding, and containment", "[prim][polyline]") {
-    const Point2 points[]{
-        Point2{0.0, 0.0},
-        Point2{1.0, 0.0},
-        Point2{0.0, 1.0},
-        Point2{0.0, 0.0},
-    };
+    const Point2 points[]{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}, Point2{0.0, 0.0}};
     const auto polyline = Polyline::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->IsClosed());
@@ -189,12 +184,7 @@ TEST_CASE("a closed triangle polyline reports area, winding, and containment", "
 }
 
 TEST_CASE("a clockwise closed polyline keeps the opposite winding", "[prim][polyline]") {
-    const Point2 points[]{
-        Point2{0.0, 0.0},
-        Point2{0.0, 1.0},
-        Point2{1.0, 0.0},
-        Point2{0.0, 0.0},
-    };
+    const Point2 points[]{Point2{0.0, 0.0}, Point2{0.0, 1.0}, Point2{1.0, 0.0}, Point2{0.0, 0.0}};
     const auto polyline = Polyline::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->Orientation() == Winding::Clockwise);
@@ -218,13 +208,7 @@ TEST_CASE("a closed polyline keeps a zero area and only its boundary", "[prim][p
 }
 
 TEST_CASE("centroid averages unique vertices and ignores the repeated end", "[prim][polyline]") {
-    const Point2 points[]{
-        Point2{0.0, 0.0},
-        Point2{1.0, 0.0},
-        Point2{1.0, 1.0},
-        Point2{0.0, 2.0},
-        Point2{0.0, 0.0},
-    };
+    const Point2 points[]{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{1.0, 1.0}, Point2{0.0, 2.0}, Point2{0.0, 0.0}};
     const auto polyline = Polyline::FromPoints(points);
     REQUIRE(polyline.has_value());
     const auto centroid = polyline->Centroid();
@@ -235,13 +219,7 @@ TEST_CASE("centroid averages unique vertices and ignores the repeated end", "[pr
 }
 
 TEST_CASE("a zero signed area can still contain a nonzero winding", "[prim][polyline]") {
-    const Point2 points[]{
-        Point2{0.0, 0.0},
-        Point2{1.0, 1.0},
-        Point2{1.0, 0.0},
-        Point2{0.0, 1.0},
-        Point2{0.0, 0.0},
-    };
+    const Point2 points[]{Point2{0.0, 0.0}, Point2{1.0, 1.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}, Point2{0.0, 0.0}};
     const auto polyline = Polyline::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->Area() == 0.0);
@@ -272,12 +250,7 @@ TEST_CASE("a zero-length edge has no tangent and uses scale 1", "[prim][polyline
 }
 
 TEST_CASE("polyline transforms mutate points and reverse keeps a closed seam", "[prim][polyline]") {
-    const Point2 points[]{
-        Point2{0.0, 0.0},
-        Point2{1.0, 0.0},
-        Point2{0.0, 1.0},
-        Point2{0.0, 0.0},
-    };
+    const Point2 points[]{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}, Point2{0.0, 0.0}};
     const auto original = Polyline::FromPoints(points);
     REQUIRE(original.has_value());
 
@@ -354,9 +327,7 @@ TEST_CASE("Polyline subcurve is a segment or a polyline", "[prim][polyline]") {
     const Point2 points[]{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{1.0, 2.0}};
     const auto polyline = Polyline::FromPoints(points);
     REQUIRE(polyline.has_value());
-    STATIC_REQUIRE(std::is_same_v<
-                   decltype(polyline->Subcurve(Interval{})),
-                   std::optional<std::variant<Segment2, Polyline>>>);
+    STATIC_REQUIRE(std::is_same_v< decltype(polyline->Subcurve(Interval{})), std::optional<std::variant<Segment2, Polyline>>>);
 
     const auto onEdge = polyline->Subcurve(Interval{0.0, 0.5});
     REQUIRE(onEdge.has_value());

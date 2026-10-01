@@ -13,13 +13,11 @@ int Orient2d(Linear::Point2 a, Linear::Point2 b, Linear::Point2 c) noexcept {
     const double detRight = (b.Y - a.Y) * (c.X - a.X);
     const double det = detLeft - detRight;
     const double permanent = std::abs(detLeft) + std::abs(detRight);
-    if (std::isfinite(det) && std::isfinite(permanent)
-        && std::abs(det) >= Detail::ORIENT2D_ERROR_BOUND * permanent) {
+    if (std::isfinite(det) && std::isfinite(permanent) && std::abs(det) >= Detail::ORIENT2D_ERROR_BOUND * permanent) {
         return Detail::SignOf(det);
     }
 
-    const double maxAbs = std::max({std::abs(a.X), std::abs(a.Y), std::abs(b.X), std::abs(b.Y),
-                                     std::abs(c.X), std::abs(c.Y)});
+    const double maxAbs = std::max({std::abs(a.X), std::abs(a.Y), std::abs(b.X), std::abs(b.Y), std::abs(c.X), std::abs(c.Y)});
     const int shift = Detail::ScaleShift(maxAbs);
     const double ax = std::ldexp(a.X, shift);
     const double ay = std::ldexp(a.Y, shift);
@@ -55,31 +53,23 @@ int Orient3d(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point
     const double mz2 = aby * acx;
     const double det = adx * (mx1 - mx2) + ady * (my1 - my2) + adz * (mz1 - mz2);
     const double permanent = std::abs(adx) * (std::abs(mx1) + std::abs(mx2))
-        + std::abs(ady) * (std::abs(my1) + std::abs(my2))
-        + std::abs(adz) * (std::abs(mz1) + std::abs(mz2));
-    if (std::isfinite(det) && std::isfinite(permanent)
-        && std::abs(det) >= Detail::ORIENT3D_ERROR_BOUND * permanent) {
+        + std::abs(ady) * (std::abs(my1) + std::abs(my2)) + std::abs(adz) * (std::abs(mz1) + std::abs(mz2));
+    if (std::isfinite(det) && std::isfinite(permanent) && std::abs(det) >= Detail::ORIENT3D_ERROR_BOUND * permanent) {
         return Detail::SignOf(det);
     }
 
-    const double maxAbs = std::max({std::abs(a.X), std::abs(a.Y), std::abs(a.Z),
-                                     std::abs(b.X), std::abs(b.Y), std::abs(b.Z),
-                                     std::abs(c.X), std::abs(c.Y), std::abs(c.Z),
-                                     std::abs(d.X), std::abs(d.Y), std::abs(d.Z)});
+    const double maxAbs = std::max({std::abs(a.X), std::abs(a.Y), std::abs(a.Z), std::abs(b.X), std::abs(b.Y), std::abs(b.Z),
+                                     std::abs(c.X), std::abs(c.Y), std::abs(c.Z), std::abs(d.X), std::abs(d.Y), std::abs(d.Z)});
     const int shift = Detail::ScaleShift(maxAbs);
     const auto scaled = [shift](double value) { return std::ldexp(value, shift); };
-    const Detail::Triple ab = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z),
-                                                  scaled(b.X), scaled(b.Y), scaled(b.Z));
-    const Detail::Triple ac = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z),
-                                                  scaled(c.X), scaled(c.Y), scaled(c.Z));
-    const Detail::Triple ad = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z),
-                                                  scaled(d.X), scaled(d.Y), scaled(d.Z));
+    const Detail::Triple ab = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z), scaled(b.X), scaled(b.Y), scaled(b.Z));
+    const Detail::Triple ac = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z), scaled(c.X), scaled(c.Y), scaled(c.Z));
+    const Detail::Triple ad = Detail::Difference3(scaled(a.X), scaled(a.Y), scaled(a.Z), scaled(d.X), scaled(d.Y), scaled(d.Z));
     const Detail::Expansion tx = Detail::CrossComponent(ab.Y, ab.Z, ac.Y, ac.Z);
     const Detail::Expansion ty = Detail::CrossComponent(ab.Z, ab.X, ac.Z, ac.X);
     const Detail::Expansion tz = Detail::CrossComponent(ab.X, ab.Y, ac.X, ac.Y);
     const Detail::Expansion detExpansion = Detail::Add(
-        Detail::Add(Detail::Multiply(ad.X, tx), Detail::Multiply(ad.Y, ty)),
-        Detail::Multiply(ad.Z, tz));
+        Detail::Add(Detail::Multiply(ad.X, tx), Detail::Multiply(ad.Y, ty)), Detail::Multiply(ad.Z, tz));
     return Detail::Sign(detExpansion);
 }
 
@@ -99,13 +89,10 @@ int Incircle(Linear::Point2 a, Linear::Point2 b, Linear::Point2 c, Linear::Point
     const double alift = adx * adx + ady * ady;
     const double blift = bdx * bdx + bdy * bdy;
     const double clift = cdx * cdx + cdy * cdy;
-    const double det = alift * (bdxcdy - cdxbdy) + blift * (cdxady - adxcdy)
-        + clift * (adxbdy - bdxady);
+    const double det = alift * (bdxcdy - cdxbdy) + blift * (cdxady - adxcdy) + clift * (adxbdy - bdxady);
     const double permanent = (std::abs(bdxcdy) + std::abs(cdxbdy)) * alift
-        + (std::abs(cdxady) + std::abs(adxcdy)) * blift
-        + (std::abs(adxbdy) + std::abs(bdxady)) * clift;
-    if (std::isfinite(det) && std::isfinite(permanent)
-        && std::abs(det) >= Detail::INCIRCLE_ERROR_BOUND * permanent) {
+        + (std::abs(cdxady) + std::abs(adxcdy)) * blift + (std::abs(adxbdy) + std::abs(bdxady)) * clift;
+    if (std::isfinite(det) && std::isfinite(permanent) && std::abs(det) >= Detail::INCIRCLE_ERROR_BOUND * permanent) {
         return Detail::SignOf(det);
     }
 
@@ -122,19 +109,15 @@ int Incircle(Linear::Point2 a, Linear::Point2 b, Linear::Point2 c, Linear::Point
     const auto lift = [](const Detail::Expansion& x, const Detail::Expansion& y) {
         return Detail::Add(Detail::Multiply(x, x), Detail::Multiply(y, y));
     };
-    const auto cross = [](const Detail::Expansion& ux, const Detail::Expansion& uy,
-                           const Detail::Expansion& vx, const Detail::Expansion& vy) {
+    const auto cross = [](const Detail::Expansion& ux, const Detail::Expansion& uy, const Detail::Expansion& vx, const Detail::Expansion& vy) {
         return Detail::Add(Detail::Multiply(ux, vy), Detail::Negate(Detail::Multiply(uy, vx)));
     };
-    const Detail::Expansion detExpansion = Detail::Add(
-        Detail::Add(Detail::Multiply(lift(ax, ay), cross(bx, by, cx, cy)),
-                    Detail::Multiply(lift(bx, by), cross(cx, cy, ax, ay))),
-        Detail::Multiply(lift(cx, cy), cross(ax, ay, bx, by)));
+    const Detail::Expansion detExpansion = Detail::Add(Detail::Add(Detail::Multiply(lift(ax, ay), cross(bx, by, cx, cy)),
+                    Detail::Multiply(lift(bx, by), cross(cx, cy, ax, ay))), Detail::Multiply(lift(cx, cy), cross(ax, ay, bx, by)));
     return Detail::Sign(detExpansion);
 }
 
-int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point3 d,
-             Linear::Point3 e) noexcept {
+int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point3 d, Linear::Point3 e) noexcept {
     const auto sub = [](Linear::Point3 p, Linear::Point3 origin) {
         return std::array<double, 3>{p.X - origin.X, p.Y - origin.Y, p.Z - origin.Z};
     };
@@ -142,9 +125,7 @@ int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point
         return v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
     };
     const auto crossOf = [](const std::array<double, 3>& u, const std::array<double, 3>& v) {
-        return std::array<double, 3>{u[1] * v[2] - u[2] * v[1],
-                                      u[2] * v[0] - u[0] * v[2],
-                                      u[0] * v[1] - u[1] * v[0]};
+        return std::array<double, 3>{u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
     };
     const auto dotOf = [](const std::array<double, 3>& u, const std::array<double, 3>& v) {
         return u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
@@ -162,10 +143,8 @@ int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point
     const double abd = dotOf(av, crossOf(bv, dv));
     const double abc = dotOf(av, crossOf(bv, cv));
     const double det = alift * bcd - blift * acd + clift * abd - dlift * abc;
-    // 永久量取混合积相减之前的各项，再乘 lift。用已经相消后的 |lift * triple|
-    // 会在内部相消时把误差界缩得过小，过滤可能把舍入误差认证成符号。
-    const auto minorPermanent = [](const std::array<double, 3>& u, const std::array<double, 3>& v,
-                                    const std::array<double, 3>& w) {
+    // 永久量取混合积相减之前的各项，再乘 lift。用已经相消后的 |lift * triple| 会在内部相消时把误差界缩得过小，过滤可能把舍入误差认证成符号。
+    const auto minorPermanent = [](const std::array<double, 3>& u, const std::array<double, 3>& v, const std::array<double, 3>& w) {
         const double cx1 = v[1] * w[2];
         const double cx2 = v[2] * w[1];
         const double cy1 = v[2] * w[0];
@@ -173,23 +152,17 @@ int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point
         const double cz1 = v[0] * w[1];
         const double cz2 = v[1] * w[0];
         return std::abs(u[0]) * (std::abs(cx1) + std::abs(cx2))
-            + std::abs(u[1]) * (std::abs(cy1) + std::abs(cy2))
-            + std::abs(u[2]) * (std::abs(cz1) + std::abs(cz2));
+            + std::abs(u[1]) * (std::abs(cy1) + std::abs(cy2)) + std::abs(u[2]) * (std::abs(cz1) + std::abs(cz2));
     };
     const double permanent = std::abs(alift) * minorPermanent(bv, cv, dv)
-        + std::abs(blift) * minorPermanent(av, cv, dv)
-        + std::abs(clift) * minorPermanent(av, bv, dv)
-        + std::abs(dlift) * minorPermanent(av, bv, cv);
-    if (std::isfinite(det) && std::isfinite(permanent)
-        && std::abs(det) >= Detail::INSPHERE_ERROR_BOUND * permanent) {
+        + std::abs(blift) * minorPermanent(av, cv, dv) + std::abs(clift) * minorPermanent(av, bv, dv) + std::abs(dlift) * minorPermanent(av, bv, cv);
+    if (std::isfinite(det) && std::isfinite(permanent) && std::abs(det) >= Detail::INSPHERE_ERROR_BOUND * permanent) {
         return Detail::SignOf(det);
     }
 
     const double maxAbs = std::max({std::abs(a.X), std::abs(a.Y), std::abs(a.Z),
-                                     std::abs(b.X), std::abs(b.Y), std::abs(b.Z),
-                                     std::abs(c.X), std::abs(c.Y), std::abs(c.Z),
-                                     std::abs(d.X), std::abs(d.Y), std::abs(d.Z),
-                                     std::abs(e.X), std::abs(e.Y), std::abs(e.Z)});
+                                     std::abs(b.X), std::abs(b.Y), std::abs(b.Z), std::abs(c.X), std::abs(c.Y), std::abs(c.Z),
+                                     std::abs(d.X), std::abs(d.Y), std::abs(d.Z), std::abs(e.X), std::abs(e.Y), std::abs(e.Z)});
     const int shift = Detail::ScaleShift(maxAbs);
     const auto coordinate = [shift](double value) { return std::ldexp(value, shift); };
     const auto vectorFrom = [&](Linear::Point3 p) {
@@ -203,21 +176,17 @@ int Insphere(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point
     const Detail::Triple ec = vectorFrom(c);
     const Detail::Triple ed = vectorFrom(d);
     const auto lift = [](const Detail::Triple& v) {
-        return Detail::Add(Detail::Add(Detail::Multiply(v.X, v.X), Detail::Multiply(v.Y, v.Y)),
-                           Detail::Multiply(v.Z, v.Z));
+        return Detail::Add(Detail::Add(Detail::Multiply(v.X, v.X), Detail::Multiply(v.Y, v.Y)), Detail::Multiply(v.Z, v.Z));
     };
     const auto triple = [](const Detail::Triple& u, const Detail::Triple& v, const Detail::Triple& w) {
         const Detail::Expansion cx = Detail::CrossComponent(v.Y, v.Z, w.Y, w.Z);
         const Detail::Expansion cy = Detail::CrossComponent(v.Z, v.X, w.Z, w.X);
         const Detail::Expansion cz = Detail::CrossComponent(v.X, v.Y, w.X, w.Y);
-        return Detail::Add(Detail::Add(Detail::Multiply(u.X, cx), Detail::Multiply(u.Y, cy)),
-                           Detail::Multiply(u.Z, cz));
+        return Detail::Add(Detail::Add(Detail::Multiply(u.X, cx), Detail::Multiply(u.Y, cy)), Detail::Multiply(u.Z, cz));
     };
     const Detail::Expansion detExpansion = Detail::Add(
-        Detail::Add(Detail::Multiply(lift(ea), triple(eb, ec, ed)),
-                    Detail::Negate(Detail::Multiply(lift(eb), triple(ea, ec, ed)))),
-        Detail::Add(Detail::Multiply(lift(ec), triple(ea, eb, ed)),
-                    Detail::Negate(Detail::Multiply(lift(ed), triple(ea, eb, ec)))));
+        Detail::Add(Detail::Multiply(lift(ea), triple(eb, ec, ed)), Detail::Negate(Detail::Multiply(lift(eb), triple(ea, ec, ed)))),
+        Detail::Add(Detail::Multiply(lift(ec), triple(ea, eb, ed)), Detail::Negate(Detail::Multiply(lift(ed), triple(ea, eb, ec)))));
     return Detail::Sign(detExpansion);
 }
 

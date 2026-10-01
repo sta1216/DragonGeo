@@ -11,8 +11,7 @@ struct SolidHit {
     ParameterPoint3 Point{};
 };
 
-[[nodiscard]] inline CurveMeet2 MeetPoint(Linear::Point2 point, double onFirst,
-                                          double onSecond) noexcept {
+[[nodiscard]] inline CurveMeet2 MeetPoint(Linear::Point2 point, double onFirst, double onSecond) noexcept {
     CurveMeet2 meet;
     meet.Kind = CurveMeet::Point;
     meet.Point = point;
@@ -32,8 +31,7 @@ struct SolidHit {
     return meet;
 }
 
-[[nodiscard]] inline double ParameterAlong(Linear::Point2 origin, Linear::Point2 end,
-                                           Linear::Point2 point) noexcept {
+[[nodiscard]] inline double ParameterAlong(Linear::Point2 origin, Linear::Point2 end, Linear::Point2 point) noexcept {
     const Linear::Vector2 chord = end - origin;
     const double lengthSquared = chord.LengthSquared();
     if (!(lengthSquared > 0.0)) {
@@ -64,8 +62,7 @@ struct SolidHit {
     return MeetOverlap(Prim::Segment2{start, first.A + chord * exit});
 }
 
-[[nodiscard]] inline CurveMeet2 PointOnSegment(Linear::Point2 point, Prim::Segment2 segment,
-                                               double parameterOnPoint) noexcept {
+[[nodiscard]] inline CurveMeet2 PointOnSegment(Linear::Point2 point, Prim::Segment2 segment, double parameterOnPoint) noexcept {
     const double parameter = ParameterAlong(segment.A, segment.B, point);
     if (Predicates::Orient2d(segment.A, segment.B, point) != 0 || !ParameterInUnit(parameter)) {
         if (segment.A == segment.B) {
@@ -86,8 +83,7 @@ struct SolidHit {
     }
     if (second.A == second.B) {
         const double parameter = ParameterAlong(first.A, first.B, second.A);
-        if (!ParameterInUnit(parameter)
-            || Predicates::Orient2d(first.A, first.B, second.A) != 0) {
+        if (!ParameterInUnit(parameter) || Predicates::Orient2d(first.A, first.B, second.A) != 0) {
             return MeetNone();
         }
         return MeetPoint(second.A, parameter, 0.0);
@@ -101,8 +97,7 @@ struct SolidHit {
 
     const int cda = Predicates::Orient2d(second.A, second.B, first.A);
     const int cdb = Predicates::Orient2d(second.A, second.B, first.B);
-    if ((abc > 0 && abd > 0) || (abc < 0 && abd < 0) || (cda > 0 && cdb > 0)
-        || (cda < 0 && cdb < 0)) {
+    if ((abc > 0 && abd > 0) || (abc < 0 && abd < 0) || (cda > 0 && cdb > 0) || (cda < 0 && cdb < 0)) {
         return MeetNone();
     }
 
@@ -183,10 +178,8 @@ struct SolidHit {
     return MeetPoint(line.Origin + direction * onLine, onLine, onSegment);
 }
 
-template <typename Point, typename Vector>
-[[nodiscard]] std::optional<std::pair<double, double>> Slab(Point origin, Vector direction, Point low,
-                                                            Point high, double tEnter, double tExit,
-                                                            int axes) noexcept {
+template <typename Point, typename Vector> [[nodiscard]] std::optional<std::pair<double, double>> Slab(Point origin, Vector direction, Point low,
+                                                            Point high, double tEnter, double tExit, int axes) noexcept {
     for (int axis = 0; axis < axes; ++axis) {
         const double component = direction[axis];
         if (component == 0.0) {
@@ -224,8 +217,7 @@ template <typename Interval, typename Point, typename Vector>
 }
 
 template <typename Interval, typename Point, typename Vector, typename Box>
-[[nodiscard]] std::optional<Interval> IntersectBox(Point origin, Vector direction, Box box, double tEnter,
-                                                   double tExit, int axes) noexcept {
+[[nodiscard]] std::optional<Interval> IntersectBox(Point origin, Vector direction, Box box, double tEnter, double tExit, int axes) noexcept {
     if (box.IsEmpty()) {
         return std::nullopt;
     }
@@ -238,8 +230,7 @@ template <typename Interval, typename Point, typename Vector, typename Box>
 
 template <typename Interval, typename Point, typename Vector, typename Corner>
 [[nodiscard]] std::optional<Interval> IntersectExtents(Point origin, Vector direction, Corner low, Corner high,
-                                                       double tEnter, double tExit, int axes,
-                                                       Point worldOrigin, Vector worldDirection) noexcept {
+                                                       double tEnter, double tExit, int axes, Point worldOrigin, Vector worldDirection) noexcept {
     const auto range = Slab(origin, direction, low, high, tEnter, tExit, axes);
     if (!range.has_value()) {
         return std::nullopt;
@@ -247,8 +238,7 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return AtParameters<Interval>(worldOrigin, worldDirection, range->first, range->second);
 }
 
-[[nodiscard]] inline SolidHit HitPlane(Linear::Point3 origin, Linear::Vector3 direction, CurveDomain domain,
-                                       Prim::Plane plane) noexcept {
+[[nodiscard]] inline SolidHit HitPlane(Linear::Point3 origin, Linear::Vector3 direction, CurveDomain domain, Prim::Plane plane) noexcept {
     const double alongNormal = direction.Dot(plane.Normal.AsVector());
     const double signedOrigin = plane.SignedDistance(origin);
     if (alongNormal == 0.0) {
@@ -274,8 +264,7 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return SolidHit{HitKind::Point, ParameterPoint3{parameter, origin + direction * parameter}};
 }
 
-[[nodiscard]] inline bool PointOnSegment3(Linear::Point3 point, Linear::Point3 start,
-                                          Linear::Point3 end) noexcept {
+[[nodiscard]] inline bool PointOnSegment3(Linear::Point3 point, Linear::Point3 start, Linear::Point3 end) noexcept {
     const Linear::Vector3 chord = end - start;
     const Linear::Vector3 offset = point - start;
     if (chord.Cross(offset).LengthSquared() != 0.0) {
@@ -289,11 +278,9 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return ParameterInUnit(parameter);
 }
 
-/// 直线 `origin + t direction` 是否碰到线段 `start`–`end`。`direction` 在射线上是单位向量，
-/// 在线段上是 `B - A`。
+/// 直线 `origin + t direction` 是否碰到线段 `start`–`end`。`direction` 在射线上是单位向量，在线段上是 `B - A`。
 [[nodiscard]] inline bool CurveMeetsSegment3(Linear::Point3 origin, Linear::Vector3 direction,
-                                             CurveDomain domain, Linear::Point3 start,
-                                             Linear::Point3 end) noexcept {
+                                             CurveDomain domain, Linear::Point3 start, Linear::Point3 end) noexcept {
     if (direction.LengthSquared() == 0.0) {
         return PointOnSegment3(origin, start, end);
     }
@@ -345,11 +332,7 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     if (domain == CurveDomain::Segment && triangle.Contains(origin + direction)) {
         return true;
     }
-    const Linear::Point3 edges[3][2] = {
-        {triangle.A, triangle.B},
-        {triangle.B, triangle.C},
-        {triangle.C, triangle.A},
-    };
+    const Linear::Point3 edges[3][2] = {{triangle.A, triangle.B}, {triangle.B, triangle.C}, {triangle.C, triangle.A}};
     for (const auto& edge : edges) {
         if (CurveMeetsSegment3(origin, direction, domain, edge[0], edge[1])) {
             return true;
@@ -382,18 +365,14 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return Linear::Point2{point.X, point.Y};
 }
 
-/// 平面求交得到的点可能离开三角形一个 ulp。`Triangle3::Contains` 要求 `Orient3d == 0`，
-/// 会把横向穿过的真实交点判掉。投影到坐标平面后，用与 `Triangle2::Contains` 相同的包含测试。
-[[nodiscard]] inline bool ContainsInProjection(Prim::Triangle3 triangle, Linear::Point3 point,
-                                               Linear::Vector3 normal) noexcept {
+/// 平面求交得到的点可能离开三角形一个 ulp。`Triangle3::Contains` 要求 `Orient3d == 0`，会把横向穿过的真实交点判掉。投影到坐标平面后，用与 `Triangle2::Contains` 相同的包含测试。
+[[nodiscard]] inline bool ContainsInProjection(Prim::Triangle3 triangle, Linear::Point3 point, Linear::Vector3 normal) noexcept {
     const int dropped = DroppedNormalAxis(normal);
-    const Prim::Triangle2 projected{
-        DropAxis(triangle.A, dropped), DropAxis(triangle.B, dropped), DropAxis(triangle.C, dropped)};
+    const Prim::Triangle2 projected{DropAxis(triangle.A, dropped), DropAxis(triangle.B, dropped), DropAxis(triangle.C, dropped)};
     return projected.Contains(DropAxis(point, dropped));
 }
 
-[[nodiscard]] inline SolidHit HitTriangle(Linear::Point3 origin, Linear::Vector3 direction, CurveDomain domain,
-                                          Prim::Triangle3 triangle) noexcept {
+[[nodiscard]] inline SolidHit HitTriangle(Linear::Point3 origin, Linear::Vector3 direction, CurveDomain domain, Prim::Triangle3 triangle) noexcept {
     if (direction.LengthSquared() == 0.0) {
         if (!triangle.Contains(origin)) {
             return {};
@@ -439,9 +418,7 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return hit.Point;
 }
 
-template <typename Point>
-[[nodiscard]] double SegmentDistanceSquared(Point firstStart, Point firstEnd, Point secondStart,
-                                            Point secondEnd) noexcept {
+template <typename Point> [[nodiscard]] double SegmentDistanceSquared(Point firstStart, Point firstEnd, Point secondStart, Point secondEnd) noexcept {
     const auto u = firstEnd - firstStart;
     const auto v = secondEnd - secondStart;
     const auto w = firstStart - secondStart;
@@ -450,8 +427,7 @@ template <typename Point>
     const double c = v.Dot(v);
     const double d = u.Dot(w);
     const double e = v.Dot(w);
-    // 有一条线段长度为 0 时，把那个点投到另一条线段上并夹到 [0, 1]。
-    // 第二条退化为点时，通用公式会把参数留在起点，距离因此不对称。
+    // 有一条线段长度为 0 时，把那个点投到另一条线段上并夹到 [0, 1]。第二条退化为点时，通用公式会把参数留在起点，距离因此不对称。
     if (!(c > 0.0)) {
         const double s = !(a > 0.0) ? 0.0 : std::min(1.0, std::max(0.0, -d / a));
         const auto difference = w + u * s;
@@ -563,8 +539,7 @@ template <typename Point>
     return triangle.A + ab * v + ac * w;
 }
 
-[[nodiscard]] inline double PointTriangleDistanceSquared(Linear::Point3 point,
-                                                         Prim::Triangle3 triangle) noexcept {
+[[nodiscard]] inline double PointTriangleDistanceSquared(Linear::Point3 point, Prim::Triangle3 triangle) noexcept {
     return (point - ClosestOnTriangle(point, triangle)).LengthSquared();
 }
 
@@ -574,8 +549,7 @@ struct AxisRange {
     bool Ok = false;
 };
 
-[[nodiscard]] inline double PlaneVolume(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c,
-                                        Linear::Point3 point) noexcept {
+[[nodiscard]] inline double PlaneVolume(Linear::Point3 a, Linear::Point3 b, Linear::Point3 c, Linear::Point3 point) noexcept {
     return (b - a).Cross(c - a).Dot(point - a);
 }
 
@@ -621,16 +595,8 @@ struct AxisRange {
         || second.Contains(first.A) || second.Contains(first.B) || second.Contains(first.C)) {
         return true;
     }
-    const Prim::Segment3 firstEdges[3] = {
-        {first.A, first.B},
-        {first.B, first.C},
-        {first.C, first.A},
-    };
-    const Prim::Segment3 secondEdges[3] = {
-        {second.A, second.B},
-        {second.B, second.C},
-        {second.C, second.A},
-    };
+    const Prim::Segment3 firstEdges[3] = {{first.A, first.B}, {first.B, first.C}, {first.C, first.A}};
+    const Prim::Segment3 secondEdges[3] = {{second.A, second.B}, {second.B, second.C}, {second.C, second.A}};
     for (const Prim::Segment3& edge : firstEdges) {
         for (const Prim::Segment3& other : secondEdges) {
             if (CurveMeetsSegment3(edge.A, edge.B - edge.A, CurveDomain::Segment, other.A, other.B)) {
@@ -644,24 +610,19 @@ struct AxisRange {
 [[nodiscard]] inline bool TrianglesIntersect(Prim::Triangle3 first, Prim::Triangle3 second) noexcept {
     const int firstSides[3] = {
         Predicates::Orient3d(second.A, second.B, second.C, first.A),
-        Predicates::Orient3d(second.A, second.B, second.C, first.B),
-        Predicates::Orient3d(second.A, second.B, second.C, first.C),
+        Predicates::Orient3d(second.A, second.B, second.C, first.B), Predicates::Orient3d(second.A, second.B, second.C, first.C),
     };
-    if ((firstSides[0] > 0 && firstSides[1] > 0 && firstSides[2] > 0)
-        || (firstSides[0] < 0 && firstSides[1] < 0 && firstSides[2] < 0)) {
+    if ((firstSides[0] > 0 && firstSides[1] > 0 && firstSides[2] > 0) || (firstSides[0] < 0 && firstSides[1] < 0 && firstSides[2] < 0)) {
         return false;
     }
     const int secondSides[3] = {
         Predicates::Orient3d(first.A, first.B, first.C, second.A),
-        Predicates::Orient3d(first.A, first.B, first.C, second.B),
-        Predicates::Orient3d(first.A, first.B, first.C, second.C),
+        Predicates::Orient3d(first.A, first.B, first.C, second.B), Predicates::Orient3d(first.A, first.B, first.C, second.C),
     };
-    if ((secondSides[0] > 0 && secondSides[1] > 0 && secondSides[2] > 0)
-        || (secondSides[0] < 0 && secondSides[1] < 0 && secondSides[2] < 0)) {
+    if ((secondSides[0] > 0 && secondSides[1] > 0 && secondSides[2] > 0) || (secondSides[0] < 0 && secondSides[1] < 0 && secondSides[2] < 0)) {
         return false;
     }
-    if ((firstSides[0] == 0 && firstSides[1] == 0 && firstSides[2] == 0)
-        || (secondSides[0] == 0 && secondSides[1] == 0 && secondSides[2] == 0)) {
+    if ((firstSides[0] == 0 && firstSides[1] == 0 && firstSides[2] == 0) || (secondSides[0] == 0 && secondSides[1] == 0 && secondSides[2] == 0)) {
         return CoplanarTriangles(first, second);
     }
 
@@ -690,10 +651,8 @@ struct AxisRange {
     if (largest == 0.0) {
         return CoplanarTriangles(first, second);
     }
-    const AxisRange firstRange = TrianglePlaneRange(
-        first.A, first.B, first.C, firstDistances[0], firstDistances[1], firstDistances[2], axis);
-    const AxisRange secondRange = TrianglePlaneRange(
-        second.A, second.B, second.C, secondDistances[0], secondDistances[1], secondDistances[2], axis);
+    const AxisRange firstRange = TrianglePlaneRange(first.A, first.B, first.C, firstDistances[0], firstDistances[1], firstDistances[2], axis);
+    const AxisRange secondRange = TrianglePlaneRange(second.A, second.B, second.C, secondDistances[0], secondDistances[1], secondDistances[2], axis);
     return RangesOverlap(firstRange, secondRange);
 }
 
@@ -708,16 +667,8 @@ struct AxisRange {
     best = std::min(best, PointTriangleDistanceSquared(second.B, first));
     best = std::min(best, PointTriangleDistanceSquared(second.C, first));
 
-    const Prim::Segment3 firstEdges[3] = {
-        {first.A, first.B},
-        {first.B, first.C},
-        {first.C, first.A},
-    };
-    const Prim::Segment3 secondEdges[3] = {
-        {second.A, second.B},
-        {second.B, second.C},
-        {second.C, second.A},
-    };
+    const Prim::Segment3 firstEdges[3] = {{first.A, first.B}, {first.B, first.C}, {first.C, first.A}};
+    const Prim::Segment3 secondEdges[3] = {{second.A, second.B}, {second.B, second.C}, {second.C, second.A}};
     for (const Prim::Segment3& edge : firstEdges) {
         for (const Prim::Segment3& other : secondEdges) {
             best = std::min(best, SegmentDistanceSquared(edge.A, edge.B, other.A, other.B));
@@ -736,8 +687,7 @@ namespace DragonGeo::Query {
 
 
 
-/// 两条直线相交。平行且分离为 `None`，重合为 `Coincident`，其余为一个点。
-/// 点的参数是沿各自方向的有符号距离。`noexcept`。
+/// 两条直线相交。平行且分离为 `None`，重合为 `Coincident`，其余为一个点。点的参数是沿各自方向的有符号距离。`noexcept`。
 [[nodiscard]] CurveMeet2 Intersection(Prim::Line2 first, Prim::Line2 second) noexcept {
     const Linear::Vector2 firstDirection = first.Direction.AsVector();
     const Linear::Vector2 secondDirection = second.Direction.AsVector();
@@ -766,8 +716,7 @@ namespace DragonGeo::Query {
 
 
 
-/// 两条线段相交。只共享端点或内部交点为 `Point`。共线且重叠长度为零也是 `Point`。
-/// 正长度重叠为 `Overlap`，重叠段沿第一条线段的方向。`noexcept`。
+/// 两条线段相交。只共享端点或内部交点为 `Point`。共线且重叠长度为零也是 `Point`。正长度重叠为 `Overlap`，重叠段沿第一条线段的方向。`noexcept`。
 [[nodiscard]] CurveMeet2 Intersection(Prim::Segment2 first, Prim::Segment2 second) noexcept {
     return Detail::IntersectionSegments(first, second);
 }
@@ -781,8 +730,7 @@ namespace DragonGeo::Query {
 
 
 
-/// 直线与线段相交。线段整段落在直线上时为 `Overlap`，重叠段沿直线方向。
-/// 零长度线段落在直线上时为 `Point`。`noexcept`。
+/// 直线与线段相交。线段整段落在直线上时为 `Overlap`，重叠段沿直线方向。零长度线段落在直线上时为 `Point`。`noexcept`。
 [[nodiscard]] CurveMeet2 Intersection(Prim::Line2 line, Prim::Segment2 segment) noexcept {
     return Detail::IntersectionLineSegment(line, segment);
 }
@@ -796,8 +744,7 @@ namespace DragonGeo::Query {
 
 
 
-/// 射线与平面。平行且不在平面上不相交。射线躺在平面上时相交，但没有单个交点。
-/// 参数是沿射线方向的距离，且 `>= 0`。`noexcept`。
+/// 射线与平面。平行且不在平面上不相交。射线躺在平面上时相交，但没有单个交点。参数是沿射线方向的距离，且 `>= 0`。`noexcept`。
 [[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Ray3 ray, Prim::Plane plane) noexcept {
     return Detail::AsPoint(Detail::HitPlane(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, plane));
 }
@@ -806,35 +753,28 @@ namespace DragonGeo::Query {
 
 /// 射线是否打到平面，包括整条射线躺在平面上。`noexcept`。
 [[nodiscard]] bool Intersects(Prim::Ray3 ray, Prim::Plane plane) noexcept {
-    return Detail::HitPlane(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, plane).Kind
-        != Detail::HitKind::Miss;
+    return Detail::HitPlane(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, plane).Kind != Detail::HitKind::Miss;
 }
 
 
 
-/// 线段与平面。正长度线段躺在平面上时相交，`Intersection` 为空。
-/// 零长度线段落在平面上时返回该点。参数落在 `[0, 1]`。`noexcept`。
-[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Segment3 segment,
-                                                                 Prim::Plane plane) noexcept {
-    return Detail::AsPoint(
-        Detail::HitPlane(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, plane));
+/// 线段与平面。正长度线段躺在平面上时相交，`Intersection` 为空。零长度线段落在平面上时返回该点。参数落在 `[0, 1]`。`noexcept`。
+[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Segment3 segment, Prim::Plane plane) noexcept {
+    return Detail::AsPoint(Detail::HitPlane(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, plane));
 }
 
 
 
 /// 线段是否打到平面，包括整段躺在平面上。`noexcept`。
 [[nodiscard]] bool Intersects(Prim::Segment3 segment, Prim::Plane plane) noexcept {
-    return Detail::HitPlane(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, plane).Kind
-        != Detail::HitKind::Miss;
+    return Detail::HitPlane(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, plane).Kind != Detail::HitKind::Miss;
 }
 
 
 
-/// 直线与平面。躺在平面上为 `Coincident`，平行且分离为 `None`，其余为一个点。
-/// 参数是沿直线方向的有符号距离。`noexcept`。
+/// 直线与平面。躺在平面上为 `Coincident`，平行且分离为 `None`，其余为一个点。参数是沿直线方向的有符号距离。`noexcept`。
 [[nodiscard]] CurveMeet3 Intersection(Prim::Line3 line, Prim::Plane plane) noexcept {
-    const Detail::SolidHit hit =
-        Detail::HitPlane(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, plane);
+    const Detail::SolidHit hit = Detail::HitPlane(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, plane);
     CurveMeet3 meet;
     if (hit.Kind == Detail::HitKind::Region) {
         meet.Kind = CurveMeet::Coincident;
@@ -858,61 +798,50 @@ namespace DragonGeo::Query {
 
 
 /// 射线与三角形。横向穿过或点接触返回交点。共面重叠时相交，但没有单个交点。`noexcept`。
-[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Ray3 ray,
-                                                                 Prim::Triangle3 triangle) noexcept {
-    return Detail::AsPoint(
-        Detail::HitTriangle(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, triangle));
+[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Ray3 ray, Prim::Triangle3 triangle) noexcept {
+    return Detail::AsPoint(Detail::HitTriangle(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, triangle));
 }
 
 
 
 /// 射线是否打到三角形，包括共面重叠。`noexcept`。
 [[nodiscard]] bool Intersects(Prim::Ray3 ray, Prim::Triangle3 triangle) noexcept {
-    return Detail::HitTriangle(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, triangle).Kind
-        != Detail::HitKind::Miss;
+    return Detail::HitTriangle(ray.Origin, ray.Direction.AsVector(), Detail::CurveDomain::Ray, triangle).Kind != Detail::HitKind::Miss;
 }
 
 
 
 /// 线段与三角形。横向穿过返回交点，参数在 `[0, 1]`。共面重叠时 `Intersection` 为空。`noexcept`。
-[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Segment3 segment,
-                                                                 Prim::Triangle3 triangle) noexcept {
-    return Detail::AsPoint(
-        Detail::HitTriangle(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, triangle));
+[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Segment3 segment, Prim::Triangle3 triangle) noexcept {
+    return Detail::AsPoint(Detail::HitTriangle(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, triangle));
 }
 
 
 
 /// 线段是否打到三角形，包括共面重叠。`noexcept`。
 [[nodiscard]] bool Intersects(Prim::Segment3 segment, Prim::Triangle3 triangle) noexcept {
-    return Detail::HitTriangle(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, triangle).Kind
-        != Detail::HitKind::Miss;
+    return Detail::HitTriangle(segment.A, segment.B - segment.A, Detail::CurveDomain::Segment, triangle).Kind != Detail::HitKind::Miss;
 }
 
 
 
 /// 直线与三角形。横向穿过返回交点。共面重叠时相交，`Intersection` 为空。`noexcept`。
-[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Line3 line,
-                                                                 Prim::Triangle3 triangle) noexcept {
-    return Detail::AsPoint(
-        Detail::HitTriangle(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, triangle));
+[[nodiscard]] std::optional<ParameterPoint3> Intersection(Prim::Line3 line, Prim::Triangle3 triangle) noexcept {
+    return Detail::AsPoint(Detail::HitTriangle(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, triangle));
 }
 
 
 
 /// 直线是否打到三角形，包括共面重叠。`noexcept`。
 [[nodiscard]] bool Intersects(Prim::Line3 line, Prim::Triangle3 triangle) noexcept {
-    return Detail::HitTriangle(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, triangle).Kind
-        != Detail::HitKind::Miss;
+    return Detail::HitTriangle(line.Origin, line.Direction.AsVector(), Detail::CurveDomain::Line, triangle).Kind != Detail::HitKind::Miss;
 }
 
 
 
-/// 射线与轴对齐盒。空盒不相交。起点在体内时 `Enter` 为 0。相切时 `Enter == Exit`。
-/// 两个参数都 `>= 0`。`noexcept`。
+/// 射线与轴对齐盒。空盒不相交。起点在体内时 `Enter` 为 0。相切时 `Enter == Exit`。两个参数都 `>= 0`。`noexcept`。
 [[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Ray2 ray, Linear::Box2 box) noexcept {
-    return Detail::IntersectBox<ParameterInterval2>(
-        ray.Origin, ray.Direction.AsVector(), box, 0.0, Detail::Infinity(), 2);
+    return Detail::IntersectBox<ParameterInterval2>(ray.Origin, ray.Direction.AsVector(), box, 0.0, Detail::Infinity(), 2);
 }
 
 
@@ -925,8 +854,7 @@ namespace DragonGeo::Query {
 
 
 /// 线段与轴对齐盒。参数落在 `[0, 1]`。起点在体内时 `Enter` 为 0。空盒不相交。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Segment2 segment,
-                                                                    Linear::Box2 box) noexcept {
+[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Segment2 segment, Linear::Box2 box) noexcept {
     return Detail::IntersectBox<ParameterInterval2>(segment.A, segment.B - segment.A, box, 0.0, 1.0, 2);
 }
 
@@ -941,8 +869,7 @@ namespace DragonGeo::Query {
 
 /// 直线与轴对齐盒。参数是有符号距离。空盒不相交。`noexcept`。
 [[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Line2 line, Linear::Box2 box) noexcept {
-    return Detail::IntersectBox<ParameterInterval2>(
-        line.Origin, line.Direction.AsVector(), box, -Detail::Infinity(), Detail::Infinity(), 2);
+    return Detail::IntersectBox<ParameterInterval2>(line.Origin, line.Direction.AsVector(), box, -Detail::Infinity(), Detail::Infinity(), 2);
 }
 
 
@@ -956,8 +883,7 @@ namespace DragonGeo::Query {
 
 /// 射线与三维轴对齐盒。空盒不相交。约定与二维相同。`noexcept`。
 [[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Ray3 ray, Linear::Box3 box) noexcept {
-    return Detail::IntersectBox<ParameterInterval3>(
-        ray.Origin, ray.Direction.AsVector(), box, 0.0, Detail::Infinity(), 3);
+    return Detail::IntersectBox<ParameterInterval3>(ray.Origin, ray.Direction.AsVector(), box, 0.0, Detail::Infinity(), 3);
 }
 
 
@@ -970,8 +896,7 @@ namespace DragonGeo::Query {
 
 
 /// 线段与三维轴对齐盒。空盒不相交。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Segment3 segment,
-                                                                    Linear::Box3 box) noexcept {
+[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Segment3 segment, Linear::Box3 box) noexcept {
     return Detail::IntersectBox<ParameterInterval3>(segment.A, segment.B - segment.A, box, 0.0, 1.0, 3);
 }
 
@@ -986,8 +911,7 @@ namespace DragonGeo::Query {
 
 /// 直线与三维轴对齐盒。空盒不相交。`noexcept`。
 [[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Line3 line, Linear::Box3 box) noexcept {
-    return Detail::IntersectBox<ParameterInterval3>(
-        line.Origin, line.Direction.AsVector(), box, -Detail::Infinity(), Detail::Infinity(), 3);
+    return Detail::IntersectBox<ParameterInterval3>(line.Origin, line.Direction.AsVector(), box, -Detail::Infinity(), Detail::Infinity(), 3);
 }
 
 
@@ -999,10 +923,8 @@ namespace DragonGeo::Query {
 
 
 
-/// 射线与二维有向盒。先用 `Coordinate.ToLocal` 变到盒的标架，再对以原点为中心、
-/// 半轴为 `HalfExtent` 的盒做平板测试。不提供直线版本。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Ray2 ray,
-                                                                    const Linear::OrientedBox2& box) noexcept {
+/// 射线与二维有向盒。先用 `Coordinate.ToLocal` 变到盒的标架，再对以原点为中心、半轴为 `HalfExtent` 的盒做平板测试。不提供直线版本。`noexcept`。
+[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Ray2 ray, const Linear::OrientedBox2& box) noexcept {
     const Linear::Point2 low{-box.HalfExtent.X, -box.HalfExtent.Y};
     const Linear::Point2 high{box.HalfExtent.X, box.HalfExtent.Y};
     return Detail::IntersectExtents<ParameterInterval2>(
@@ -1020,14 +942,12 @@ namespace DragonGeo::Query {
 
 
 /// 线段与二维有向盒。参数仍是原线段上的 `[0, 1]`。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Segment2 segment,
-                                                                    const Linear::OrientedBox2& box) noexcept {
+[[nodiscard]] std::optional<ParameterInterval2> Intersection(Prim::Segment2 segment, const Linear::OrientedBox2& box) noexcept {
     const Linear::Point2 localStart = box.Coordinate.ToLocal(segment.A);
     const Linear::Point2 localEnd = box.Coordinate.ToLocal(segment.B);
     const Linear::Point2 low{-box.HalfExtent.X, -box.HalfExtent.Y};
     const Linear::Point2 high{box.HalfExtent.X, box.HalfExtent.Y};
-    return Detail::IntersectExtents<ParameterInterval2>(
-        localStart, localEnd - localStart, low, high, 0.0, 1.0, 2, segment.A, segment.B - segment.A);
+    return Detail::IntersectExtents<ParameterInterval2>(localStart, localEnd - localStart, low, high, 0.0, 1.0, 2, segment.A, segment.B - segment.A);
 }
 
 
@@ -1040,8 +960,7 @@ namespace DragonGeo::Query {
 
 
 /// 射线与三维有向盒。先 `Coordinate.ToLocal`，再对 `[-HalfExtent, HalfExtent]` 做平板测试。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Ray3 ray,
-                                                                    const Linear::OrientedBox3& box) noexcept {
+[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Ray3 ray, const Linear::OrientedBox3& box) noexcept {
     const Linear::Point3 low{-box.HalfExtent.X, -box.HalfExtent.Y, -box.HalfExtent.Z};
     const Linear::Point3 high{box.HalfExtent.X, box.HalfExtent.Y, box.HalfExtent.Z};
     return Detail::IntersectExtents<ParameterInterval3>(
@@ -1059,14 +978,12 @@ namespace DragonGeo::Query {
 
 
 /// 线段与三维有向盒。参数仍是原线段上的 `[0, 1]`。`noexcept`。
-[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Segment3 segment,
-                                                                    const Linear::OrientedBox3& box) noexcept {
+[[nodiscard]] std::optional<ParameterInterval3> Intersection(Prim::Segment3 segment, const Linear::OrientedBox3& box) noexcept {
     const Linear::Point3 localStart = box.Coordinate.ToLocal(segment.A);
     const Linear::Point3 localEnd = box.Coordinate.ToLocal(segment.B);
     const Linear::Point3 low{-box.HalfExtent.X, -box.HalfExtent.Y, -box.HalfExtent.Z};
     const Linear::Point3 high{box.HalfExtent.X, box.HalfExtent.Y, box.HalfExtent.Z};
-    return Detail::IntersectExtents<ParameterInterval3>(
-        localStart, localEnd - localStart, low, high, 0.0, 1.0, 3, segment.A, segment.B - segment.A);
+    return Detail::IntersectExtents<ParameterInterval3>(localStart, localEnd - localStart, low, high, 0.0, 1.0, 3, segment.A, segment.B - segment.A);
 }
 
 

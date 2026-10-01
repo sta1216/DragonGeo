@@ -126,8 +126,7 @@ TEST_CASE("Triangle2 parameter midpoint is on the boundary", "[prim][triangle2]"
 
 TEST_CASE("Triangle2 subcurve is a segment on one edge and a polyline across a vertex", "[prim][triangle2]") {
     const Triangle2 triangle{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
-    STATIC_REQUIRE(std::is_same_v<
-        decltype(triangle.Subcurve(Interval{})), std::optional<std::variant<Segment2, Polyline>>>);
+    STATIC_REQUIRE(std::is_same_v< decltype(triangle.Subcurve(Interval{})), std::optional<std::variant<Segment2, Polyline>>>);
 
     const auto firstEdge = triangle.Subcurve(Interval{0.0, 1.0});
     REQUIRE(firstEdge.has_value());

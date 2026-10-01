@@ -30,8 +30,7 @@ TEST_CASE("Tolerance::equal respects scale", "[core][tolerance]") {
     CHECK_FALSE(tolerance.Equal(1e-6, 1e-6 + 1e-3));
 }
 
-TEST_CASE("Tolerance::IsZero rejects only genuinely tiny values",
-          "[core][tolerance]") {
+TEST_CASE("Tolerance::IsZero rejects only genuinely tiny values", "[core][tolerance]") {
     const Tolerance tolerance{1e-12, 1e-9};
 
     CHECK(tolerance.IsZero(0.0));
@@ -47,22 +46,18 @@ TEST_CASE("a zero tolerance rejects only exact zero", "[core][tolerance]") {
     CHECK_FALSE(exact.IsZero(1e-300));
 }
 
-TEST_CASE("Tolerance::resolve is symmetric in the sign of the magnitude",
-          "[core][tolerance]") {
+TEST_CASE("Tolerance::resolve is symmetric in the sign of the magnitude", "[core][tolerance]") {
     const Tolerance tolerance{1e-12, 1e-9};
 
     // 量级一律取绝对值，符号不应有任何影响。
     //
-    // 这条断言专门盯住一个不写绝对值就完全无法察觉的回归：若 resolve 误写成
-    // `abs + rel * magnitude`，正量级的用例会全部照过（文件里其余量级都是正数），
-    // 只有负量级会得到一个更小的容差。这是该公式最可能的一次写错。
+    // 这条断言专门盯住一个不写绝对值就完全无法察觉的回归：若 resolve 误写成 `abs + rel * magnitude`，正量级的用例会全部照过（文件里其余量级都是正数），只有负量级会得到一个更小的容差。这是该公式最可能的一次写错。
     CHECK(tolerance.Resolve(-1e6) == tolerance.Resolve(1e6));
     CHECK(tolerance.Resolve(-1.0) == tolerance.Resolve(1.0));
     CHECK(tolerance.Resolve(-1e6) > tolerance.Resolve(0.0));
 }
 
-TEST_CASE("non-finite values are neither zero nor approximately equal",
-          "[core][tolerance][degenerate]") {
+TEST_CASE("non-finite values are neither zero nor approximately equal", "[core][tolerance][degenerate]") {
     const Tolerance tolerance{1e-12, 1e-9};
     const double infinity = std::numeric_limits<double>::infinity();
     const double notANumber = std::numeric_limits<double>::quiet_NaN();

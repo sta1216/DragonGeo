@@ -55,8 +55,7 @@ using DragonGeo::Query::Intersects;
 namespace {
 
 bool OnBoxBoundary(Point2 point, Box2 box) {
-    const bool onEdge = point.X == box.Min.X || point.X == box.Max.X || point.Y == box.Min.Y
-        || point.Y == box.Max.Y;
+    const bool onEdge = point.X == box.Min.X || point.X == box.Max.X || point.Y == box.Min.Y || point.Y == box.Max.Y;
     return box.Contains(point) && onEdge;
 }
 
@@ -102,8 +101,7 @@ TEST_CASE("Segment2 meets at an endpoint or overlaps", "[query]") {
     CHECK(Intersects(first, second));
 
     const Segment2 reversedSecond{Point2{3.0, 0.0}, Point2{1.0, 0.0}};
-    CHECK(Intersection(first, reversedSecond).Overlap
-          == Segment2{Point2{1.0, 0.0}, Point2{2.0, 0.0}});
+    CHECK(Intersection(first, reversedSecond).Overlap == Segment2{Point2{1.0, 0.0}, Point2{2.0, 0.0}});
 
     const Segment2 gap{Point2{3.0, 0.0}, Point2{4.0, 0.0}};
     CHECK(Intersection(first, gap).Kind == CurveMeet::None);
@@ -301,8 +299,7 @@ TEST_CASE("Ray3, Segment3, and Line3 cross a Box3", "[query]") {
 }
 
 TEST_CASE("a ray or segment meets an oriented box", "[query]") {
-    const auto frame = Coordinate3::FromAxes(
-        Point3{5.0, 0.0, 0.0}, UnitVector3::XAxis, UnitVector3::YAxis, UnitVector3::ZAxis);
+    const auto frame = Coordinate3::FromAxes(Point3{5.0, 0.0, 0.0}, UnitVector3::XAxis, UnitVector3::YAxis, UnitVector3::ZAxis);
     REQUIRE(frame.has_value());
     const OrientedBox3 box{*frame, Vector3{1.0, 1.0, 1.0}};
     const Ray3 ray{Point3{0.0, 0.0, 0.0}, UnitVector3::XAxis};
@@ -319,8 +316,7 @@ TEST_CASE("a ray or segment meets an oriented box", "[query]") {
     CHECK(segmentHit->Enter == Approx(0.4));
     CHECK(segmentHit->Exit == Approx(0.6));
 
-    const auto flat = Coordinate2::FromAxes(
-        Point2{0.0, 3.0}, UnitVector2::XAxis, UnitVector2::YAxis);
+    const auto flat = Coordinate2::FromAxes(Point2{0.0, 3.0}, UnitVector2::XAxis, UnitVector2::YAxis);
     REQUIRE(flat.has_value());
     const OrientedBox2 box2{*flat, Vector2{1.0, 1.0}};
     const Ray2 upward{Point2{0.0, 0.0}, UnitVector2::YAxis};
@@ -425,8 +421,6 @@ TEST_CASE("linear queries are noexcept", "[query]") {
     STATIC_REQUIRE(noexcept(Distance(triangle, triangle)));
     STATIC_REQUIRE(noexcept(DistanceSquared(triangle, triangle)));
     CHECK(std::is_same_v<decltype(Intersection(line2, line2)), DragonGeo::Query::CurveMeet2>);
-    CHECK(std::is_same_v<decltype(Intersection(ray3, plane)),
-                         std::optional<DragonGeo::Query::ParameterPoint3>>);
-    CHECK(std::is_same_v<decltype(Intersection(ray2, box2)),
-                         std::optional<DragonGeo::Query::ParameterInterval2>>);
+    CHECK(std::is_same_v<decltype(Intersection(ray3, plane)), std::optional<DragonGeo::Query::ParameterPoint3>>);
+    CHECK(std::is_same_v<decltype(Intersection(ray2, box2)), std::optional<DragonGeo::Query::ParameterInterval2>>);
 }

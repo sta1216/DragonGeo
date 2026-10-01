@@ -115,8 +115,7 @@ TEST_CASE("an open two-point polyline is one segment without area", "[prim][poly
     const auto different = Polyline3::FromPoints(otherPoints);
     REQUIRE(different.has_value());
     CHECK(*polyline != *different);
-    const Point3 longer[]{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}};
+    const Point3 longer[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}};
     const auto extra = Polyline3::FromPoints(longer);
     REQUIRE(extra.has_value());
     CHECK(*polyline != *extra);
@@ -139,12 +138,7 @@ TEST_CASE("an open two-point polyline is one segment without area", "[prim][poly
 }
 
 TEST_CASE("a closed triangle polyline reports area, winding, and containment", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 0.0, 0.0},
-        Point3{0.0, 1.0, 0.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->IsClosed());
@@ -158,8 +152,7 @@ TEST_CASE("a closed triangle polyline reports area, winding, and containment", "
     CHECK(centroid->X == Approx(1.0 / 3.0));
     CHECK(centroid->Y == Approx(1.0 / 3.0));
     CHECK(centroid->Z == Approx(0.0));
-    CHECK(polyline->Box()
-          == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}));
+    CHECK(polyline->Box() == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}));
     CHECK(polyline->Domain() == Interval{0.0, 3.0});
     CHECK(polyline->PointAt(0.0) == Point3{0.0, 0.0, 0.0});
     CHECK(polyline->PointAt(3.0) == Point3{0.0, 0.0, 0.0});
@@ -193,8 +186,7 @@ TEST_CASE("a closed triangle polyline reports area, winding, and containment", "
 }
 
 TEST_CASE("a closed polyline keeps a zero area and only its boundary", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}};
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->IsClosed());
@@ -208,12 +200,7 @@ TEST_CASE("a closed polyline keeps a zero area and only its boundary", "[prim][p
 }
 
 TEST_CASE("equal absolute area components keep the earlier axis", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 1.0, 0.0},
-        Point3{0.0, 0.0, 1.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}, Point3{0.0, 0.0, 1.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->Orientation() == Winding::CounterClockwise);
@@ -223,13 +210,7 @@ TEST_CASE("equal absolute area components keep the earlier axis", "[prim][polyli
 }
 
 TEST_CASE("a non-planar closed polyline uses the vector area and contains nothing", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 0.0, 0.0},
-        Point3{1.0, 1.0, 0.0},
-        Point3{0.0, 1.0, 1.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}, Point3{0.0, 1.0, 1.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->IsClosed());
@@ -241,13 +222,7 @@ TEST_CASE("a non-planar closed polyline uses the vector area and contains nothin
 }
 
 TEST_CASE("centroid averages unique vertices and ignores the repeated end", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 0.0, 0.0},
-        Point3{1.0, 1.0, 0.0},
-        Point3{0.0, 2.0, 0.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}, Point3{0.0, 2.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     const auto centroid = polyline->Centroid();
@@ -259,13 +234,7 @@ TEST_CASE("centroid averages unique vertices and ignores the repeated end", "[pr
 }
 
 TEST_CASE("a zero vector area can still contain a nonzero winding", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 1.0, 0.0},
-        Point3{1.0, 0.0, 0.0},
-        Point3{0.0, 1.0, 0.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
     CHECK(polyline->Area() == 0.0);
@@ -296,12 +265,7 @@ TEST_CASE("a zero-length edge has no tangent and uses scale 1", "[prim][polyline
 }
 
 TEST_CASE("polyline transforms mutate points and reverse keeps a closed seam", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0},
-        Point3{1.0, 0.0, 0.0},
-        Point3{0.0, 1.0, 0.0},
-        Point3{0.0, 0.0, 0.0},
-    };
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     const auto original = Polyline3::FromPoints(points);
     REQUIRE(original.has_value());
 
@@ -324,8 +288,7 @@ TEST_CASE("polyline transforms mutate points and reverse keeps a closed seam", "
     CHECK(reversed.Orientation() == Winding::Clockwise);
     CHECK(original->Orientation() == Winding::CounterClockwise);
 
-    const Point3 openPoints[]{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}};
+    const Point3 openPoints[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}};
     const auto open = Polyline3::FromPoints(openPoints);
     REQUIRE(open.has_value());
     Polyline3 openReversed = *open;
@@ -377,19 +340,15 @@ TEST_CASE("polyline transforms mutate points and reverse keeps a closed seam", "
 }
 
 TEST_CASE("Polyline3 subcurve is a segment or a polyline", "[prim][polyline3]") {
-    const Point3 points[]{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}};
+    const Point3 points[]{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}};
     const auto polyline = Polyline3::FromPoints(points);
     REQUIRE(polyline.has_value());
-    STATIC_REQUIRE(std::is_same_v<
-                   decltype(polyline->Subcurve(Interval{})),
-                   std::optional<std::variant<Segment3, Polyline3>>>);
+    STATIC_REQUIRE(std::is_same_v< decltype(polyline->Subcurve(Interval{})), std::optional<std::variant<Segment3, Polyline3>>>);
 
     const auto onEdge = polyline->Subcurve(Interval{0.0, 0.5});
     REQUIRE(onEdge.has_value());
     REQUIRE(std::holds_alternative<Segment3>(*onEdge));
-    CHECK(std::get<Segment3>(*onEdge)
-          == Segment3{Point3{0.0, 0.0, 0.0}, Point3{0.5, 0.0, 0.0}});
+    CHECK(std::get<Segment3>(*onEdge) == Segment3{Point3{0.0, 0.0, 0.0}, Point3{0.5, 0.0, 0.0}});
 
     const auto across = polyline->Subcurve(Interval{0.5, 1.5});
     REQUIRE(across.has_value());

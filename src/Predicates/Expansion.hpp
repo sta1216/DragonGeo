@@ -8,8 +8,7 @@ namespace DragonGeo::Predicates::Detail {
 
 /// 本头不是稳定接口，也不随安装包发布。调用方只使用 Predicates.hpp 里的四个函数。
 ///
-/// 无误差变换要求就近舍入，并且不能把乘法与相邻的加减合成一条乘加。
-/// 中间结果经 volatile 写回 double，避免消费方打开浮点收缩时丢掉误差项。
+/// 无误差变换要求就近舍入，并且不能把乘法与相邻的加减合成一条乘加。中间结果经 volatile 写回 double，避免消费方打开浮点收缩时丢掉误差项。
 
 inline constexpr double EPSILON = 0x1p-53;
 inline constexpr double SPLITTER = 0x1p27 + 1.0;
@@ -184,13 +183,11 @@ struct Triple {
     Expansion Z;
 };
 
-[[nodiscard]] inline Triple Difference3(double ax, double ay, double az,
-                                        double bx, double by, double bz) {
+[[nodiscard]] inline Triple Difference3(double ax, double ay, double az, double bx, double by, double bz) {
     return {DifferenceOfScalars(bx, ax), DifferenceOfScalars(by, ay), DifferenceOfScalars(bz, az)};
 }
 
-[[nodiscard]] inline Expansion CrossComponent(const Expansion& uy, const Expansion& uz,
-                                              const Expansion& vy, const Expansion& vz) {
+[[nodiscard]] inline Expansion CrossComponent(const Expansion& uy, const Expansion& uz, const Expansion& vy, const Expansion& vz) {
     return Add(Multiply(uy, vz), Negate(Multiply(uz, vy)));
 }
 

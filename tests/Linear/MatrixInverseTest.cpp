@@ -30,8 +30,7 @@ TEST_CASE("determinant of a 3x3 matrix", "[linear][matrix][determinant]") {
     CHECK(Matrix3::Identity().Determinant() == Approx(1.0));
 }
 
-TEST_CASE("determinant of a singular 3x3 matrix is zero",
-          "[linear][matrix][determinant][degenerate]") {
+TEST_CASE("determinant of a singular 3x3 matrix is zero", "[linear][matrix][determinant][degenerate]") {
     // 第三行是前两行之和
     const Matrix3 m{{{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}, {5.0, 7.0, 9.0}}};
     CHECK(m.Determinant() == Approx(0.0));
@@ -41,12 +40,7 @@ TEST_CASE("determinant of a 4x4 matrix", "[linear][matrix][determinant]") {
     CHECK(Matrix4::Identity().Determinant() == Approx(1.0));
 
     // 下三角矩阵的行列式是对角线之积
-    const Matrix4 lower{{
-        {2.0, 0.0, 0.0, 0.0},
-        {3.0, 4.0, 0.0, 0.0},
-        {5.0, 6.0, 7.0, 0.0},
-        {8.0, 9.0, 10.0, 11.0},
-    }};
+    const Matrix4 lower{{{2.0, 0.0, 0.0, 0.0}, {3.0, 4.0, 0.0, 0.0}, {5.0, 6.0, 7.0, 0.0}, {8.0, 9.0, 10.0, 11.0}}};
     CHECK(lower.Determinant() == Approx(2.0 * 4.0 * 7.0 * 11.0));
 }
 
@@ -57,9 +51,7 @@ TEST_CASE("inverse times original is the identity", "[linear][matrix][inverse]")
     REQUIRE(inv.has_value());
     const Matrix2 product = m * *inv;
 
-    // 期望值为 0 时 Approx 的两个容差项都是 0（margin 默认为 0，而
-    // epsilon * |0| 也是 0），所以 `Approx(0.0)` 是伪装成容差比较的精确相等。
-    // 这里必须给出显式 margin。
+    // 期望值为 0 时 Approx 的两个容差项都是 0（margin 默认为 0，而 epsilon * |0| 也是 0），所以 `Approx(0.0)` 是伪装成容差比较的精确相等。这里必须给出显式 margin。
     CHECK(product(0, 0) == Approx(1.0).margin(1e-12));
     CHECK(product(0, 1) == Approx(0.0).margin(1e-12));
     CHECK(product(1, 0) == Approx(0.0).margin(1e-12));
@@ -81,8 +73,7 @@ TEST_CASE("3x3 inverse round-trips", "[linear][matrix][inverse]") {
     }
 }
 
-TEST_CASE("inverse of a singular matrix is nullopt",
-          "[linear][matrix][inverse][degenerate]") {
+TEST_CASE("inverse of a singular matrix is nullopt", "[linear][matrix][inverse][degenerate]") {
     // 第二行是第一行的两倍
     const Matrix2 singular{{{1.0, 2.0}, {2.0, 4.0}}};
 
@@ -91,31 +82,20 @@ TEST_CASE("inverse of a singular matrix is nullopt",
     // 必须是 nullopt，而不是含 inf / NaN 的矩阵
     CHECK_FALSE(inv.has_value());
 
-    const Matrix3 singular3{{
-        {1.0, 2.0, 3.0},
-        {2.0, 4.0, 6.0},
-        {1.0, 1.0, 1.0},
-    }};
+    const Matrix3 singular3{{{1.0, 2.0, 3.0}, {2.0, 4.0, 6.0}, {1.0, 1.0, 1.0}}};
     CHECK_FALSE(singular3.Inverse().has_value());
 }
 
-TEST_CASE("inverse of a matrix containing NaN is nullopt",
-          "[linear][matrix][inverse][degenerate]") {
+TEST_CASE("inverse of a matrix containing NaN is nullopt", "[linear][matrix][inverse][degenerate]") {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const Matrix2 bad{{{nan, 1.0}, {2.0, 3.0}}};
 
-    // 「结果不作保证」的说法已过时：自 d3ba158 起语义就是明确的 —— 绝不交出
-    // has_value() 为真、内容却是 NaN 的矩阵。旧断言丢弃结果后直接 SUCCEED，
-    // 因此它永远不会失败，也就什么也没测到。
+    // 「结果不作保证」的说法已过时：自 d3ba158 起语义就是明确的 —— 绝不交出 has_value() 为真、内容却是 NaN 的矩阵。旧断言丢弃结果后直接 SUCCEED，因此它永远不会失败，也就什么也没测到。
     CHECK_FALSE(bad.Inverse().has_value());
 }
 
-TEST_CASE("inverse rescales badly scaled matrices before testing the determinant",
-          "[linear][matrix][inverse]") {
-    // 行列式是 N 阶量，直接拿它跟一阶容差比是量纲错误：diag(1e-4) 的 det =
-    // 1e-12 会被默认容差的绝对项（1e-12）判为奇异，而 diag(1e150) 的 det =
-    // 1e450 会在任何比较之前就溢出成 inf。先逐行平衡再比较，两者都能得到
-    // 正确答案。
+TEST_CASE("inverse rescales badly scaled matrices before testing the determinant", "[linear][matrix][inverse]") {
+    // 行列式是 N 阶量，直接拿它跟一阶容差比是量纲错误：diag(1e-4) 的 det = 1e-12 会被默认容差的绝对项（1e-12）判为奇异，而 diag(1e150) 的 det = 1e450 会在任何比较之前就溢出成 inf。先逐行平衡再比较，两者都能得到正确答案。
     const Matrix3 tiny{{{1e-4, 0.0, 0.0}, {0.0, 1e-4, 0.0}, {0.0, 0.0, 1e-4}}};
     const auto tinyInverse = tiny.Inverse();
 
@@ -139,11 +119,8 @@ TEST_CASE("inverse rescales badly scaled matrices before testing the determinant
     }
 }
 
-TEST_CASE("inverse of a scaled homogeneous transform exists",
-          "[linear][matrix][inverse]") {
-    // 缩放的仿射矩阵是齐次矩阵，第 4 行恒为 (0,0,0,1)。「按整个矩阵的最大
-    // 元素归一化」对它无效 —— 最大元素永远是 1，小尺度缩放的平衡后行列式
-    // 仍是 1e-12。逐行平衡后每行各自成为 (1,0,0,0)/(0,1,0,0)/(0,0,1,0)/
+TEST_CASE("inverse of a scaled homogeneous transform exists", "[linear][matrix][inverse]") {
+    // 缩放的仿射矩阵是齐次矩阵，第 4 行恒为 (0,0,0,1)。「按整个矩阵的最大元素归一化」对它无效 —— 最大元素永远是 1，小尺度缩放的平衡后行列式仍是 1e-12。逐行平衡后每行各自成为 (1,0,0,0)/(0,1,0,0)/(0,0,1,0)/
     // (0,0,0,1) 这样的单位行，行列式为 1，与缩放倍数无关。
     const auto tiny = Transform3::Scaling(1e-4).Inverse();
 
@@ -173,15 +150,10 @@ TEST_CASE("inverse of a scaled homogeneous transform exists",
     CHECK(roundTrip.Z == Approx(original.Z).margin(1e-12));
 }
 
-TEST_CASE("inverse of a large translation exists",
-          "[linear][matrix][inverse]") {
-    // 逐行平衡对 Transform3T::Translation(t) 恰好是最糟的一类：第 0 行 (1,0,0,t) 被压成
-    // (1/t,0,0,1)，行列式恰为 1/t —— t ≥ 1e12 即在默认容差的绝对项（1e-12）
-    // 上被判成奇异。可它的真逆是精确平移 -t：既存在，又在 double 里精确可表示。
-    // 逐列平衡把第 0 列重新放大回 1，行列式回到 1 而与 t 无关；边界由此不再是
-    // 容差判据，而是 double 本身 —— t = 1e308 仍能精确往返，只有最靠近 DBL_MAX
-    // 的那两个 double（1/t 落到次正规数，其倒数再舍入回 DBL_MAX 之上）才返回
-    // nullopt，那是还原步骤的舍入所致，不是容差判据。
+TEST_CASE("inverse of a large translation exists", "[linear][matrix][inverse]") {
+    // 逐行平衡对 Transform3T::Translation(t) 恰好是最糟的一类：第 0 行 (1,0,0,t) 被压成 (1/t,0,0,1)，行列式恰为 1/t —— t ≥ 1e12 即在默认容差的绝对项（1e-12）
+    // 上被判成奇异。可它的真逆是精确平移 -t：既存在，又在 double 里精确可表示。逐列平衡把第 0 列重新放大回 1，行列式回到 1 而与 t 无关；边界由此不再是容差判据，而是 double 本身 —— t = 1e308 仍能精确往返，只有最靠近 DBL_MAX
+    // 的那两个 double（1/t 落到次正规数，其倒数再舍入回 DBL_MAX 之上）才返回 nullopt，那是还原步骤的舍入所致，不是容差判据。
     const double magnitudes[] = {1e12, 1e15, 1e20, 1e308};
     for (const double t : magnitudes) {
         const auto inverseOfTranslation = Transform3::Translation(Vector3{t, 0.0, 0.0}).Inverse();
@@ -197,21 +169,13 @@ TEST_CASE("inverse of a large translation exists",
                     continue;
                 }
                 const double expected = (i == j) ? 1.0 : 0.0;
-                CHECK((*inverseOfTranslation).Matrix(i, j)
-                      == Approx(expected).margin(1e-12).epsilon(1e-12));
+                CHECK((*inverseOfTranslation).Matrix(i, j) == Approx(expected).margin(1e-12).epsilon(1e-12));
             }
         }
     }
 
-    // 剪切 + 大平移：第 0 行同时含 O(1) 的剪切项与 1e12 的平移项，行 0 的最大
-    // 元素是平移项，平衡后第 0 列的最大元素却是 1e-12 —— 行尺度与列尺度都参与。
-    // A^-1 = S^-1·T^-1 在这里精确可表示，所以逐项对照而不是只看回环。
-    const Matrix4 sheared{{
-        {1.0, 2.0, 0.0, 1e12},
-        {0.0, 1.0, 0.0, 0.0},
-        {0.0, 0.0, 1.0, 0.0},
-        {0.0, 0.0, 0.0, 1.0},
-    }};
+    // 剪切 + 大平移：第 0 行同时含 O(1) 的剪切项与 1e12 的平移项，行 0 的最大元素是平移项，平衡后第 0 列的最大元素却是 1e-12 —— 行尺度与列尺度都参与。 A^-1 = S^-1·T^-1 在这里精确可表示，所以逐项对照而不是只看回环。
+    const Matrix4 sheared{{{1.0, 2.0, 0.0, 1e12}, {0.0, 1.0, 0.0, 0.0}, {0.0, 0.0, 1.0, 0.0}, {0.0, 0.0, 0.0, 1.0}}};
     const auto shearedInverse = sheared.Inverse();
 
     REQUIRE(shearedInverse.has_value());
@@ -222,11 +186,8 @@ TEST_CASE("inverse of a large translation exists",
     CHECK((*shearedInverse)(3, 3) == Approx(1.0).margin(1e-12));
 }
 
-TEST_CASE("inverse of a matrix whose rows differ in magnitude",
-          "[linear][matrix][inverse]") {
-    // 非对称，且行与行相差 7 个数量级 —— 双侧平衡存在的理由正是这一类（而不是
-    // 对称的对角 / 齐次特例）。它同时钉住还原步骤的下标：元素 (i, j) 除以
-    // columnScale[i] 与 rowScale[j]，一旦写成 rowScale[i] / columnScale[j]，
+TEST_CASE("inverse of a matrix whose rows differ in magnitude", "[linear][matrix][inverse]") {
+    // 非对称，且行与行相差 7 个数量级 —— 双侧平衡存在的理由正是这一类（而不是对称的对角 / 齐次特例）。它同时钉住还原步骤的下标：元素 (i, j) 除以 columnScale[i] 与 rowScale[j]，一旦写成 rowScale[i] / columnScale[j]，
     // 这里的非对角元立刻出错，而对称矩阵上看不出差别。
     const Matrix3 m{{{1e8, 2.0, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, 9.0}}};
     const auto inv = m.Inverse();
@@ -242,34 +203,23 @@ TEST_CASE("inverse of a matrix whose rows differ in magnitude",
     }
 }
 
-TEST_CASE("inverse refuses a matrix whose restored inverse would overflow",
-          "[linear][matrix][inverse][degenerate]") {
-    // 1e-310 是次正规数，它的倒数是 inf。归一化后的行列式有限，但还原尺度时
-    // 元素会溢出 —— 真实逆确实巨大，那就该返回 nullopt，而不是交出一个
-    // has_value() 为真、内容却是 inf 的矩阵。
+TEST_CASE("inverse refuses a matrix whose restored inverse would overflow", "[linear][matrix][inverse][degenerate]") {
+    // 1e-310 是次正规数，它的倒数是 inf。归一化后的行列式有限，但还原尺度时元素会溢出 —— 真实逆确实巨大，那就该返回 nullopt，而不是交出一个 has_value() 为真、内容却是 inf 的矩阵。
     const Tolerance exact{0.0, 0.0};
     const Matrix2 subnormal{{{1e-310, 0.0}, {0.0, 1.0}}};
 
     CHECK_FALSE(subnormal.Inverse(exact).has_value());
 }
 
-TEST_CASE("inverse of a singular 4x4 matrix is nullopt",
-          "[linear][matrix][inverse][degenerate]") {
+TEST_CASE("inverse of a singular 4x4 matrix is nullopt", "[linear][matrix][inverse][degenerate]") {
     // 第 4 行与第 1 行相同
-    const Matrix4 dependent{{
-        {1.0, 2.0, 3.0, 4.0},
-        {5.0, 6.0, 7.0, 8.0},
-        {9.0, 10.0, 11.0, 12.0},
-        {1.0, 2.0, 3.0, 4.0},
-    }};
+    const Matrix4 dependent{{{1.0, 2.0, 3.0, 4.0}, {5.0, 6.0, 7.0, 8.0}, {9.0, 10.0, 11.0, 12.0}, {1.0, 2.0, 3.0, 4.0}}};
 
     CHECK_FALSE(dependent.Inverse().has_value());
 }
 
-TEST_CASE("the tolerance argument decides near-singularity",
-          "[linear][matrix][inverse]") {
-    // 行列式 1e-4：默认容差的绝对项是 1e-12，因此放行；把绝对项显式放宽到
-    // 1e-3，同一个矩阵即可视为奇异。容差始终是显式参数，这个分支才有内容。
+TEST_CASE("the tolerance argument decides near-singularity", "[linear][matrix][inverse]") {
+    // 行列式 1e-4：默认容差的绝对项是 1e-12，因此放行；把绝对项显式放宽到 1e-3，同一个矩阵即可视为奇异。容差始终是显式参数，这个分支才有内容。
     const Matrix2 nearlySingular{{{1.0, 1.0}, {1.0, 1.0001}}};
     const Tolerance exact{0.0, 0.0};
     const Tolerance loose{1e-3, 0.0};
@@ -279,32 +229,22 @@ TEST_CASE("the tolerance argument decides near-singularity",
     CHECK_FALSE(nearlySingular.Inverse(loose).has_value()); // 放宽后：判为奇异
 }
 
-TEST_CASE("an exact tolerance rejects only a genuinely singular matrix",
-          "[linear][matrix][inverse][degenerate]") {
+TEST_CASE("an exact tolerance rejects only a genuinely singular matrix", "[linear][matrix][inverse][degenerate]") {
     const Tolerance exact{0.0, 0.0};
 
     CHECK_FALSE(Matrix2{{{1.0, 2.0}, {2.0, 4.0}}}.Inverse(exact).has_value());
     CHECK(Matrix2{{{1.0, 2.0}, {2.0, 4.0000000001}}}.Inverse(exact).has_value());
 }
 
-TEST_CASE("4x4 determinant pins the cofactor expansion",
-          "[linear][matrix][determinant]") {
-    // 单位阵与三角阵的行列式都等于对角线之积，会恰好掩盖余子式展开里的交叉
-    // 项错误。这里用一个一般（非三角、非对称、非奇异）矩阵，把展开钉住。
-    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0},
-                     {1.0, 4.0, 2.0, 6.0},
-                     {3.0, 1.0, 5.0, 2.0},
-                     {4.0, 2.0, 3.0, 1.0}}};
+TEST_CASE("4x4 determinant pins the cofactor expansion", "[linear][matrix][determinant]") {
+    // 单位阵与三角阵的行列式都等于对角线之积，会恰好掩盖余子式展开里的交叉项错误。这里用一个一般（非三角、非对称、非奇异）矩阵，把展开钉住。
+    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0}, {1.0, 4.0, 2.0, 6.0}, {3.0, 1.0, 5.0, 2.0}, {4.0, 2.0, 3.0, 1.0}}};
     CHECK(m.Determinant() == Approx(-85.0));
 }
 
 TEST_CASE("4x4 inverse round-trips", "[linear][matrix][inverse]") {
-    // 4×4 的逆矩阵要算 16 个三阶余子式，而且 Task 9 的 Transform 会消费它 ——
-    // 但原测试只覆盖了 2×2 与 3×3。
-    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0},
-                     {1.0, 4.0, 2.0, 6.0},
-                     {3.0, 1.0, 5.0, 2.0},
-                     {4.0, 2.0, 3.0, 1.0}}};
+    // 4×4 的逆矩阵要算 16 个三阶余子式，而且 Task 9 的 Transform 会消费它 —— 但原测试只覆盖了 2×2 与 3×3。
+    const Matrix4 m{{{2.0, 3.0, 1.0, 5.0}, {1.0, 4.0, 2.0, 6.0}, {3.0, 1.0, 5.0, 2.0}, {4.0, 2.0, 3.0, 1.0}}};
     const auto inv = m.Inverse();
 
     REQUIRE(inv.has_value());
@@ -318,16 +258,12 @@ TEST_CASE("4x4 inverse round-trips", "[linear][matrix][inverse]") {
     }
 }
 
-TEST_CASE("inverse of a non-finite matrix is nullopt",
-          "[linear][matrix][inverse][degenerate]") {
+TEST_CASE("inverse of a non-finite matrix is nullopt", "[linear][matrix][inverse][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
     const double notANumber = std::numeric_limits<double>::quiet_NaN();
 
-    // 与 Vector3T::normalized 同一条原则：绝不交出一个 has_value() 为真、内容却是
-    // NaN 的结果 —— 调用者无从察觉，而 NaN 会污染后续全部计算。
+    // 与 Vector3T::normalized 同一条原则：绝不交出一个 has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会污染后续全部计算。
     CHECK_FALSE(Matrix2{{{notANumber, 1.0}, {2.0, 3.0}}}.Inverse().has_value());
     CHECK_FALSE(Matrix2{{{infinity, 1.0}, {2.0, 3.0}}}.Inverse().has_value());
-    CHECK_FALSE(Matrix3{{{1.0, infinity, 3.0},
-                         {4.0, 5.0, 6.0},
-                         {7.0, 8.0, notANumber}}}.Inverse().has_value());
+    CHECK_FALSE(Matrix3{{{1.0, infinity, 3.0}, {4.0, 5.0, 6.0}, {7.0, 8.0, notANumber}}}.Inverse().has_value());
 }

@@ -29,8 +29,7 @@ TEST_CASE("Sign reads the leading non-zero component", "[predicates][expansion]"
     CHECK(Sign({}) == 0);
 }
 
-TEST_CASE("ScaleShift brings the max absolute value into the unit binade",
-          "[predicates][expansion]") {
+TEST_CASE("ScaleShift brings the max absolute value into the unit binade", "[predicates][expansion]") {
     CHECK(ScaleShift(0.0) == 0);
     CHECK(ScaleShift(1.0) == 0);
     CHECK(ScaleShift(3.0) == -1);

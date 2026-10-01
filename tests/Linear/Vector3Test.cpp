@@ -47,11 +47,8 @@ TEST_CASE("cross is anticommutative and right-handed", "[linear][vector3]") {
     const Vector3 b{4.0, 5.0, 6.0};
     CHECK(a.Cross(b) == -b.Cross(a));
 
-    // 上面这些断言全是输出的线性性质，任何固定线性映射都能满足它们 ——
-    // 反交换性对任意 S 都成立（S(b×a) = -S(a×b)），零结果对线性映射也
-    // 仍是零。因此形如 diag(s1, s2, 1)·(a×b) 的实现能通过全部断言，
-    // 包括 s1 = s2 = 0（x、y 分量恒为零）。下面用三个轴的循环和一个
-    // 一般对，把每个分量各自钉死。
+    // 上面这些断言全是输出的线性性质，任何固定线性映射都能满足它们 —— 反交换性对任意 S 都成立（S(b×a) = -S(a×b)），零结果对线性映射也仍是零。因此形如 diag(s1, s2, 1)·(a×b) 的实现能通过全部断言，
+    // 包括 s1 = s2 = 0（x、y 分量恒为零）。下面用三个轴的循环和一个一般对，把每个分量各自钉死。
     CHECK(yAxis.Cross(zAxis) == xAxis);
     CHECK(zAxis.Cross(xAxis) == yAxis);
     CHECK(a.Cross(b) == Vector3{-3.0, 6.0, -3.0});
@@ -80,16 +77,14 @@ TEST_CASE("length of the 1-2-2 vector is 3", "[linear][vector3]") {
 }
 
 TEST_CASE("Vector3T is usable with float", "[linear][vector3]") {
-    // 同 vector2Test.cpp：`v.Length() == 3.0f` 抓不住误绑定 —— 两种精度下
-    // 都得 3.0，且 float 字面量与 double 比较时会提升。钉的是绑定本身。
+    // 同 vector2Test.cpp：`v.Length() == 3.0f` 抓不住误绑定 —— 两种精度下都得 3.0，且 float 字面量与 double 比较时会提升。钉的是绑定本身。
     STATIC_REQUIRE(std::is_same_v<Vector3f, Vector3T<float>>);
 
     const Vector3f v{1.0f, 2.0f, 2.0f};
     CHECK(v.Length() == 3.0f);
 }
 
-TEST_CASE("length of a vector containing infinity is infinity, not NaN",
-          "[linear][vector3][degenerate]") {
+TEST_CASE("length of a vector containing infinity is infinity, not NaN", "[linear][vector3][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
 
     // 同 Vector2T：缩放写法若不特判，inf / inf 会算出 NaN。
@@ -98,29 +93,24 @@ TEST_CASE("length of a vector containing infinity is infinity, not NaN",
     CHECK(Vector3{infinity, infinity, infinity}.Length() == infinity);
 }
 
-TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
-          "[linear][vector3][degenerate]") {
+TEST_CASE("length of a vector containing NaN is NaN whatever the slot order", "[linear][vector3][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
     const double nan = std::numeric_limits<double>::quiet_NaN();
 
-    // 这里的嵌套三目曾经让 {5, NaN, 0} 返回 0：`5 > NaN` 与 `NaN > 0` 都是
-    // false，fold 于是保留了零槽的值，再被 scale == 0 的提前返回放大成
-    // 「长度为零」。规则改为：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。
+    // 这里的嵌套三目曾经让 {5, NaN, 0} 返回 0：`5 > NaN` 与 `NaN > 0` 都是 false，fold 于是保留了零槽的值，再被 scale == 0 的提前返回放大成 「长度为零」。规则改为：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。
     CHECK(std::isnan(Vector3{5.0, nan, 0.0}.Length()));
     CHECK(std::isnan(Vector3{nan, 5.0, 0.0}.Length()));
     CHECK(std::isnan(Vector3{0.0, nan, 5.0}.Length()));
     // 无 NaN 的输入不受这条规则影响
     CHECK(Vector3{5.0, 0.0, 0.0}.Length() == 5.0);
 
-    // 无穷压过 NaN，且与槽位无关 —— 旧实现里 {NaN, inf, 1} 与 {inf, NaN, 1}
-    // 给出的答案不同（nan 与 inf）。
+    // 无穷压过 NaN，且与槽位无关 —— 旧实现里 {NaN, inf, 1} 与 {inf, NaN, 1} 给出的答案不同（nan 与 inf）。
     CHECK(Vector3{infinity, nan, 1.0}.Length() == infinity);
     CHECK(Vector3{nan, infinity, 1.0}.Length() == infinity);
     CHECK(Vector3{1.0, nan, infinity}.Length() == infinity);
 }
 
-TEST_CASE("Vector3 members: dot, cross, subscript and array export",
-          "[linear][vector3]") {
+TEST_CASE("Vector3 members: dot, cross, subscript and array export", "[linear][vector3]") {
     const Vector3 a{1.0, 2.0, 3.0};
     const Vector3 b{4.0, 5.0, 6.0};
 
@@ -147,8 +137,7 @@ TEST_CASE("Vector3 members: dot, cross, subscript and array export",
     CHECK(arr[2] == 3.0);
 }
 
-TEST_CASE("Vector3 normalized is a member returning optional",
-          "[linear][vector3][degenerate]") {
+TEST_CASE("Vector3 normalized is a member returning optional", "[linear][vector3][degenerate]") {
     const auto unit = Vector3{3.0, 4.0, 0.0}.Normalized();
 
     REQUIRE(unit.has_value());

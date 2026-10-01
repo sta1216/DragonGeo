@@ -19,8 +19,7 @@ using DragonGeo::Linear::UnitVector3T;
 using DragonGeo::Linear::UnitVector3f;
 using DragonGeo::Linear::Vector3;
 
-TEST_CASE("the float alias really is the float instantiation",
-          "[linear][unitvector3]") {
+TEST_CASE("the float alias really is the float instantiation", "[linear][unitvector3]") {
     // 同 vector4Test.cpp：UnitVector3f 此前零命中，误绑定不会被断言发现。
     STATIC_REQUIRE(std::is_same_v<UnitVector3f, UnitVector3T<float>>);
 }
@@ -42,29 +41,23 @@ TEST_CASE("normalize rejects the zero vector", "[linear][unitvector3][degenerate
     CHECK_FALSE(result.has_value());
 }
 
-TEST_CASE("normalize rejects vectors below the tolerance",
-          "[linear][unitvector3][degenerate]") {
+TEST_CASE("normalize rejects vectors below the tolerance", "[linear][unitvector3][degenerate]") {
     CHECK_FALSE(Vector3{1e-15, 0.0, 0.0}.Normalized().has_value());
 }
 
-TEST_CASE("a zero tolerance rejects only the exact zero vector",
-          "[linear][unitvector3][degenerate]") {
+TEST_CASE("a zero tolerance rejects only the exact zero vector", "[linear][unitvector3][degenerate]") {
     const Tolerance exact{0.0, 0.0};
 
     CHECK_FALSE(Vector3{0.0, 0.0, 0.0}.Normalized(exact).has_value());
     CHECK(Vector3{1e-300, 0.0, 0.0}.Normalized(exact).has_value());
 }
 
-TEST_CASE("normalize rejects vectors below the absolute tolerance",
-          "[linear][unitvector3][degenerate]") {
-    // 1e-200 的长度远小于默认绝对容差 1e-12，因此按「视为零」处理。
-    // 需要在这个量级上工作时，必须显式传入更小的容差 —— 这正是
-    // 容差显式传参原则的预期后果。
+TEST_CASE("normalize rejects vectors below the absolute tolerance", "[linear][unitvector3][degenerate]") {
+    // 1e-200 的长度远小于默认绝对容差 1e-12，因此按「视为零」处理。需要在这个量级上工作时，必须显式传入更小的容差 —— 这正是容差显式传参原则的预期后果。
     CHECK_FALSE(Vector3{1e-200, 0.0, 0.0}.Normalized().has_value());
 }
 
-TEST_CASE("normalize scales correctly at extreme magnitudes",
-          "[linear][unitvector3][degenerate]") {
+TEST_CASE("normalize scales correctly at extreme magnitudes", "[linear][unitvector3][degenerate]") {
     // 关闭容差判断，单独考察重缩放后的计算本身是否上溢或下溢
     const Tolerance exact{0.0, 0.0};
 
@@ -89,8 +82,7 @@ TEST_CASE("negation preserves the unit invariant", "[linear][unitvector3]") {
     CHECK(negated.Z() == Approx(-2.0 / 3.0));
 }
 
-TEST_CASE("scaling a unit vector yields a plain Vector3",
-          "[linear][unitvector3]") {
+TEST_CASE("scaling a unit vector yields a plain Vector3", "[linear][unitvector3]") {
     const auto u = Vector3{0.0, 0.0, 1.0}.Normalized();
     REQUIRE(u.has_value());
 
@@ -100,15 +92,13 @@ TEST_CASE("scaling a unit vector yields a plain Vector3",
     CHECK(2.0 * *u == Vector3{0.0, 0.0, 2.0});
 }
 
-TEST_CASE("sums and differences of unit vectors are plain Vector3",
-          "[linear][unitvector3]") {
+TEST_CASE("sums and differences of unit vectors are plain Vector3", "[linear][unitvector3]") {
     const auto x = Vector3{1.0, 0.0, 0.0}.Normalized();
     const auto z = Vector3{0.0, 0.0, 1.0}.Normalized();
     REQUIRE(x.has_value());
     REQUIRE(z.has_value());
 
-    // 规范 §4.4 点名了 u + u 与 u - u：和与差一般都不是单位向量，返回类型
-    // 必须如实反映这一点，否则不变量会被静默破坏。
+    // 规范 §4.4 点名了 u + u 与 u - u：和与差一般都不是单位向量，返回类型必须如实反映这一点，否则不变量会被静默破坏。
     STATIC_REQUIRE(std::is_same_v<decltype(*x + *z), Vector3>);
     STATIC_REQUIRE(std::is_same_v<decltype(*x - *z), Vector3>);
 
@@ -116,8 +106,7 @@ TEST_CASE("sums and differences of unit vectors are plain Vector3",
     CHECK(*x - *z == Vector3{1.0, 0.0, -1.0});
 }
 
-TEST_CASE("dot of two unit vectors is the cosine of the angle",
-          "[linear][unitvector3]") {
+TEST_CASE("dot of two unit vectors is the cosine of the angle", "[linear][unitvector3]") {
     const auto a = Vector3{1.0, 0.0, 0.0}.Normalized();
     const auto b = Vector3{1.0, 1.0, 0.0}.Normalized();
     REQUIRE(a.has_value());
@@ -127,15 +116,13 @@ TEST_CASE("dot of two unit vectors is the cosine of the angle",
     CHECK(a->Dot(*a) == Approx(1.0));
 }
 
-TEST_CASE("cross of two unit vectors is a plain Vector3",
-          "[linear][unitvector3]") {
+TEST_CASE("cross of two unit vectors is a plain Vector3", "[linear][unitvector3]") {
     const auto x = Vector3{1.0, 0.0, 0.0}.Normalized();
     const auto y = Vector3{0.0, 1.0, 0.0}.Normalized();
     REQUIRE(x.has_value());
     REQUIRE(y.has_value());
 
-    // 数学上叉积仍是单位向量，但两向量接近平行时长度会退化到 0，
-    // 无法维持不变量，故返回类型刻意是 Vector3。
+    // 数学上叉积仍是单位向量，但两向量接近平行时长度会退化到 0，无法维持不变量，故返回类型刻意是 Vector3。
     STATIC_REQUIRE(std::is_same_v<decltype(x->Cross(*y)), Vector3>);
     CHECK(x->Cross(*y).Z == Approx(1.0));
 
@@ -144,13 +131,11 @@ TEST_CASE("cross of two unit vectors is a plain Vector3",
     CHECK(x->Cross(*parallel).Length() == Approx(0.0));
 }
 
-TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector",
-          "[linear][unitvector3][degenerate]") {
+TEST_CASE("normalize rejects non-finite input instead of returning a NaN unit vector", "[linear][unitvector3][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
     const double notANumber = std::numeric_limits<double>::quiet_NaN();
 
-    // 一个 has_value() 为真、内容却是 NaN 的「单位向量」是本库最不该交出的
-    // 返回值：调用者无从察觉，而 NaN 会一路污染 dot / cross 与所有容差判断。
+    // 一个 has_value() 为真、内容却是 NaN 的「单位向量」是本库最不该交出的返回值：调用者无从察觉，而 NaN 会一路污染 dot / cross 与所有容差判断。
     CHECK_FALSE(Vector3{infinity, 1.0, 1.0}.Normalized().has_value());
     CHECK_FALSE(Vector3{1.0, infinity, 1.0}.Normalized().has_value());
     CHECK_FALSE(Vector3{infinity, infinity, infinity}.Normalized().has_value());
@@ -177,14 +162,12 @@ TEST_CASE("3D axis constants are the positive unit axes", "[linear][unitvector3]
     CHECK(UnitVector3f::ZAxis.Z() == 1.0f);
 }
 
-TEST_CASE("a 3D unit vector's perpendicular matches the frame completed from it",
-          "[linear][unitvector3]") {
+TEST_CASE("a 3D unit vector's perpendicular matches the frame completed from it", "[linear][unitvector3]") {
     const UnitVector3 axisX = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});
     const UnitVector3 axisY = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 1.0, 0.0});
     const UnitVector3 axisZ = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
 
-    // 三条坐标轴各走一个分支。期望值与 FromZAxis 的参考轴选择一致：
-    // +X → -Z，+Y → +Z，+Z → -Y。
+    // 三条坐标轴各走一个分支。期望值与 FromZAxis 的参考轴选择一致： +X → -Z，+Y → +Z，+Z → -Y。
     STATIC_REQUIRE(std::is_same_v<decltype(axisZ.Perpendicular()), UnitVector3>);
     CHECK(axisX.Perpendicular() == UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, -1.0}));
     CHECK(axisY.Perpendicular() == UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0}));
@@ -206,8 +189,7 @@ TEST_CASE("a 3D unit vector's perpendicular matches the frame completed from it"
     CHECK(frame->XAxis() == z->Perpendicular());
 }
 
-TEST_CASE("projecting onto a 3D unit vector keeps only the parallel part",
-          "[linear][unitvector3]") {
+TEST_CASE("projecting onto a 3D unit vector keeps only the parallel part", "[linear][unitvector3]") {
     const UnitVector3 axisZ = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
 
     STATIC_REQUIRE(std::is_same_v<decltype(axisZ.Projected(Vector3{1.0, 2.0, 3.0})), Vector3>);
@@ -228,8 +210,7 @@ TEST_CASE("projecting onto a 3D unit vector keeps only the parallel part",
     STATIC_REQUIRE(noexcept(axis.Projected(Vector3{1.0, 2.0, 3.0})));
 }
 
-TEST_CASE("UnitVector3 AngleBetween returns acute or obtuse angle in [0, pi]",
-          "[linear][unitvector3]") {
+TEST_CASE("UnitVector3 AngleBetween returns acute or obtuse angle in [0, pi]", "[linear][unitvector3]") {
     using DragonGeo::Core::HALF_PI;
 
     const UnitVector3 x = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});

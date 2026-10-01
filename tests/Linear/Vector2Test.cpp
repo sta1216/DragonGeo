@@ -54,9 +54,7 @@ TEST_CASE("dot and cross match their definitions", "[linear][vector2]") {
     CHECK(b.Cross(a) == -1.0);
     CHECK(a.Cross(a) == 0.0);
 
-    // {1,0}·{0,1} 恒为 0，第二项上任何符号错误都看不出来。用一对各分量
-    // 都非零的通用输入把两项的符号钉住：正确 1*3 + 2*5 = 13，第二项符号
-    // 错为 1*3 - 2*5 = -7。
+    // {1,0}·{0,1} 恒为 0，第二项上任何符号错误都看不出来。用一对各分量都非零的通用输入把两项的符号钉住：正确 1*3 + 2*5 = 13，第二项符号错为 1*3 - 2*5 = -7。
     CHECK(Vector2{1.0, 2.0}.Dot(Vector2{3.0, 5.0}) == 13.0);
     CHECK(Vector2{1.0, 2.0}.Cross(Vector2{3.0, 5.0}) == -1.0);
 }
@@ -67,8 +65,7 @@ TEST_CASE("length of the 3-4-5 triangle is exact", "[linear][vector2]") {
     CHECK(v.Length() == 5.0);
 }
 
-TEST_CASE("length survives components near the overflow threshold",
-          "[linear][vector2][degenerate]") {
+TEST_CASE("length survives components near the overflow threshold", "[linear][vector2][degenerate]") {
     // 朴素实现会先算出 1e200 * 1e200 == inf
     const Vector2 v{1e200, 1e200};
     const double length = v.Length();
@@ -77,8 +74,7 @@ TEST_CASE("length survives components near the overflow threshold",
     CHECK(length == Approx(1.4142135623730951e200).epsilon(1e-12));
 }
 
-TEST_CASE("length survives components near the underflow threshold",
-          "[linear][vector2][degenerate]") {
+TEST_CASE("length survives components near the underflow threshold", "[linear][vector2][degenerate]") {
     // 朴素实现会先算出 1e-200 * 1e-200 == 0
     const Vector2 v{1e-200, 1e-200};
     const double length = v.Length();
@@ -87,16 +83,14 @@ TEST_CASE("length survives components near the underflow threshold",
     CHECK(length == Approx(1.4142135623730951e-200).epsilon(1e-12));
 }
 
-TEST_CASE("length of a vector containing NaN does not crash",
-          "[linear][vector2][degenerate]") {
+TEST_CASE("length of a vector containing NaN does not crash", "[linear][vector2][degenerate]") {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const Vector2 v{nan, 1.0};
     CHECK(std::isnan(v.Length()));
 }
 
 TEST_CASE("Vector2T is usable with float", "[linear][vector2]") {
-    // 被用到不等于被钉住：`v.Length() == 5.0f` 在 Vector2T<float> 与
-    // Vector2T<double> 下都成立（float 字面量比较时会提升），把 Vector2f 绑成
+    // 被用到不等于被钉住：`v.Length() == 5.0f` 在 Vector2T<float> 与 Vector2T<double> 下都成立（float 字面量比较时会提升），把 Vector2f 绑成
     // Vector2T<double> 它照样通过。对**绑定本身**的断言只能是 is_same_v。
     STATIC_REQUIRE(std::is_same_v<Vector2f, Vector2T<float>>);
 
@@ -105,25 +99,20 @@ TEST_CASE("Vector2T is usable with float", "[linear][vector2]") {
     CHECK(v.X == 3.0f);
 }
 
-TEST_CASE("length of a vector containing infinity is infinity, not NaN",
-          "[linear][vector2][degenerate]") {
+TEST_CASE("length of a vector containing infinity is infinity, not NaN", "[linear][vector2][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
 
-    // 缩放写法若不特判，inf / inf 会算出 NaN 并污染整条计算链 ——
-    // 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
+    // 缩放写法若不特判，inf / inf 会算出 NaN 并污染整条计算链 —— 缩放本是为消除溢出而引入，不能反而在无穷输入上退化。
     CHECK(Vector2{infinity, 1.0}.Length() == infinity);
     CHECK(Vector2{1.0, infinity}.Length() == infinity);
     CHECK(Vector2{infinity, infinity}.Length() == infinity);
 }
 
-TEST_CASE("length of a vector containing NaN is NaN whatever the slot order",
-          "[linear][vector2][degenerate]") {
+TEST_CASE("length of a vector containing NaN is NaN whatever the slot order", "[linear][vector2][degenerate]") {
     const double infinity = std::numeric_limits<double>::infinity();
     const double nan = std::numeric_limits<double>::quiet_NaN();
 
-    // 逐项取最大绝对值时，与 NaN 的比较一律返回 false，fold 会静默保留前一个
-    // 值，答案于是取决于 NaN 落在哪一槽。规则固定为：任一无穷分量 ⇒ ±inf；
-    // 否则含 NaN ⇒ NaN。槽位与元数都不再影响结果。
+    // 逐项取最大绝对值时，与 NaN 的比较一律返回 false，fold 会静默保留前一个值，答案于是取决于 NaN 落在哪一槽。规则固定为：任一无穷分量 ⇒ ±inf；否则含 NaN ⇒ NaN。槽位与元数都不再影响结果。
     CHECK(std::isnan(Vector2{5.0, nan}.Length()));
     CHECK(std::isnan(Vector2{nan, 5.0}.Length()));
 

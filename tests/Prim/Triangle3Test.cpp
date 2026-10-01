@@ -36,8 +36,7 @@ using DragonGeo::Prim::Triangle3T;
 using DragonGeo::Prim::Triangle3f;
 
 TEST_CASE("Triangle3 is an aggregate of three points", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK(triangle.A == Point3{0.0, 0.0, 0.0});
     CHECK(triangle.B == Point3{1.0, 0.0, 0.0});
     CHECK(triangle.C == Point3{0.0, 1.0, 0.0});
@@ -51,51 +50,42 @@ TEST_CASE("Triangle3 is an aggregate of three points", "[prim][triangle3]") {
 }
 
 TEST_CASE("a zero-area Triangle3 is valid", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
     CHECK(triangle.IsValid());
 }
 
 TEST_CASE("Triangle3 with a non-finite coordinate is invalid", "[prim][triangle3]") {
     const double nan = std::numeric_limits<double>::quiet_NaN();
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, nan}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, nan}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK_FALSE(triangle.IsValid());
 }
 
 TEST_CASE("Triangle3 signed area is half the cross length with vertex order", "[prim][triangle3]") {
-    const Triangle3 counterClockwise{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
-    const Triangle3 clockwise{
-        Point3{0.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{1.0, 0.0, 0.0}};
-    const Triangle3 flat{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
+    const Triangle3 counterClockwise{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 clockwise{Point3{0.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{1.0, 0.0, 0.0}};
+    const Triangle3 flat{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
     CHECK(counterClockwise.SignedArea() == 0.5);
     CHECK(clockwise.SignedArea() == -0.5);
     CHECK(flat.SignedArea() == 0.0);
 
-    const Triangle3 tied{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 1.0}};
+    const Triangle3 tied{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 1.0}};
     CHECK(tied.SignedArea() == Approx(-std::sqrt(2.0) / 2.0));
     STATIC_REQUIRE(noexcept(counterClockwise.SignedArea()));
 }
 
 TEST_CASE("Triangle3 contains a coplanar interior point only", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK(triangle.Contains(Point3{0.2, 0.2, 0.0}));
     CHECK(triangle.Contains(Point3{0.0, 0.0, 0.0}));
     CHECK_FALSE(triangle.Contains(Point3{0.2, 0.2, 1.0}));
     CHECK_FALSE(triangle.Contains(Point3{1.0, 1.0, 0.0}));
 
-    const Triangle3 onYZ{
-        Point3{0.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{0.0, 0.0, 1.0}};
+    const Triangle3 onYZ{Point3{0.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}, Point3{0.0, 0.0, 1.0}};
     CHECK(onYZ.Contains(Point3{0.0, 0.2, 0.2}));
     CHECK_FALSE(onYZ.Contains(Point3{1.0, 0.2, 0.2}));
     CHECK_FALSE(onYZ.Contains(Point3{0.0, 1.0, 1.0}));
 
-    const Triangle3 alongX{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
+    const Triangle3 alongX{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
     CHECK(alongX.Contains(Point3{0.5, 0.0, 0.0}));
     CHECK_FALSE(alongX.Contains(Point3{3.0, 0.0, 0.0}));
     CHECK_FALSE(alongX.Contains(Point3{0.5, 1.0, 0.0}));
@@ -110,8 +100,7 @@ TEST_CASE("Triangle3 contains a coplanar interior point only", "[prim][triangle3
 }
 
 TEST_CASE("Triangle3 parameter midpoint is on the boundary", "[prim][triangle3]") {
-    constexpr Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    constexpr Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK(triangle.Domain() == Interval{0.0, 3.0});
     CHECK(triangle.PointAt(1.5) == Point3{0.5, 0.5, 0.0});
     CHECK(triangle.MidPoint() == Point3{0.5, 0.5, 0.0});
@@ -126,17 +115,13 @@ TEST_CASE("Triangle3 parameter midpoint is on the boundary", "[prim][triangle3]"
 }
 
 TEST_CASE("Triangle3 subcurve is a segment or a polyline", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
-    STATIC_REQUIRE(std::is_same_v<
-                   decltype(triangle.Subcurve(Interval{})),
-                   std::optional<std::variant<Segment3, Polyline3>>>);
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    STATIC_REQUIRE(std::is_same_v< decltype(triangle.Subcurve(Interval{})), std::optional<std::variant<Segment3, Polyline3>>>);
 
     const auto firstEdge = triangle.Subcurve(Interval{0.0, 1.0});
     REQUIRE(firstEdge.has_value());
     REQUIRE(std::holds_alternative<Segment3>(*firstEdge));
-    CHECK(std::get<Segment3>(*firstEdge)
-          == Segment3{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}});
+    CHECK(std::get<Segment3>(*firstEdge) == Segment3{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}});
 
     const auto across = triangle.Subcurve(Interval{0.5, 1.5});
     REQUIRE(across.has_value());
@@ -158,8 +143,7 @@ TEST_CASE("Triangle3 subcurve is a segment or a polyline", "[prim][triangle3]") 
 }
 
 TEST_CASE("Triangle3 is a closed curve with perimeter and tangents", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK(triangle.IsClosed());
     CHECK(triangle.StartPoint() == Point3{0.0, 0.0, 0.0});
     CHECK(triangle.EndPoint() == Point3{0.0, 0.0, 0.0});
@@ -171,8 +155,7 @@ TEST_CASE("Triangle3 is a closed curve with perimeter and tangents", "[prim][tri
     CHECK(centroid->X == Approx(1.0 / 3.0));
     CHECK(centroid->Y == Approx(1.0 / 3.0));
     CHECK(centroid->Z == Approx(0.0));
-    CHECK(triangle.Box()
-          == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}));
+    CHECK(triangle.Box() == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 1.0, 0.0}));
     CHECK(triangle.StartTangent() == UnitVector3::XAxis);
     CHECK(triangle.EndTangent() == -UnitVector3::YAxis);
     CHECK(triangle.TangentAt(0.0) == UnitVector3::XAxis);
@@ -190,8 +173,7 @@ TEST_CASE("Triangle3 is a closed curve with perimeter and tangents", "[prim][tri
     CHECK_FALSE(triangle.TangentAt(3.1).has_value());
     CHECK_FALSE(triangle.TangentAt(nan).has_value());
 
-    const Triangle3 missingEdge{
-        Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}};
+    const Triangle3 missingEdge{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}};
     CHECK_FALSE(missingEdge.StartTangent().has_value());
     CHECK_FALSE(missingEdge.TangentAt(0.0).has_value());
     CHECK(missingEdge.MidTangent() == UnitVector3::XAxis);
@@ -206,21 +188,18 @@ TEST_CASE("Triangle3 is a closed curve with perimeter and tangents", "[prim][tri
 }
 
 TEST_CASE("a zero-area Triangle3 has no centroid", "[prim][triangle3]") {
-    const Triangle3 flat{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
+    const Triangle3 flat{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
     CHECK(flat.Area() == 0.0);
     CHECK(flat.Orientation() == Winding::Degenerate);
     CHECK_FALSE(flat.Centroid().has_value());
 
-    const Triangle3 collapsed{
-        Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}};
+    const Triangle3 collapsed{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 0.0}};
     CHECK(collapsed.ContainsPoint(Point3{1e-10, 0.0, 0.0}));
     CHECK_FALSE(collapsed.ContainsPoint(Point3{1e-6, 0.0, 0.0}));
 }
 
 TEST_CASE("Triangle3 ContainsPoint follows the boundary, not the face", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     CHECK(triangle.ContainsPoint(Point3{0.5, 0.0, 0.0}));
     CHECK_FALSE(triangle.ContainsPoint(Point3{0.2, 0.2, 0.0}));
     CHECK(triangle.ParameterOf(Point3{0.0, 0.0, 0.0}) == 0.0);
@@ -233,24 +212,21 @@ TEST_CASE("Triangle3 ContainsPoint follows the boundary, not the face", "[prim][
     CHECK(triangle.Distance(Point3{0.2, 0.2, 5.0}) == 5.0);
     CHECK(triangle.DistanceSquared(Point3{0.2, 0.2, 5.0}) == 25.0);
 
-    const Triangle3 vertical{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 0.0, 1.0}};
+    const Triangle3 vertical{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 0.0, 1.0}};
     CHECK(vertical.ClosestPoint(Point3{0.2, 4.0, 0.2}) == Point3{0.2, 0.0, 0.2});
     CHECK(vertical.Distance(Point3{0.2, 4.0, 0.2}) == 4.0);
 
     CHECK(triangle.ClosestPoint(Point3{2.0, 0.0, 0.0}) == Point3{1.0, 0.0, 0.0});
     CHECK(triangle.DistanceSquared(Point3{2.0, 0.0, 0.0}) == 1.0);
 
-    const Triangle3f small{
-        Point3f{0.0f, 0.0f, 0.0f}, Point3f{1.0f, 0.0f, 0.0f}, Point3f{0.0f, 1.0f, 0.0f}};
+    const Triangle3f small{Point3f{0.0f, 0.0f, 0.0f}, Point3f{1.0f, 0.0f, 0.0f}, Point3f{0.0f, 1.0f, 0.0f}};
     CHECK(small.ClosestPoint(Point3f{0.2f, 0.2f, 0.0f}) == Point3f{0.2f, 0.2f, 0.0f});
     CHECK(small.Distance(Point3f{0.2f, 0.2f, 0.0f}) == 0.0f);
     CHECK(small.DistanceSquared(Point3f{0.2f, 0.2f, 0.0f}) == 0.0f);
 }
 
 TEST_CASE("Triangle3 reverses, mirrors, rotates and transforms", "[prim][triangle3]") {
-    const Triangle3 triangle{
-        Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
+    const Triangle3 triangle{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     Triangle3 reversed = triangle;
     reversed.Reverse();
     CHECK(reversed.Orientation() == Winding::Clockwise);
