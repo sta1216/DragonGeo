@@ -344,12 +344,8 @@ struct Triangle3T {
         }
         corners[count++] = Locate(interval.Max);
 
-        Segment3T<Scalar> segments[3];
-        for (int index = 0; index + 1 < count; ++index) {
-            segments[index] = Segment3T<Scalar>{corners[index], corners[index + 1]};
-        }
-        auto polyline = Polyline3T<Scalar>::FromSegments(
-            std::span<const Segment3T<Scalar>>{segments, static_cast<std::size_t>(count - 1)});
+        auto polyline = Polyline3T<Scalar>::FromPoints(
+            std::span<const Linear::Point3T<Scalar>>{corners, static_cast<std::size_t>(count)});
         if (!polyline.has_value()) {
             return std::nullopt;
         }
