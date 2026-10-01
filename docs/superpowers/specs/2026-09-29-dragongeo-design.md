@@ -54,8 +54,8 @@ Polygon      2D 多边形算法：布尔、三角剖分、凸包、偏移
   ↑
 Query        求交 / 距离 / 投影 / 包含 —— 跨原语的自由函数
   ↑
-Prim         几何原语：射线、线段、直线、平面、三角形、球、圆柱、胶囊、圆盘、视锥
-             以及后续的矩形、圆与圆弧、椭圆、多段线、NURBS 曲线
+Prim         几何原语：射线、线段、直线、平面、三角形、球、圆柱、胶囊、圆盘、视锥、
+             矩形、圆与圆弧、椭圆与椭圆弧、直线多段线与多边形、曲线多段线与曲线多边形
   ↑
 Predicates   Orient2d / Orient3d / Incircle / Insphere（过滤 + 自适应精确）
   ↑
@@ -95,7 +95,7 @@ cmake/            包配置模板（find_package 支持）
 
 **文件名、类名、方法名、自由函数名、类型别名：大驼峰（PascalCase）。** 优先完整拼写。例：`Vector3Test.cpp`、`DistanceTo`、`ScalarType`、`Orient2d`、`FromZAxis`。运算符保持 `operator+` 这种写法，不改成单词。
 
-缩写仅在完整名称**超过 3 个词或 20 个字符**时允许，且须是行业内无歧义的写法。已知允许的缩写仅两个：`BSpline`、`BVH`。其余一律完整拼写。
+缩写仅在完整名称**超过 3 个词或 20 个字符**时允许，且须是行业内无歧义的写法。已知允许的缩写有三个：`BSpline`、`Nurbs`、`BVH`。其余一律完整拼写。`Nurbs` 是 Non-Uniform Rational B-Spline 的缩短：全称超过 3 个词，曲线类型因此写作 `NurbsCurve2` / `NurbsCurve3`。
 
 | 使用 | 而非 | 说明 |
 |---|---|---|
@@ -278,18 +278,19 @@ namespace DragonGeo::Predicates {
 
 ### 5.1 Prim — 几何原语
 
-**2D**：`Segment2` `Ray2` `Line2` `Circle` `Arc2` `Ellipse2` `Triangle2` `Rectangle` `Polyline2`（简单：仅直线段）`Polyline2`（复杂：直线段 / 圆弧段 / 椭圆弧段任意组合）
-**3D**：`Segment3` `Ray3` `Line3` `Plane` `Triangle3` `Sphere` `Cylinder` `Capsule` `Disk` `Frustum`
+**直线与平面**：`Segment2` `Ray2` `Line2` `Triangle2` `Segment3` `Ray3` `Line3` `Plane` `Triangle3`
 
-标记：★ 已有规划，☆ 后续阶段新增。
+**圆、椭圆、矩形**：`Circle2` `Arc2` `Circle3` `Arc3` `Ellipse2` `EllipseArc2` `Rectangle2`
 
-**曲线的若干已定裁决**（详见 §5.6）：
+**直线串与直线多边形**：`Polyline` `Polygon`
 
-- **圆弧与椭圆是不同的类型**；圆与圆弧**共用一个类型**（`Circle` 表示整圆，`Arc2` 表示其上的弧段）—— 圆是圆弧的特例，不是椭圆的特例。
-- 复杂多段线的每一段可为直线段、圆弧段、椭圆弧段三者之一，需要**变体段类型**承载。
-- `NURBS` 在 `Prim` 阶段**只做骨架**，求值/导数/分割留作独立任务。
+**曲线串、曲线多边形与集合**：`CurvePolyline` `CurvePolygon` `MultiPolygon` `CurveCollection`
 
-全部为 POD 风格值类型，`constexpr` 可构造，成员为命名字段（便于调试）而非数组。
+**二次曲面与视锥**：`Sphere` `Cylinder` `Capsule` `Disk` `Frustum`
+
+**骨架**：`NurbsCurve2` `NurbsCurve3`（只做数据结构与签名；求值、导数、分割不在本阶段实现）
+
+标记：★ 已有规划，☆ 后续阶段新增。类型关系与构造约定见 §5.6。全部为带命名字段的值类型，可常量构造。`NurbsCurve2` / `NurbsCurve3` 是骨架，不是普通值类型的完整算法。
 
 ### 5.2 Query — 求交 / 距离 / 投影 / 包含
 
@@ -301,25 +302,28 @@ namespace DragonGeo::Predicates {
 |---|---|---|---|
 | Plane | ★ | ★ | ★ |
 | Triangle | ★ | ★ | ★ |
-| AxisAlignedBox | ★ | ★ | ★ |
+| `Box2` / `Box3` | ★ | ★ | ★ |
 | OrientedBox | ★ | ★ | — |
 | Sphere | ★ | ★ | — |
 | Cylinder / Capsule / Disk | ★ | ☆ | — |
 
 注：`—` 表示该组合既不在 ★ 也不在 ☆ 范围内，属明确不做；长尾组合由第二层兜底。
 
-**第二层：通用凸体算法（GJK / EPA）** —— 一次性覆盖所有凸体之间的距离与接触判定：`AxisAlignedBox`、`OrientedBox`、球、胶囊、凸包、`Box`、`Frustum`。这是避免 N² 的关键，也是长尾组合的默认兜底路径。
+**第二层：通用凸体算法（GJK / EPA）** —— 一次性覆盖所有凸体之间的距离与接触判定：`Box2`/`Box3`、`OrientedBox2`/`OrientedBox3`、球、胶囊、已经是凸的 `Polygon`、`Frustum`。这是避免 N² 的关键，也是长尾组合的默认兜底路径。这里的凸多边形是输入形状，不是凸包算法本身。
 
 **其余查询**：
 
-- **距离** ★：点到线/段/射线/平面/三角形/AxisAlignedBox/球；段-段；三角形-三角形
-- **投影** ★：点到线/段/射线/平面/三角形/AxisAlignedBox/球
-- **包含** ★：点在 AxisAlignedBox/OrientedBox/球/三角形/凸包/Frustum/圆柱/胶囊内
-- **2D** ★：点在多边形内、线段相交、直线相交、圆-圆、圆-线段、矩形-矩形
+- **距离** ★：点到线/段/射线/平面/三角形/`Box2`/`Box3`/球；段-段；三角形-三角形
+- **投影** ★：点到线/段/射线/平面/三角形/`Box2`/`Box3`/球
+- **包含** ★：点在 `Box2`/`Box3`、`OrientedBox`、球、三角形、凸多边形、`Frustum`、圆柱、胶囊内
+- **2D** ★：线段相交、直线相交、圆-圆、圆-线段、矩形-矩形
+- **依赖 `Polygon` 的查询** ★：点在 `Polygon` 内、点集的凸包。这两项排在 `Polygon` 类型之后，不提前做。见 §8 的阶段 4 子顺序。
 
 ### 5.3 Polygon — 2D 计算几何
 
-**★ 核心**：凸包（monotone chain）· 面积/质心/周长/方向判定 · 点包含（winding number，走精确谓词）· 自交检测 · 耳切三角剖分 · **布尔运算（并/交/差/异或）**
+类型 `Polygon` 在阶段 4 落地，外环加一层洞。下面的算法里，凸包、点包含、面积、质心、周长和方向跟曲线协议一起做；自交检测、三角剖分和布尔留到阶段 5。
+
+**★ 核心**：凸包（monotone chain）· 面积/质心/周长/方向判定 · 点包含（外环 winding number，再排除洞的内部）· 自交检测 · 耳切三角剖分 · **布尔运算（并/交/差/异或）**
 
 **☆ 进阶**：多边形偏移（Clipper 风格）· Delaunay 三角剖分 · 约束 Delaunay（CDT）· Sutherland-Hodgman 裁剪 · Douglas-Peucker 简化 · 凸分解
 
@@ -341,39 +345,39 @@ namespace DragonGeo::Predicates {
 仅接口、数据结构与文档，不实现核心算法：
 
 - **拓扑**：`Vertex` / `Edge` / `Face` / `Shell` / `Solid` —— B-rep 的 face-edge-vertex 图，含遍历与拓扑有效性校验
-- **曲线**：`Line` / `Circle` / `Ellipse` / `BSplineCurve`
+- **曲线**：`Line` / `Circle` / `Ellipse` / `NurbsCurve`
 - **曲面**：`Plane` / `Cylinder` / `Sphere` / `Cone` / `Torus` / `BSplineSurface`
 - **操作接口**：曲面求交（SSI）、布尔、倒角、抽壳、偏移 —— 全部为已定义签名 + 明确的未实现行为
 
-### 5.6 曲线与多段线（登记，待 `Prim` 阶段实现）
+### 5.6 曲线、矩形与多边形
 
-本节记录一组已确认的需求，**实现排期在后续的 `Prim` 阶段**，本轮不做。此处登记的目的是让分层归属与类型关系在动工前就定下来，避免届时重新讨论。
+本节是阶段 4 的类型清单。字段、工厂、不变量和查询结果见 `2026-09-30-dragongeo-stage4-design.md`。曲线求交、曲线离散化和 SVG 仍然不做。
 
-**要实现的类型**：
-
-| 类型 | 说明 |
+| 类型 | 是什么 |
 |---|---|
-| `Rectangle` | 轴对齐矩形（2D），可由两个角点或一个角点加尺寸构造 |
-| `Circle` / `Arc2` | **圆与圆弧共用一套类型**：`Circle` 表示整圆，`Arc2` 表示其上的弧段（带起止角） |
-| `Ellipse2` / `EllipseArc2` | **椭圆与椭圆弧是独立于圆/圆弧的类型**，不与 `Circle` 合并 |
-| `Polyline2`（简单） | 仅由直线段构成的多段线 |
-| `Polyline2`（复杂） | 每段可为**直线段、圆弧段、椭圆弧段**三者之一 —— 需要一个变体段类型承载 |
-| `NurbsCurve2` / `NurbsCurve3` | **先做骨架**：控制点、节点向量、次数、权重的数据结构与接口；求值、导数、分割留作独立任务 |
+| `Rectangle2` | 轴对齐的二维矩形，也是没有洞的闭合多边形。由一个角点加正的宽、高构造，或由两个对角点构造。宽、高分别沿世界 +X、+Y。实现曲线协议。子曲线落在一条边上时是线段，跨过顶点时是折线。旋转后不再轴对齐时，变换结果是 `Polygon`。旋转矩形的包围形式仍用已有的 `OrientedBox2` |
+| `Circle2` / `Arc2` | 分开的两个类型。`Circle2` 是圆心加半径的整圆。`Arc2` 是这条圆加上起始角与扫掠角 |
+| `Circle3` / `Arc3` | 同样分开。`Circle3` 是圆心、平面法向与半径。`Arc3` 在该平面内再加零角方向、起始角与扫掠角 |
+| `Ellipse2` / `EllipseArc2` | 分开的两个类型，并且不与圆/圆弧合并。椭圆是中心、两条半轴与旋转。椭圆弧是这条椭圆加上起始角与扫掠角 |
+| `Polyline` | 连续的直线多段线。每段都是 `Segment2`。不要求闭合。实现统一的曲线协议 |
+| `Polygon` | 闭合的直线多边形。一个外环加零个或多个洞环，洞只有一层。边界连续，且每环首尾相接。只含直线段 |
+| `CurvePolyline` | 连续的曲线多段线。每段是 `Segment2`、`Arc2`、`EllipseArc2` 或 `NurbsCurve2` 之一。不要求闭合 |
+| `CurvePolygon` | 闭合的曲线多边形。一个外环加零个或多个洞环。段类型与 `CurvePolyline` 相同，并且每环首尾相接 |
+| `MultiPolygon` | 不嵌套。按顺序存放多个 `Polygon` 或 `CurvePolygon`。洞写在单个多边形上，不写在这个集合的层级里 |
+| `CurveCollection` | 不必相连的曲线集合。成员可以是 `Segment2`、`Arc2`、`EllipseArc2`、`Circle2`、`Ellipse2`、`NurbsCurve2`、`Polyline`、`CurvePolyline`。它不是一条曲线，但支持包围盒、长度、面积、包含、重心，以及移动、镜像、旋转、`Transform` 和反向 |
+| `NurbsCurve2` / `NurbsCurve3` | 骨架。存放控制点、节点向量、次数、权重。求值、切向、子曲线抛 `std::logic_error`。控制点包围盒、反向和刚体变换可以做 |
 
-**已定裁决**（未来实现时不得推翻，若需推翻须先改本节）：
+`Box2` 仍是 `Linear` 里的轴对齐包围范围：可以空、可以无限、用来合并与剔除。`Rectangle2` 不是包围盒，没有空盒典范形式，也不做合并。零面积或负尺寸不是 `Rectangle2`。
 
-1. **圆弧与椭圆是不同的类型。** 圆弧是圆上的弧段，椭圆弧是椭圆上的弧段，二者不共享类型。
-2. **圆与圆弧共用一个类型。** 圆是圆弧的退化情形（整圈），而不是椭圆的特例 —— 这条与第 1 条并不矛盾：圆与椭圆本就不同族，圆与它的弧同族。
-3. **复杂多段线用变体段类型**，而非三个并列的容器；段的种类是封闭集合（三种），适合用 `std::variant` 或等价机制表达。
-4. **NURBS 先骨架后实现**，骨架须满足 §6 的三条骨架约定（签名完整、结构可用、未实现行为统一抛 `std::logic_error`）。
+**已定裁决**：
 
-**尚未决定、实现前须确认的**：
-
-- 复杂多段线的段类型是复用 `Prim` 的 `Segment2`/`Arc2`/`EllipseArc2`，还是包一层带参数的段结构（后者能携带"从第几段到第几段"的定位信息）。
-- `Polyline2` 是否要求连续（后段起点等于前段终点），还是允许离散段序列。
-- 椭圆弧的参数化方式（起始角 + 扫掠角 / 两个参数点 / 四段贝塞尔近似）。
-
-**不在本轮范围**：任何曲线类型的实现、曲线求交、曲线离散化、以及依赖它们的 SVG 序列化。
+1. **圆与圆弧是两个类型，椭圆与椭圆弧也是两个类型。** 整圆没有起止角。弧是支撑曲线加上起始角与扫掠角。若共用一个类型，要么每个圆都带着用不上的角度，要么弧变成“角度可选的圆”，两种几何挤在一个值里。三维与二维同一规则：`Circle3` 对 `Arc3`。圆仍然不是椭圆的特例。
+2. **圆弧与椭圆弧不是同一类型。**
+3. **椭圆弧的规范数据是起始角加扫掠角。** 另提供由两个参数点构造的入口，构造时换算成这对角度。不用四段贝塞尔近似作为椭圆弧的定义。
+4. **`Polyline`、`CurvePolyline` 必须连续**：后一段的起点等于前一段的终点。`Polygon`、`CurvePolygon` 的每一环还要求最后一段的终点等于第一段的起点。洞写在这两个类型上，只有一层。`MultiPolygon` 只是多个多边形的列表。
+5. **曲线多段线直接存放上述段类型**，不再包一层只为了携带段号的外壳。段号就是它在序列中的下标。
+6. **NURBS 先骨架后算法**，骨架满足 §6：签名完整、结构可用、未实现行为抛 `std::logic_error`。类型名是 `NurbsCurve2` / `NurbsCurve3`。
+7. **二维与三维曲线共用一套方法名**：端点、中点、切向、闭合、长度、闭合时的面积与方向、参数区间、参数点、参数切向、轨迹上一点的参数、点在轨迹上、闭合时的区域包含、包围盒、重心、移动、镜像、旋转、`Transform`、反向、子曲线、克隆、是否有效。子曲线的类型随原曲线变化：直线、射线、线段给出线段，圆和圆弧给出圆弧，其余按同样原则。`Rectangle2` 与 `Triangle2` / `Triangle3` 按没有洞的闭合多边形实现这套方法。`CurveCollection` 只实现集合上有定义的部分。合同在阶段 4 设计的曲线协议一节。
 
 ---
 
@@ -467,11 +471,19 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 |---|---|---|
 | **1. 数值地基** | `Core`（常量、数值工具、容差模型）+ `Linear` 的纯代数部分（`Vector` / `UnitVector` / `Matrix` / `Quaternion` / `Transform`） | ✅ 已完成 |
 | **2. API 重构与基础类型** | `Linear` 的 API 成员函数化；`Vector`/`Point` 的下标访问与数组导出；新增 `Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3` | ✅ 已完成 |
-| **3. 精确谓词** | `Predicates`：`Orient2d` / `Orient3d` / `Incircle` / `Insphere`（过滤 + 自适应精确算术，编译进静态库） | ← 本阶段 |
-| **4. 几何原语与查询** | `Prim`（含 §5.6 的曲线，NURBS 先骨架）+ `Query` 的解析解与 GJK/EPA | |
-| **5. 2D 计算几何** | `Polygon` 全部 ★ 项；通过性质测试与退化回归集 | |
+| **3. 精确谓词** | `Predicates`：`Orient2d` / `Orient3d` / `Incircle` / `Insphere`（过滤 + 自适应精确算术，编译进静态库） | ✅ 已完成 |
+| **4. 几何原语与查询** | 按 `2026-09-30-dragongeo-stage4-design.md` 实现 §5.1、§5.6 与 §5.2。类型先于依赖它的查询 | ← 本阶段 |
+| **5. 2D 计算几何** | 在已有 `Polygon` 上做布尔、三角剖分、偏移等；凸包、点包含、面积、质心、周长和方向已随阶段 4 的曲线协议完成 | |
 | **6. 3D 网格与图形学** | `Mesh` 全部 ★ 项；BVH 性能达标 | |
 | **7. CAD 精确实体** | `Solid` 的 SSI、布尔、倒角、抽壳。**高风险**：须先评估"自研 vs 集成现成内核" | |
+
+阶段 4 的需求仍在补充。需求收齐并重新讨论实现方案之前，不开始实现。目前按依赖记下的顺序是：
+
+1. **直线与平面。** `Segment2/3`、`Ray2/3`、`Line2/3`、`Plane`、`Triangle2/3`。直线、射线、线段带上曲线协议里它们做得到的部分。只依赖它们和现有 `Box` / `OrientedBox` 的解析求交、距离、投影、包含。
+2. **圆、椭圆、矩形。** `Circle2`、`Arc2`、`Circle3`、`Arc3`、`Ellipse2`、`EllipseArc2`、`Rectangle2`，以及这些曲线的曲线协议。圆-圆、圆-线段、矩形-矩形。
+3. **直线串与直线多边形。** `Polyline`、带一层洞的 `Polygon`，以及二者的曲线协议。然后才做点在 `Polygon` 内，以及点集凸包。
+4. **曲线串与集合。** `CurvePolyline`、带一层洞的 `CurvePolygon`、`CurveCollection`、不嵌套的 `MultiPolygon`。`NurbsCurve2/3` 只做骨架。
+5. **二次曲面与兜底。** `Sphere`、`Cylinder`、`Capsule`、`Disk`、`Frustum`，以及其余 ★ 解析查询。最后做 GJK/EPA，输入里的凸多边形来自第 3 步。
 
 序列化（JSON 与 SVG）**尚未排期**：JSON 已明确暂不实现；SVG 依赖 2D 图形对象，须待阶段 4 的曲线与多段线落地后才有意义。
 
@@ -496,7 +508,7 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | 13 | 类型名 PascalCase 且优先完整拼写 | 缩写规则的判断成本高于多打几个字符的成本；完整名称在自动补全下几乎无额外负担 |
 | 14 | 模块 namespace 与目录用大驼峰 | 与文件名、类名同一套规则；同名类型放在模块命名空间内，如 `DragonGeo::Polygon::Polygon` |
 | 15 | `Point` / `Box` / `OrientedBox` / `Coordinate` 归 `Linear`，不归 `Prim` | `Point` 只依赖 `Core`，与 `Vector` 同处依赖图叶子位置；放 `Linear` 后 `Transform` 可直接提供变换点的能力，消除原先 `apply(t, Vector)` 把位置塞进向量的补偿性分工 |
-| 16 | `Circle` 与 `Arc2` 共用类型，`Ellipse`/`EllipseArc` 独立成族 | 圆是圆弧的退化（整圈），不是椭圆的特例；两组曲线的参数化与求交都不同，合并会带来虚假的统一 |
+| 16 | `Circle2`/`Arc2` 分开，`Ellipse2`/`EllipseArc2` 分开；三维同样是 `Circle3`/`Arc3` | 整圆没有起止角。弧是支撑曲线加起始角与扫掠角。共用类型会让圆带上无意义的角度，或让弧变成角度可选的圆。圆不是椭圆的特例 |
 | 17 | 自由函数式的具名运算（`dot`/`cross`/`norm`/`determinant`…）一律改为成员函数 | 便于 IDE 自动补全与发现；运算符仍为自由函数（二元运算的对称性要求），这一分界在阶段 2 明确 |
 | 18 | 阶段 3 的四个谓词编译进静态库，公共头只留声明 | 展开与四个谓词的实现已经不适合放进每个调用方的编译单元。签名不变。过滤不再保证无需链接时优化就能内联 |
 | 19 | 反射是 `Transform` 的工厂，`Coordinate` 继续只接受右手系 | 沿法向取反是仿射矩阵上的运算；标架的定义是正交单位右手轴，行列式为 −1 的线性部分不能同时算作标架 |
