@@ -323,7 +323,7 @@ namespace DragonGeo::Predicates {
 
 类型 `Polygon` 在阶段 4 落地，外环加一层洞。下面的算法里，凸包、点包含、面积、质心、周长、方向，以及自交和洞的有效性检查，跟曲线协议一起做；三角剖分和布尔留到阶段 5。
 
-**★ 核心**：凸包（monotone chain）· 面积/质心/周长/方向判定 · 点包含（外环 winding number，再排除洞的内部）· 自交检测 · 耳切三角剖分 · **布尔运算（并/交/差/异或）**
+**★ 核心**：凸包（monotone chain）· 面积/质心/周长/方向判定 · 点包含（外环 winding number，再排除洞的内部）· 自交与洞的检查（`HasSelfIntersection`、`HolesAreValid`、`HasDegenerateEdge`，阶段 4）· 耳切三角剖分 · **布尔运算（并/交/差/异或）**
 
 **☆ 进阶**：多边形偏移（Clipper 风格）· Delaunay 三角剖分 · 约束 Delaunay（CDT）· Sutherland-Hodgman 裁剪 · Douglas-Peucker 简化 · 凸分解
 
@@ -364,7 +364,7 @@ namespace DragonGeo::Predicates {
 | `CurvePolyline` | 连续的曲线多段线。每段是 `Segment2`、`Arc2`、`EllipseArc2` 或 `NurbsCurve2` 之一。不要求闭合 |
 | `CurvePolygon` | 闭合的曲线多边形。一个外环加零个或多个洞环。段类型与 `CurvePolyline` 相同，并且每环首尾相接 |
 | `MultiPolygon` | 不嵌套。按顺序存放多个 `Polygon` 或 `CurvePolygon`。洞写在单个多边形上，不写在这个集合的层级里 |
-| `CurveCollection` | 不必相连的曲线集合。成员可以是 `Segment2`、`Arc2`、`EllipseArc2`、`Circle2`、`Ellipse2`、`NurbsCurve2`、`Polyline`、`CurvePolyline`。它不是一条曲线，但支持包围盒、长度、面积、包含、重心，以及移动、镜像、旋转、`Transform` 和反向 |
+| `CurveCollection` | 不必相连的二维曲线集合。成员是第 4.1 节的全部二维曲线，包含 `Polygon`、`CurvePolygon`、`Rectangle2`、`Triangle2`、射线和直线。它不是一条曲线，但支持包围盒、长度、面积、包含、重心，以及移动、镜像、旋转、`Transform` 和反向 |
 | `NurbsCurve2` / `NurbsCurve3` | 骨架。存放控制点、节点向量、次数、权重。求值、切向、子曲线抛 `std::logic_error`。控制点包围盒、反向和刚体变换可以做 |
 
 `Box2` 仍是 `Linear` 里的轴对齐包围范围：可以空、可以无限、用来合并与剔除。`Rectangle2` 不是包围盒，没有空盒典范形式，也不做合并。零面积或负尺寸不是 `Rectangle2`。
@@ -377,7 +377,7 @@ namespace DragonGeo::Predicates {
 4. **`Polyline`、`CurvePolyline` 必须连续**：后一段的起点等于前一段的终点。`Polygon`、`CurvePolygon` 的每一环还要求最后一段的终点等于第一段的起点。洞写在这两个类型上，只有一层。`MultiPolygon` 只是多个多边形的列表。
 5. **曲线多段线直接存放上述段类型**，不再包一层只为了携带段号的外壳。段号就是它在序列中的下标。
 6. **NURBS 先骨架后算法**，骨架满足 §6：签名完整、结构可用、未实现行为抛 `std::logic_error`。类型名是 `NurbsCurve2` / `NurbsCurve3`。
-7. **二维与三维曲线共用一套方法名**：端点、中点、切向、闭合、长度、闭合时的面积与方向、参数区间、参数点、参数切向、轨迹上一点的参数、点在轨迹上、闭合时的区域包含、包围盒、重心、移动、镜像、旋转、`Transform`、反向、子曲线、克隆、是否有效。子曲线的类型随原曲线变化：直线、射线、线段给出线段，圆和圆弧给出圆弧，其余按同样原则。直线、射线与线段可以互相转换。圆与圆弧、椭圆与椭圆弧、`Polyline` 与 `Polygon`、`CurvePolyline` 与 `CurvePolygon` 也可以。后两者还能按绝对偏差退化为折线或多边形。多边形另有自交、洞的有效性和零长度边检查。`Rectangle2` 与 `Triangle2` / `Triangle3` 按没有洞的闭合多边形实现曲线协议。`CurveCollection` 只实现集合上有定义的部分。合同在阶段 4 设计。
+7. **二维与三维曲线共用一套方法名**：端点、中点、切向、闭合、长度、闭合时的面积与方向、参数区间、参数点、参数切向、轨迹上一点的参数、点在轨迹上、闭合时的区域包含、包围盒、重心、移动、镜像、旋转、`Transform`、反向、子曲线、克隆、是否有效。子曲线的类型随原曲线变化：直线、射线、线段给出线段，圆和圆弧给出圆弧，其余按同样原则。直线、射线与线段可以互相转换。圆与圆弧、椭圆与椭圆弧、`Polyline` 与 `Polygon`、`CurvePolyline` 与 `CurvePolygon` 也可以。后两者还能按绝对偏差退化为折线或多边形。多边形另有自交、洞的有效性和零长度边检查。`Rectangle2` 与 `Triangle2` / `Triangle3` 按没有洞的闭合多边形实现曲线协议。`CurveCollection` 存放全部二维曲线，只实现集合上有定义的部分。合同在阶段 4 设计。
 
 ---
 
@@ -477,7 +477,7 @@ GitHub Actions 矩阵：{MSVC, GCC, Clang, AppleClang} × {Debug, Release}，挂
 | **6. 3D 网格与图形学** | `Mesh` 全部 ★ 项；BVH 性能达标 | |
 | **7. CAD 精确实体** | `Solid` 的 SSI、布尔、倒角、抽壳。**高风险**：须先评估"自研 vs 集成现成内核" | |
 
-阶段 4 的需求仍在补充。需求收齐并重新讨论实现方案之前，不开始实现。目前按依赖记下的顺序是：
+阶段 4 的本轮需求已冻结，合同见 `2026-09-30-dragongeo-stage4-design.md`。实现方案还没讨论，讨论之前不开始实现。依赖顺序是：
 
 1. **直线与平面。** `Segment2/3`、`Ray2/3`、`Line2/3`、`Plane`、`Triangle2/3`。直线、射线、线段带上曲线协议里它们做得到的部分。只依赖它们和现有 `Box` / `OrientedBox` 的解析求交、距离、投影、包含。
 2. **圆、椭圆、矩形。** `Circle2`、`Arc2`、`Circle3`、`Arc3`、`Ellipse2`、`EllipseArc2`、`Rectangle2`，以及这些曲线的曲线协议。圆-圆、圆-线段、矩形-矩形。
