@@ -20,6 +20,7 @@ using DragonGeo::Linear::UnitVector3;
 using DragonGeo::Linear::Vector3;
 
 namespace {
+const UnitVector3 xAxis = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});
 const UnitVector3 zAxis = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
 }
 
@@ -314,4 +315,54 @@ TEST_CASE("reflecting across a diagonal plane flips only the normal component",
     CHECK(back.X == Approx(1.0).margin(1e-12));
     CHECK(back.Y == Approx(0.0).margin(1e-12));
     CHECK(back.Z == Approx(5.0).margin(1e-12));
+}
+
+TEST_CASE("Transform3 RotationAbout fixes the pivot", "[linear][transform3]") {
+    using DragonGeo::Core::HALF_PI;
+
+    const Point3 pivot{1.0, 2.0, 3.0};
+    const Transform3 about = Transform3::RotationAbout(pivot, zAxis, HALF_PI);
+    CHECK(about.TransformPoint(pivot) == pivot);
+
+    const Point3 tip{2.0, 2.0, 3.0};
+    const Point3 rotated = about.TransformPoint(tip);
+    CHECK(rotated.X == Approx(1.0).margin(1e-12));
+    CHECK(rotated.Y == Approx(3.0).margin(1e-12));
+    CHECK(rotated.Z == Approx(3.0).margin(1e-12));
+}
+
+TEST_CASE("Transform3 TransformNormal uses inverse transpose", "[linear][transform3]") {
+    const Transform3 uniform = Transform3::Scaling(2.0);
+    const auto normal = uniform.TransformNormal(zAxis);
+    REQUIRE(normal.has_value());
+    CHECK(normal->AsVector().X == Approx(0.0).margin(1e-12));
+    CHECK(normal->AsVector().Y == Approx(0.0).margin(1e-12));
+    CHECK(normal->AsVector().Z == Approx(1.0).margin(1e-12));
+    CHECK((uniform * zAxis.AsVector()).Z == Approx(2.0));
+
+    const Transform3 singular = Transform3::Scaling(Vector3{0.0, 1.0, 1.0});
+    CHECK_FALSE(singular.TransformNormal(zAxis).has_value());
+
+    const Transform3 nonUniform = Transform3::Scaling(Vector3{2.0, 1.0, 1.0});
+    const auto n = nonUniform.TransformNormal(xAxis);
+    REQUIRE(n.has_value());
+    const auto inverse = nonUniform.Inverse();
+    REQUIRE(inverse.has_value());
+    const auto roundTrip = inverse->TransformNormal(*n);
+    REQUIRE(roundTrip.has_value());
+    CHECK(roundTrip->AsVector().X == Approx(1.0).margin(1e-9));
+    CHECK(roundTrip->AsVector().Y == Approx(0.0).margin(1e-9));
+    CHECK(roundTrip->AsVector().Z == Approx(0.0).margin(1e-9));
+}
+
+TEST_CASE("Transform3 RotationQuaternion reads the linear rotation", "[linear][transform3]") {
+    const Transform3 rotate = Transform3::Rotation(zAxis, HALF_PI);
+    const auto q = rotate.RotationQuaternion();
+    REQUIRE(q.has_value());
+    const Vector3 tip{1.0, 0.0, 0.0};
+    CHECK(q->Rotate(tip).Y == Approx(1.0).margin(1e-12));
+    CHECK(q->Rotate(tip).X == Approx(0.0).margin(1e-12));
+
+    const Transform3 scaled = Transform3::Scaling(2.0);
+    CHECK_FALSE(scaled.RotationQuaternion().has_value());
 }

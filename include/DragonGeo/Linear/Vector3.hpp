@@ -67,6 +67,11 @@ struct Vector3T {
         return X * other.X + Y * other.Y + Z * other.Z;
     }
 
+    /// 线性插值。`t` 不在 `[0, 1]` 时仍按公式外推，不 clamp。
+    [[nodiscard]] constexpr Vector3T Lerp(Vector3T other, Scalar t) const noexcept {
+        return *this * (Scalar{1} - t) + other * t;
+    }
+
     /// 三维叉积。结果垂直于两个输入，方向遵循右手定则。
     /// 两向量平行（含任一为零向量）时结果为零向量。
     [[nodiscard]] constexpr Vector3T Cross(Vector3T other) const noexcept {

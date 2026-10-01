@@ -267,3 +267,19 @@ TEST_CASE("reflecting across a diagonal line flips the normal component",
     CHECK(mirror.TransformPoint(image).X == Approx(1.0).margin(1e-12));
     CHECK(mirror.TransformPoint(image).Y == Approx(0.0).margin(1e-12));
 }
+
+TEST_CASE("Transform2 RotationAbout fixes the pivot", "[linear][transform2]") {
+    const Point2 pivot{3.0, 4.0};
+    const Transform2 about = Transform2::RotationAbout(pivot, HALF_PI);
+    const Transform2 composed = Transform2::Translation(Vector2{pivot.X, pivot.Y})
+                              * Transform2::Rotation(HALF_PI)
+                              * Transform2::Translation(Vector2{-pivot.X, -pivot.Y});
+
+    CHECK(about == composed);
+    CHECK(about.TransformPoint(pivot) == pivot);
+
+    const Point2 offset{4.0, 4.0};
+    const Point2 rotated = about.TransformPoint(offset);
+    CHECK(rotated.X == Approx(3.0).margin(1e-12));
+    CHECK(rotated.Y == Approx(5.0).margin(1e-12));
+}

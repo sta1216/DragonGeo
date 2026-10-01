@@ -171,3 +171,9 @@ TEST_CASE("Vector3 zero is the additive identity", "[linear][vector3]") {
     CHECK(Vector3f::Zero.Y == 0.0f);
     CHECK(Vector3f::Zero.Z == 0.0f);
 }
+
+TEST_CASE("Vector3 Lerp interpolates components", "[linear][vector3]") {
+    const Vector3 a{1.0, 0.0, -1.0};
+    const Vector3 b{3.0, 4.0, 5.0};
+    CHECK(a.Lerp(b, 0.5) == Vector3{2.0, 2.0, 2.0});
+}

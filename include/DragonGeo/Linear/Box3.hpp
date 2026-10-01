@@ -1,7 +1,11 @@
 #pragma once
 
+#include <cmath>
 #include <limits>
+#include <optional>
+#include <span>
 
+#include <DragonGeo/Core/Numeric.hpp>
 #include <DragonGeo/Linear/Point3.hpp>
 #include <DragonGeo/Linear/Vector3.hpp>
 
@@ -87,6 +91,58 @@ struct Box3T {
                      Point3T<Scalar>{a.X > b.X ? a.X : b.X,
                                      a.Y > b.Y ? a.Y : b.Y,
                                      a.Z > b.Z ? a.Z : b.Z}};
+    }
+
+    /// 包围有限点集的最小轴对齐盒。空 span 返回规范空盒；任一点含 NaN 也返回规范空盒。
+    [[nodiscard]] static Box3T FromPoints(std::span<const Point3T<Scalar>> points) noexcept {
+        if (points.empty()) {
+            return Empty();
+        }
+        Box3T result = Empty();
+        for (const Point3T<Scalar>& point : points) {
+            if (point.X != point.X || point.Y != point.Y || point.Z != point.Z) {
+                return Empty();
+            }
+            result = result.IsEmpty() ? FromCorners(point, point) : result.Merged(FromCorners(point, point));
+        }
+        return result;
+    }
+
+    /// 盒上距给定点最近的点。空盒返回空。
+    [[nodiscard]] constexpr std::optional<Point3T<Scalar>> ClosestPoint(
+        Point3T<Scalar> point) const noexcept {
+        if (IsEmpty()) {
+            return std::nullopt;
+        }
+        const Point3T<Scalar> closest{
+            point.X < Min.X ? Min.X : (point.X > Max.X ? Max.X : point.X),
+            point.Y < Min.Y ? Min.Y : (point.Y > Max.Y ? Max.Y : point.Y),
+            point.Z < Min.Z ? Min.Z : (point.Z > Max.Z ? Max.Z : point.Z),
+        };
+        if (!Core::IsFinite(static_cast<double>(closest.X))
+            || !Core::IsFinite(static_cast<double>(closest.Y))
+            || !Core::IsFinite(static_cast<double>(closest.Z))) {
+            return std::nullopt;
+        }
+        return closest;
+    }
+
+    /// 点到盒的平方距离。点在盒内时为 0。空盒返回空。
+    [[nodiscard]] constexpr std::optional<Scalar> DistanceSquared(Point3T<Scalar> point) const noexcept {
+        const std::optional<Point3T<Scalar>> closest = ClosestPoint(point);
+        if (!closest.has_value()) {
+            return std::nullopt;
+        }
+        return (point - *closest).LengthSquared();
+    }
+
+    /// 点到盒的距离。空盒返回空。
+    [[nodiscard]] std::optional<Scalar> Distance(Point3T<Scalar> point) const noexcept {
+        const std::optional<Scalar> squared = DistanceSquared(point);
+        if (!squared.has_value()) {
+            return std::nullopt;
+        }
+        return std::sqrt(*squared);
     }
 
     /// 是否为空，实现为 `!(Min <= Max)` 逐分量取或，**不是** `Min > Max`。

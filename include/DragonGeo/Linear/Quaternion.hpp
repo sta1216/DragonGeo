@@ -111,6 +111,73 @@ struct QuaternionT {
         };
     }
 
+    /// 从 3×3 旋转矩阵提取四元数。非正交或 det ≠ +1 时返回空。
+    [[nodiscard]] static std::optional<QuaternionT> FromRotationMatrix(
+        MatrixT<Scalar, 3> rotation, Core::Tolerance tolerance = {}) noexcept {
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                if (!Core::IsFinite(static_cast<double>(rotation.Data[i][j]))) {
+                    return std::nullopt;
+                }
+            }
+        }
+
+        const MatrixT<Scalar, 3> transposed = rotation.Transposed();
+        const MatrixT<Scalar, 3> product = rotation * transposed;
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                const double expected = i == j ? 1.0 : 0.0;
+                if (!tolerance.Equal(static_cast<double>(product.Data[i][j]), expected)) {
+                    return std::nullopt;
+                }
+            }
+        }
+
+        const Scalar determinant = rotation.Determinant();
+        if (!tolerance.Equal(static_cast<double>(determinant), 1.0)) {
+            return std::nullopt;
+        }
+
+        const Scalar trace = rotation.Data[0][0] + rotation.Data[1][1] + rotation.Data[2][2];
+        QuaternionT<Scalar> result{};
+
+        if (trace > Scalar{0}) {
+            const Scalar root = std::sqrt(trace + Scalar{1});
+            const Scalar scale = Scalar{0.5} / root;
+            result.W = Scalar{0.25} / scale;
+            result.X = (rotation.Data[2][1] - rotation.Data[1][2]) * scale;
+            result.Y = (rotation.Data[0][2] - rotation.Data[2][0]) * scale;
+            result.Z = (rotation.Data[1][0] - rotation.Data[0][1]) * scale;
+        } else if (rotation.Data[0][0] > rotation.Data[1][1]
+                   && rotation.Data[0][0] > rotation.Data[2][2]) {
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[0][0] - rotation.Data[1][1]
+                                            - rotation.Data[2][2]);
+            const Scalar scale = Scalar{0.5} * root;
+            result.W = (rotation.Data[2][1] - rotation.Data[1][2]) / scale;
+            result.X = Scalar{0.25} / scale;
+            result.Y = (rotation.Data[0][1] + rotation.Data[1][0]) / scale;
+            result.Z = (rotation.Data[0][2] + rotation.Data[2][0]) / scale;
+        } else if (rotation.Data[1][1] > rotation.Data[2][2]) {
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[1][1] - rotation.Data[0][0]
+                                            - rotation.Data[2][2]);
+            const Scalar scale = Scalar{0.5} * root;
+            result.W = (rotation.Data[0][2] - rotation.Data[2][0]) / scale;
+            result.X = (rotation.Data[0][1] + rotation.Data[1][0]) / scale;
+            result.Y = Scalar{0.25} / scale;
+            result.Z = (rotation.Data[1][2] + rotation.Data[2][1]) / scale;
+        } else {
+            const Scalar root = std::sqrt(Scalar{1} + rotation.Data[2][2] - rotation.Data[0][0]
+                                            - rotation.Data[1][1]);
+            const Scalar scale = Scalar{0.5} * root;
+            result.W = (rotation.Data[1][0] - rotation.Data[0][1]) / scale;
+            result.X = (rotation.Data[0][2] + rotation.Data[2][0]) / scale;
+            result.Y = (rotation.Data[1][2] + rotation.Data[2][1]) / scale;
+            result.Z = Scalar{0.25} / scale;
+        }
+
+        return result.Normalized(tolerance);
+    }
+
     /// 用四元数旋转向量。要求旋转是单位四元数。
     [[nodiscard]] constexpr Vector3T<Scalar> Rotate(Vector3T<Scalar> v) const noexcept {
         // 旋转公式：v' = v + 2 * qVec × (qVec × v + W * v)

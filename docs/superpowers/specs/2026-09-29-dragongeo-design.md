@@ -268,6 +268,8 @@ namespace DragonGeo::Predicates {
 
 **仿射与区间**：`Point2/3`、`Interval`、`Box2/3`、`OrientedBox2/3`、`Coordinate2/3`
 
+**Linear 增量（阶段 4 暂停期间，已确认并实现）**：`Box2/3` 点集包围与点到盒距离、绕任意点旋转、`Transform3::TransformNormal`、四元数与旋转矩阵互提取、向量/点插值、单位向量夹角。合同见 `2026-10-01-dragongeo-linear-enhancement-design.md`。
+
 **Point / Box / Coordinate 属于 `Linear` 而非 `Prim`**，这是对早期划分的一次修正。理由有三：
 
 1. `Point` 只依赖 `Core`，与 `Vector` 同样处于依赖图的叶子位置 —— 它不含"射线""平面"这类几何语义，把它放 `Prim` 的那条界线是薄的。

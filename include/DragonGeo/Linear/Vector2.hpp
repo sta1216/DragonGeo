@@ -76,6 +76,11 @@ struct Vector2T {
         return X * other.X + Y * other.Y;
     }
 
+    /// 线性插值。`t` 不在 `[0, 1]` 时仍按公式外推，不 clamp。
+    [[nodiscard]] constexpr Vector2T Lerp(Vector2T other, Scalar t) const noexcept {
+        return *this * (Scalar{1} - t) + other * t;
+    }
+
     /// 二维叉积，返回标量（有向面积的两倍再取半，即 z 分量）。
     /// 正值表示 other 在 this 的逆时针一侧。
     [[nodiscard]] constexpr Scalar Cross(Vector2T other) const noexcept {

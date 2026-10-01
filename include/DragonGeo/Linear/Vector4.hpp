@@ -66,6 +66,11 @@ struct Vector4T {
     [[nodiscard]] constexpr Scalar Dot(Vector4T other) const noexcept {
         return X * other.X + Y * other.Y + Z * other.Z + W * other.W;
     }
+
+    /// 线性插值。`t` 不在 `[0, 1]` 时仍按公式外推，不 clamp。
+    [[nodiscard]] constexpr Vector4T Lerp(Vector4T other, Scalar t) const noexcept {
+        return *this * (Scalar{1} - t) + other * t;
+    }
 };
 
 template <typename Scalar>

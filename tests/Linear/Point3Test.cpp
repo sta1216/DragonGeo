@@ -219,3 +219,9 @@ TEST_CASE("Point3 zero is the origin", "[linear][point3]") {
     CHECK(Point3f::Zero.Y == 0.0f);
     CHECK(Point3f::Zero.Z == 0.0f);
 }
+
+TEST_CASE("Point3 Lerp moves along the segment", "[linear][point3]") {
+    const Point3 a{0.0, 0.0, 0.0};
+    const Point3 b{2.0, 4.0, 6.0};
+    CHECK(a.Lerp(b, 0.5) == Point3{1.0, 2.0, 3.0});
+}

@@ -71,7 +71,7 @@ src/Query/ConvexDistance.cpp     GJK/EPA，模式与 Predicates 相同
 
 **非有限值。** 工厂遇到非有限坐标、半径或角度时返回 `std::nullopt`。聚合类型可以含有 `NaN` 或无穷，与 `Point` 相同。查询碰到非有限输入时不抛异常，返回值不作规定，与谓词相同。
 
-**空盒。** `Box2` / `Box3` 已有包含与相交。本阶段只补 `ClosestPoint`、`Distance`、`DistanceSquared`。空盒没有最近点，三个方法都返回 `std::nullopt`。非空盒对任何有限点都有最近点：逐轴夹紧到 `[Min, Max]`。
+**空盒。** `Box2` / `Box3` 已有包含与相交。点到盒的 `ClosestPoint`、`Distance`、`DistanceSquared` 在 Linear 增强里实现，见 `2026-10-01-dragongeo-linear-enhancement-design.md`。空盒没有最近点，三个方法都返回 `std::nullopt`。非空盒对任何有限点都有最近点：逐轴夹紧到 `[Min, Max]`。
 
 **距离。** 几何距离非负。同时提供 `DistanceSquared`，供精确比较，避免先开方再平方。`Plane::SignedDistance` 是 `Normal · (Point - Origin)`，可正可负。`Plane::Distance` 是它的绝对值。
 

@@ -1,12 +1,15 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <type_traits>
 #include <utility>
 
 #include <DragonGeo/Linear/Box3.hpp>
+
+using Catch::Approx;
 
 using DragonGeo::Linear::Box3;
 using DragonGeo::Linear::Box3f;
@@ -709,4 +712,33 @@ TEST_CASE("Box3 volume is the product of the three extents", "[linear][box3]") {
     constexpr Box3 exact{Point3{0.0, 0.0, 0.0}, Point3{2.0, 3.0, 4.0}};
     STATIC_REQUIRE(exact.Volume() == 24.0);
     STATIC_REQUIRE(noexcept(exact.Volume()));
+}
+
+TEST_CASE("Box3 FromPoints, ClosestPoint and distances", "[linear][box3]") {
+    const Box3 empty = Box3::Empty();
+    CHECK_FALSE(empty.ClosestPoint(Point3{0.0, 0.0, 0.0}).has_value());
+    CHECK_FALSE(empty.Distance(Point3{0.0, 0.0, 0.0}).has_value());
+
+    const Box3 box = Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{2.0, 3.0, 4.0});
+    CHECK(box.ClosestPoint(Point3{1.0, 1.0, 1.0}) == Point3{1.0, 1.0, 1.0});
+    const auto insideSq = box.DistanceSquared(Point3{1.0, 1.0, 1.0});
+    REQUIRE(insideSq.has_value());
+    CHECK(insideSq.value() == Approx(0.0));
+
+    CHECK(box.ClosestPoint(Point3{-1.0, 1.0, 2.0}) == Point3{0.0, 1.0, 2.0});
+    const auto axisSq = box.DistanceSquared(Point3{-1.0, 1.0, 2.0});
+    REQUIRE(axisSq.has_value());
+    CHECK(axisSq.value() == Approx(1.0));
+
+    const std::array<Point3, 0> none{};
+    CHECK(Box3::FromPoints(none).IsEmpty());
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const std::array bad{Point3{0.0, 0.0, 0.0}, Point3{1.0, nan, 2.0}};
+    CHECK(Box3::FromPoints(bad).IsEmpty());
+
+    const std::array pts{Point3{1.0, 2.0, 3.0}, Point3{-1.0, 0.0, 5.0}};
+    const Box3 merged = Box3::FromPoints(pts);
+    CHECK(merged.Min == Point3{-1.0, 0.0, 3.0});
+    CHECK(merged.Max == Point3{1.0, 2.0, 5.0});
 }

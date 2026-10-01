@@ -123,3 +123,9 @@ TEST_CASE("Vector4 zero is the additive identity", "[linear][vector4]") {
     CHECK(Vector4f::Zero.Z == 0.0f);
     CHECK(Vector4f::Zero.W == 0.0f);
 }
+
+TEST_CASE("Vector4 Lerp interpolates components", "[linear][vector4]") {
+    const Vector4 a{0.0, 0.0, 0.0, 0.0};
+    const Vector4 b{4.0, 8.0, 12.0, 16.0};
+    CHECK(a.Lerp(b, 0.25) == Vector4{1.0, 2.0, 3.0, 4.0});
+}

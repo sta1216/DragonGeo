@@ -94,6 +94,17 @@ public:
         return m_value * m_value.Dot(vector);
     }
 
+    /// 与另一单位向量的夹角，范围 `[0, π]`。
+    [[nodiscard]] Scalar AngleBetween(UnitVector3T other) const noexcept {
+        double cosine = static_cast<double>(Dot(other));
+        if (cosine > 1.0) {
+            cosine = 1.0;
+        } else if (cosine < -1.0) {
+            cosine = -1.0;
+        }
+        return static_cast<Scalar>(std::acos(cosine));
+    }
+
     [[nodiscard]] constexpr bool operator==(const UnitVector3T&) const noexcept = default;
 
 private:

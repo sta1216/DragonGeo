@@ -1,12 +1,15 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <type_traits>
 #include <utility>
 
 #include <DragonGeo/Linear/Box2.hpp>
+
+using Catch::Approx;
 
 using DragonGeo::Linear::Box2;
 using DragonGeo::Linear::Box2f;
@@ -663,4 +666,53 @@ TEST_CASE("Box2 area is the product of the two extents", "[linear][box2]") {
     constexpr Box2 exact{Point2{0.0, 0.0}, Point2{3.0, 4.0}};
     STATIC_REQUIRE(exact.Area() == 12.0);
     STATIC_REQUIRE(noexcept(exact.Area()));
+}
+
+TEST_CASE("Box2 FromPoints, ClosestPoint and distances", "[linear][box2]") {
+    const Box2 empty = Box2::Empty();
+    CHECK_FALSE(empty.ClosestPoint(Point2{0.0, 0.0}).has_value());
+    CHECK_FALSE(empty.DistanceSquared(Point2{0.0, 0.0}).has_value());
+    CHECK_FALSE(empty.Distance(Point2{0.0, 0.0}).has_value());
+
+    const Box2 box = Box2::FromCorners(Point2{0.0, 0.0}, Point2{2.0, 3.0});
+    CHECK(box.ClosestPoint(Point2{1.0, 1.5}) == Point2{1.0, 1.5});
+    const auto insideSq = box.DistanceSquared(Point2{1.0, 1.5});
+    REQUIRE(insideSq.has_value());
+    CHECK(insideSq.value() == Approx(0.0));
+    const auto insideDist = box.Distance(Point2{1.0, 1.5});
+    REQUIRE(insideDist.has_value());
+    CHECK(insideDist.value() == Approx(0.0));
+
+    CHECK(box.ClosestPoint(Point2{-1.0, 1.0}) == Point2{0.0, 1.0});
+    const auto axisSq = box.DistanceSquared(Point2{-1.0, 1.0});
+    REQUIRE(axisSq.has_value());
+    CHECK(axisSq.value() == Approx(1.0));
+    const auto axisDist = box.Distance(Point2{-1.0, 1.0});
+    REQUIRE(axisDist.has_value());
+    CHECK(axisDist.value() == Approx(1.0));
+
+    CHECK(box.ClosestPoint(Point2{-1.0, 5.0}) == Point2{0.0, 3.0});
+    const auto cornerSq = box.DistanceSquared(Point2{-1.0, 5.0});
+    REQUIRE(cornerSq.has_value());
+    CHECK(cornerSq.value() == Approx(5.0));
+
+    const std::array<Point2, 0> none{};
+    CHECK(Box2::FromPoints(none).IsEmpty());
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const std::array pointsWithNan{Point2{0.0, 0.0}, Point2{nan, 1.0}};
+    CHECK(Box2::FromPoints(pointsWithNan).IsEmpty());
+
+    const std::array three{Point2{1.0, 2.0}, Point2{4.0, -1.0}, Point2{0.0, 3.0}};
+    const Box2 fromPoints = Box2::FromPoints(three);
+    CHECK(fromPoints.Min == Point2{0.0, -1.0});
+    CHECK(fromPoints.Max == Point2{4.0, 3.0});
+    Box2 merged = Box2::Empty();
+    for (const Point2& point : three) {
+        merged = merged.Merged(Box2::FromCorners(point, point));
+    }
+    CHECK(fromPoints == merged);
+
+    const std::array one{Point2{5.0, 6.0}};
+    CHECK(Box2::FromPoints(one) == Box2{Point2{5.0, 6.0}, Point2{5.0, 6.0}});
 }

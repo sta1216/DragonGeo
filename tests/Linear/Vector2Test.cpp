@@ -161,3 +161,17 @@ TEST_CASE("Vector2 zero is the additive identity", "[linear][vector2]") {
     CHECK(Vector2f::Zero.X == 0.0f);
     CHECK(Vector2f::Zero.Y == 0.0f);
 }
+
+TEST_CASE("Vector2 Lerp interpolates and extrapolates", "[linear][vector2]") {
+    const Vector2 a{0.0, 10.0};
+    const Vector2 b{20.0, 30.0};
+
+    CHECK(a.Lerp(b, 0.0) == a);
+    CHECK(a.Lerp(b, 1.0) == b);
+    CHECK(a.Lerp(b, 0.5) == Vector2{10.0, 20.0});
+    CHECK(a.Lerp(b, 2.0) == Vector2{40.0, 50.0});
+
+    constexpr Vector2 ca{1.0, 2.0};
+    constexpr Vector2 cb{5.0, 6.0};
+    STATIC_REQUIRE(ca.Lerp(cb, 0.25) == Vector2{2.0, 3.0});
+}

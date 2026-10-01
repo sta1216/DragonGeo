@@ -71,6 +71,13 @@ struct Transform2T {
         return result;
     }
 
+    /// 绕 `origin` 逆时针旋转 `angleRadians` 弧度（Prim 绕中心旋转应使用本工厂）。
+    [[nodiscard]] static Transform2T RotationAbout(Point2T<Scalar> origin,
+                                                   Scalar angleRadians) noexcept {
+        return Translation(Vector2T<Scalar>{origin.X, origin.Y}) * Rotation(angleRadians)
+             * Translation(Vector2T<Scalar>{-origin.X, -origin.Y});
+    }
+
     /// 关于过 `point`、以 `normal` 为法向的直线做反射：沿法向的分量取反。
     ///
     /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与

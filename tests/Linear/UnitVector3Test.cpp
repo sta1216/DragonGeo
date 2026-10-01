@@ -227,3 +227,15 @@ TEST_CASE("projecting onto a 3D unit vector keeps only the parallel part",
     STATIC_REQUIRE(axis.Projected(Vector3{3.0, 4.0, 5.0}) == Vector3{0.0, 4.0, 0.0});
     STATIC_REQUIRE(noexcept(axis.Projected(Vector3{1.0, 2.0, 3.0})));
 }
+
+TEST_CASE("UnitVector3 AngleBetween returns acute or obtuse angle in [0, pi]",
+          "[linear][unitvector3]") {
+    using DragonGeo::Core::HALF_PI;
+
+    const UnitVector3 x = UnitVector3::FromNormalizedUnchecked(Vector3{1.0, 0.0, 0.0});
+    const UnitVector3 y = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 1.0, 0.0});
+
+    CHECK(x.AngleBetween(y) == Approx(HALF_PI));
+    CHECK(x.AngleBetween(-x) == Approx(HALF_PI + HALF_PI));
+    CHECK(x.AngleBetween(x) == Approx(0.0));
+}

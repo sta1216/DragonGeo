@@ -5,6 +5,7 @@
 #include <limits>
 #include <type_traits>
 
+#include <DragonGeo/Core/Constants.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
 
 using Catch::Approx;
@@ -129,4 +130,23 @@ TEST_CASE("projecting onto a 2D unit vector keeps only the parallel part",
     constexpr UnitVector2 axis = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
     STATIC_REQUIRE(axis.Projected(Vector2{3.0, 4.0}) == Vector2{0.0, 4.0});
     STATIC_REQUIRE(noexcept(axis.Projected(Vector2{1.0, 2.0})));
+}
+
+TEST_CASE("UnitVector2 AngleBetween and SignedAngle", "[linear][unitvector2]") {
+    using DragonGeo::Core::HALF_PI;
+    using DragonGeo::Core::QUARTER_PI;
+
+    const UnitVector2 x = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 0.0});
+    const UnitVector2 y = UnitVector2::FromNormalizedUnchecked(Vector2{0.0, 1.0});
+
+    CHECK(x.AngleBetween(y) == Approx(HALF_PI));
+    CHECK(x.AngleBetween(-x) == Approx(HALF_PI + HALF_PI));
+    CHECK(x.AngleBetween(x) == Approx(0.0));
+
+    CHECK(x.SignedAngle(y) == Approx(HALF_PI));
+    CHECK(y.SignedAngle(x) == Approx(-HALF_PI));
+    CHECK(x.SignedAngle(x) == Approx(0.0));
+
+    const UnitVector2 diag = UnitVector2::FromNormalizedUnchecked(Vector2{1.0, 1.0});
+    CHECK(x.SignedAngle(diag) == Approx(QUARTER_PI));
 }

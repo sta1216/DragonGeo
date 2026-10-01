@@ -347,3 +347,22 @@ TEST_CASE("Quaternion members: norm, conjugate, rotate, ToMatrix, factories",
     CHECK(byMatrix.Y == Approx(byQuaternion.Y));
     CHECK(byMatrix.Z == Approx(byQuaternion.Z));
 }
+
+TEST_CASE("Quaternion FromRotationMatrix round-trips axis-angle rotations",
+          "[linear][quaternion]") {
+    const Quaternion original = Quaternion::FromAxisAngle(zAxis, HALF_PI);
+    const Matrix3 rotation = original.ToMatrix();
+    const auto recovered = Quaternion::FromRotationMatrix(rotation);
+    REQUIRE(recovered.has_value());
+
+    const Vector3 probe{1.0, 2.0, 3.0};
+    const Vector3 byOriginal = original.Rotate(probe);
+    const Vector3 byRecovered = recovered->Rotate(probe);
+    CHECK(byRecovered.X == Approx(byOriginal.X));
+    CHECK(byRecovered.Y == Approx(byOriginal.Y));
+    CHECK(byRecovered.Z == Approx(byOriginal.Z));
+
+    Matrix3 reflection = Matrix3::Identity();
+    reflection.Data[0][0] = -1.0;
+    CHECK_FALSE(Quaternion::FromRotationMatrix(reflection).has_value());
+}

@@ -164,3 +164,16 @@ TEST_CASE("Point2 zero is the origin", "[linear][point2]") {
     CHECK(Point2f::Zero.X == 0.0f);
     CHECK(Point2f::Zero.Y == 0.0f);
 }
+
+TEST_CASE("Point2 Lerp moves along the segment", "[linear][point2]") {
+    const Point2 a{0.0, 0.0};
+    const Point2 b{10.0, 20.0};
+
+    CHECK(a.Lerp(b, 0.0) == a);
+    CHECK(a.Lerp(b, 1.0) == b);
+    CHECK(a.Lerp(b, 0.5) == Point2{5.0, 10.0});
+
+    constexpr Point2 ca{1.0, 1.0};
+    constexpr Point2 cb{3.0, 5.0};
+    STATIC_REQUIRE(ca.Lerp(cb, 0.5) == Point2{2.0, 3.0});
+}

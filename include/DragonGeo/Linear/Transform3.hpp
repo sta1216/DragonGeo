@@ -81,6 +81,45 @@ struct Transform3T {
         return result;
     }
 
+    /// 绕过 `origin`、方向为 `axis` 的轴旋转 `angleRadians` 弧度。
+    [[nodiscard]] static Transform3T RotationAbout(Point3T<Scalar> origin,
+                                                     UnitVector3T<Scalar> axis,
+                                                     Scalar angleRadians) noexcept {
+        return Translation(Vector3T<Scalar>{origin.X, origin.Y, origin.Z})
+             * Rotation(axis, angleRadians)
+             * Translation(Vector3T<Scalar>{-origin.X, -origin.Y, -origin.Z});
+    }
+
+    /// 变换单位法向：`(L^{-1})^T n` 再归一化。线性部分奇异时返回空。
+    [[nodiscard]] std::optional<UnitVector3T<Scalar>> TransformNormal(
+        UnitVector3T<Scalar> normal, Core::Tolerance tolerance = {}) const noexcept {
+        MatrixT<Scalar, 3> linear{};
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                linear.Data[i][j] = Matrix.Data[i][j];
+            }
+        }
+        const std::optional<MatrixT<Scalar, 3>> inverseLinear = linear.Inverse(tolerance);
+        if (!inverseLinear.has_value()) {
+            return std::nullopt;
+        }
+        const MatrixT<Scalar, 3> inverseTransposed = inverseLinear->Transposed();
+        const Vector3T<Scalar> transformed = inverseTransposed * normal.AsVector();
+        return transformed.Normalized(tolerance);
+    }
+
+    /// 线性部分在容差下为旋转时，提取对应四元数。
+    [[nodiscard]] std::optional<QuaternionT<Scalar>> RotationQuaternion(
+        Core::Tolerance tolerance = {}) const noexcept {
+        MatrixT<Scalar, 3> rotation{};
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                rotation.Data[i][j] = Matrix.Data[i][j];
+            }
+        }
+        return QuaternionT<Scalar>::FromRotationMatrix(rotation, tolerance);
+    }
+
     /// 关于过 `point`、以 `normal` 为法向的平面做反射：沿法向的分量取反。
     ///
     /// 线性部分是 `I − 2 n nᵀ`，平移列是 `2 (n · point) n`。`normal` 与

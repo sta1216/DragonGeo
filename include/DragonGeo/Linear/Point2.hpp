@@ -65,6 +65,11 @@ struct Point2T {
     [[nodiscard]] constexpr Scalar DistanceSquared(Point2T other) const noexcept {
         return (*this - other).LengthSquared();
     }
+
+    /// 线性插值。`t` 不在 `[0, 1]` 时仍按公式外推，不 clamp。
+    [[nodiscard]] constexpr Point2T Lerp(Point2T other, Scalar t) const noexcept {
+        return *this + (other - *this) * t;
+    }
 };
 
 template <typename Scalar>

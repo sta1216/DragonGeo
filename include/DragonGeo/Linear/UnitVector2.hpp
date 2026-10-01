@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <concepts>
 #include <optional>
 
@@ -58,6 +59,23 @@ public:
     /// 结果的长度是投影长度，一般不再是单位向量，故返回 `Vector2T`。
     [[nodiscard]] constexpr Vector2T<Scalar> Projected(Vector2T<Scalar> vector) const noexcept {
         return m_value * m_value.Dot(vector);
+    }
+
+    /// 与另一单位向量的夹角，范围 `[0, π]`。
+    [[nodiscard]] Scalar AngleBetween(UnitVector2T other) const noexcept {
+        double cosine = static_cast<double>(Dot(other));
+        if (cosine > 1.0) {
+            cosine = 1.0;
+        } else if (cosine < -1.0) {
+            cosine = -1.0;
+        }
+        return static_cast<Scalar>(std::acos(cosine));
+    }
+
+    /// 从本向量到 `other` 的有符号角，范围 `(-π, π]`，逆时针为正。
+    [[nodiscard]] Scalar SignedAngle(UnitVector2T other) const noexcept {
+        return static_cast<Scalar>(
+            std::atan2(static_cast<double>(Cross(other)), static_cast<double>(Dot(other))));
     }
 
     [[nodiscard]] constexpr bool operator==(const UnitVector2T&) const noexcept = default;
