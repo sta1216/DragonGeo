@@ -5,14 +5,20 @@
 #include <span>
 #include <vector>
 
+#include <DragonGeo/Detail/CurveParameter.hpp>
+#include <DragonGeo/Linear/Box3.hpp>
+#include <DragonGeo/Linear/Interval.hpp>
 #include <DragonGeo/Prim/Segment3.hpp>
 
 namespace DragonGeo::Prim {
 
 /// 三维折线：至少一段，且相邻段首尾精确相接。
 ///
-/// 本步只是类型壳。段序列是私有的，只能经 `FromSegments` 构造，因此本类型不是聚合。
-/// 相接判定使用点的 `operator==`，不容差。曲线协议方法在后续任务添加。
+/// 段序列是私有的，只能经 `FromSegments` 构造，因此本类型不是聚合。
+/// 相接判定使用点的 `operator==`，不容差。
+/// 参数域是 `[0, SegmentCount()]`，每一段占长度 1。
+/// 本步只提供 `Domain`、`PointAt`、`IsValid`、`Bounds`、`Clone`。
+/// 其余曲线协议方法尚未声明。
 template <typename Scalar>
 class Polyline3T {
 public:
@@ -63,6 +69,40 @@ public:
             }
         }
         return true;
+    }
+
+    /// 参数域 `[0, SegmentCount()]`。每一段占长度 1。
+    [[nodiscard]] constexpr Linear::IntervalT<Scalar> Domain() const noexcept {
+        return {Scalar{0}, static_cast<Scalar>(m_segments.size())};
+    }
+
+    /// `t` 不在域内或非有限时为空。
+    /// 整数参数落在顶点上；域的右端点是末段的 `B`。
+    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> PointAt(Scalar t) const noexcept {
+        if (!Detail::IsAcceptedParameter(t, Domain())) {
+            return std::nullopt;
+        }
+        const Scalar end = static_cast<Scalar>(m_segments.size());
+        if (t == end) {
+            return m_segments.back().B;
+        }
+        const auto index = static_cast<std::size_t>(t);
+        const Scalar local = t - static_cast<Scalar>(index);
+        return m_segments[index].PointAt(local);
+    }
+
+    /// 各段包围盒的并。
+    [[nodiscard]] constexpr Linear::Box3T<Scalar> Bounds() const noexcept {
+        Linear::Box3T<Scalar> bounds = Linear::Box3T<Scalar>::Empty();
+        for (const Segment3T<Scalar>& segment : m_segments) {
+            bounds = bounds.Merged(segment.Bounds());
+        }
+        return bounds;
+    }
+
+    /// 按值复制整条折线。复制段序列可能分配内存。
+    [[nodiscard]] Polyline3T Clone() const {
+        return *this;
     }
 
 private:

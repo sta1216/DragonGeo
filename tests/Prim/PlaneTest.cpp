@@ -42,3 +42,39 @@ TEST_CASE("Plane with a non-finite coordinate is invalid", "[prim][plane]") {
     const Plane nanNormalPlane{Point3{0.0, 0.0, 0.0}, nanNormal};
     CHECK_FALSE(nanNormalPlane.IsValid());
 }
+
+TEST_CASE("Plane signed distance, distance, closest point, and flipped normal", "[prim][plane]") {
+    const auto normal = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
+    const Plane plane{Point3{0.0, 0.0, 0.0}, normal};
+
+    CHECK(plane.SignedDistance(Point3{0.0, 0.0, 2.0}) == 2.0);
+    CHECK(plane.Distance(Point3{0.0, 0.0, 2.0}) == 2.0);
+    CHECK(plane.ClosestPoint(Point3{0.0, 0.0, 2.0}) == Point3{0.0, 0.0, 0.0});
+
+    CHECK(plane.SignedDistance(Point3{4.0, -2.0, -3.0}) == -3.0);
+    CHECK(plane.Distance(Point3{4.0, -2.0, -3.0}) == 3.0);
+    CHECK(plane.ClosestPoint(Point3{4.0, -2.0, -3.0}) == Point3{4.0, -2.0, 0.0});
+
+    CHECK(plane.SignedDistance(Point3{1.0, 2.0, 0.0}) == 0.0);
+    CHECK(plane.Distance(Point3{1.0, 2.0, 0.0}) == 0.0);
+    CHECK(plane.ClosestPoint(Point3{1.0, 2.0, 0.0}) == Point3{1.0, 2.0, 0.0});
+
+    const Plane flipped = plane.Flipped();
+    CHECK(flipped.Origin == plane.Origin);
+    CHECK(flipped.Normal == -normal);
+    CHECK(flipped != plane);
+    CHECK(flipped.SignedDistance(Point3{0.0, 0.0, 2.0}) == -2.0);
+
+    constexpr auto constantNormal = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
+    constexpr Plane constantPlane{Point3{0.0, 0.0, 0.0}, constantNormal};
+    STATIC_REQUIRE(constantPlane.SignedDistance(Point3{0.0, 0.0, 2.0}) == 2.0);
+    STATIC_REQUIRE(constantPlane.Distance(Point3{4.0, -2.0, -3.0}) == 3.0);
+    STATIC_REQUIRE(constantPlane.ClosestPoint(Point3{0.0, 0.0, 2.0}) == Point3{0.0, 0.0, 0.0});
+    STATIC_REQUIRE(constantPlane.Flipped().Origin == constantPlane.Origin);
+    STATIC_REQUIRE(constantPlane.Flipped().Normal == -constantNormal);
+    STATIC_REQUIRE(constantPlane.Flipped() != constantPlane);
+    STATIC_REQUIRE(noexcept(plane.SignedDistance(Point3{})));
+    STATIC_REQUIRE(noexcept(plane.Distance(Point3{})));
+    STATIC_REQUIRE(noexcept(plane.ClosestPoint(Point3{})));
+    STATIC_REQUIRE(noexcept(plane.Flipped()));
+}

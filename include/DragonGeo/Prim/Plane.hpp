@@ -8,7 +8,9 @@ namespace DragonGeo::Prim {
 
 /// 平面：过 `Origin`、法线为 `Normal` 的平面。
 ///
-/// 本步只是类型壳：字段与 `IsValid`；求交等方法在后续任务添加。
+/// `SignedDistance` 是 `Normal · (Point - Origin)`，法线一侧为正，平面上为 0。
+/// `Distance` 是它的绝对值。`ClosestPoint` 是垂足；点已在平面上时就是该点。
+/// `Flipped` 取反法线、保持原点，得到的平面与原平面表示不相等。
 /// 非有限坐标可以存入；`IsValid` 只检查分量是否有限，不检查法线是否已归一化。
 template <typename Scalar>
 struct PlaneT {
@@ -24,6 +26,28 @@ struct PlaneT {
         using Core::IsFinite;
         return IsFinite(Origin.X) && IsFinite(Origin.Y) && IsFinite(Origin.Z) && IsFinite(Normal.X())
             && IsFinite(Normal.Y()) && IsFinite(Normal.Z());
+    }
+
+    /// `Normal · (point - Origin)`。法线一侧为正，平面上为 0。
+    [[nodiscard]] constexpr Scalar SignedDistance(Linear::Point3T<Scalar> point) const noexcept {
+        return (point - Origin).Dot(Normal.AsVector());
+    }
+
+    /// `SignedDistance` 的绝对值。
+    [[nodiscard]] constexpr Scalar Distance(Linear::Point3T<Scalar> point) const noexcept {
+        return Core::AbsoluteValue(SignedDistance(point));
+    }
+
+    /// 点到平面的垂足：`point - SignedDistance(point) * Normal`。
+    /// 点已在平面上时返回该点本身。
+    [[nodiscard]] constexpr Linear::Point3T<Scalar> ClosestPoint(
+        Linear::Point3T<Scalar> point) const noexcept {
+        return point - Normal * SignedDistance(point);
+    }
+
+    /// 法线取反，原点不变。结果与原平面表示不相等。
+    [[nodiscard]] constexpr PlaneT Flipped() const noexcept {
+        return PlaneT{Origin, -Normal};
     }
 };
 
