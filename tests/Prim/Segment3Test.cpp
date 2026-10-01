@@ -125,6 +125,24 @@ TEST_CASE("Segment3 midpoint is PointAt one half", "[prim][segment3]") {
     STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
 }
 
+TEST_CASE("Segment3 containment uses the supporting line and a parameter window", "[prim][segment3]") {
+    const Segment3 segment{Point3{0.0, 0.0, 0.0}, Point3{1e-8, 0.0, 0.0}};
+    CHECK_FALSE(segment.ContainsPoint(Point3{1e-8 + 1e-12, 0.0, 0.0}));
+    CHECK(segment.ContainsPoint(Point3{0.5e-8, 0.0, 0.0}));
+    CHECK_FALSE(segment.ContainsPoint(Point3{0.5e-8, 1.0, 0.0}));
+
+    const Segment3 unit{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}};
+    const auto beforeStart = unit.ParameterOf(Point3{-1e-10, 0.0, 0.0});
+    REQUIRE(beforeStart.has_value());
+    CHECK(*beforeStart == Approx(-1e-10));
+    CHECK(*beforeStart < 0.0);
+
+    const Segment3 point{Point3{1.0, 1.0, 1.0}, Point3{1.0, 1.0, 1.0}};
+    CHECK(point.ContainsPoint(Point3{1.0, 1.0, 1.0}));
+    CHECK(point.ParameterOf(Point3{1.0, 1.0, 1.0}) == 0.0);
+    CHECK_FALSE(point.ContainsPoint(Point3{1.0 + 1e-10, 1.0, 1.0}));
+}
+
 TEST_CASE("Segment3 along +Z converts to a Ray3 from the start", "[prim][segment3]") {
     const Segment3 segment{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 4.0}};
     const auto ray = segment.AsRay();

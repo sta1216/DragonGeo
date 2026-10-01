@@ -195,7 +195,7 @@ git commit -m "feat(prim): add the step-1 primitive shells"
   - `StartPoint`、`EndPoint`、`MidPoint`、`StartTangent`、`EndTangent`、`MidTangent` → `std::optional`。线段都有值；中点是 `PointAt(0.5)`。射线只有起点和起点切向，方向就是 `Direction`。直线六个都为空。
   - `TangentAt(Scalar t)`：参数在域内且方向非零时返回该单位方向；零长度线段为空。
   - `IsClosed()` 恒为 false。`Area()`、`Orientation()`、`Centroid()`、`Contains()` 恒为空或 false。
-  - `ContainsPoint(Point, ToleranceT<Scalar> = {})`：点到对象的距离不超过 `tolerance.Resolve(尺度)`。尺度是线段长度；长度为零时用 `1`。射线和直线的尺度用 `1`。
+  - `ContainsPoint(Point, ToleranceT<Scalar> = {})`：线段是点到所在直线的距离，且参数落在 `[0, 1]` 经 `tolerance.Resolve(1)` 扩张的窗口内；尺度是包围盒对角线（线段长度），零长度对角线为 0，容差是 `Resolve(0)`。射线仍是到射线的距离，直线是到直线的距离，二者尺度都是 `1`。
   - `ParameterOf(Point, ToleranceT<Scalar> = {})`：先找最近点，距离超过 `ContainsPoint` 的同一容差时为空。否则返回该参数。线段上多个参数只可能在零长度时发生，返回 `0`。
   - `Translated(Vector)`、`Rotated(...)`、`Mirrored(point, unitNormal)`、`Reversed()`、`Clone()` 返回同类型。`Rotated` 二维是 `(Point center, Scalar radians)`，三维是 `(Point origin, UnitVector axis, Scalar radians)`，内部调用 `RotationAbout`。`Mirrored` 调用已有 `Transform::Reflection`。
   - `Transformed(const Transform&)` → `std::optional<同类型>`。方向变成零向量或结果非有限时为空。射线和直线变换后要重新单位化方向；单位化失败则为空。

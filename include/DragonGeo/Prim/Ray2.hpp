@@ -11,7 +11,9 @@
 #include <DragonGeo/Linear/Point2.hpp>
 #include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
+#define DRAGONGEO_DETAIL_INCLUDING_RAY2
 #include <DragonGeo/Prim/Segment2.hpp>
+#undef DRAGONGEO_DETAIL_INCLUDING_RAY2
 
 namespace DragonGeo::Prim {
 

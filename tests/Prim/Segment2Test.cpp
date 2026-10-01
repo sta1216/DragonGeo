@@ -227,6 +227,24 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(axis.Reversed().B == Point2{0.0, 0.0});
 }
 
+TEST_CASE("Segment2 containment uses the supporting line and a parameter window", "[prim][segment2]") {
+    const Segment2 segment{Point2{0.0, 0.0}, Point2{1e-8, 0.0}};
+    CHECK_FALSE(segment.ContainsPoint(Point2{1e-8 + 1e-12, 0.0}));
+    CHECK(segment.ContainsPoint(Point2{0.5e-8, 0.0}));
+    CHECK_FALSE(segment.ContainsPoint(Point2{0.5e-8, 1.0}));
+
+    const Segment2 unit{Point2{0.0, 0.0}, Point2{1.0, 0.0}};
+    const auto beforeStart = unit.ParameterOf(Point2{-1e-10, 0.0});
+    REQUIRE(beforeStart.has_value());
+    CHECK(*beforeStart == Approx(-1e-10));
+    CHECK(*beforeStart < 0.0);
+
+    const Segment2 point{Point2{1.0, 1.0}, Point2{1.0, 1.0}};
+    CHECK(point.ContainsPoint(Point2{1.0, 1.0}));
+    CHECK(point.ParameterOf(Point2{1.0, 1.0}) == 0.0);
+    CHECK_FALSE(point.ContainsPoint(Point2{1.0 + 1e-10, 1.0}));
+}
+
 TEST_CASE("zero-length Segment2 AsRay and AsLine are empty", "[prim][segment2]") {
     const Segment2 segment{Point2{1.0, 2.0}, Point2{1.0, 2.0}};
     CHECK_FALSE(segment.AsRay().has_value());

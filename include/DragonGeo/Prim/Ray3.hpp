@@ -11,7 +11,9 @@
 #include <DragonGeo/Linear/Point3.hpp>
 #include <DragonGeo/Linear/Transform3.hpp>
 #include <DragonGeo/Linear/UnitVector3.hpp>
+#define DRAGONGEO_DETAIL_INCLUDING_RAY3
 #include <DragonGeo/Prim/Segment3.hpp>
+#undef DRAGONGEO_DETAIL_INCLUDING_RAY3
 
 namespace DragonGeo::Prim {
 

@@ -143,25 +143,30 @@ struct Segment3T {
         return false;
     }
 
-    /// 点到线段的距离不超过 `tolerance.Resolve(尺度)`。
-    /// 尺度是线段长度；长度为 0 或非有限时用 `1`。
+    /// 点到所在直线的距离不超过 `tolerance.Resolve(尺度)`，并且投影参数落在
+    /// `[-e, 1 + e]` 内，其中 `e = tolerance.Resolve(1)`。
+    /// 尺度是包围盒对角线，也就是线段长度。零长度线段的对角线是 0，
+    /// 容差因此是绝对项 `Resolve(0)`，距离是到 `A` 的距离。
     [[nodiscard]] bool ContainsPoint(
         Linear::Point3T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        const Scalar length = Length();
-        const Scalar scale = length > Scalar{0} && Core::IsFinite(length) ? length : Scalar{1};
-        return Distance(point) <= tolerance.Resolve(scale);
+        const Scalar expansion = tolerance.Resolve(Scalar{1});
+        const Scalar parameter = SupportingParameter(point);
+        if (!(parameter >= -expansion && parameter <= Scalar{1} + expansion)) {
+            return false;
+        }
+        return DistanceToSupportingLine(point) <= tolerance.Resolve(Length());
     }
 
-    /// 最近点的参数。距离不满足同一容差下的 `ContainsPoint` 时为空。
-    /// 零长度线段在点落在端点上时返回 `0`。
+    /// 未夹紧的直线投影参数。同一容差下 `ContainsPoint` 为假时为空。
+    /// 成功时可以略微落在 `[0, 1]` 之外。零长度线段返回 `0`。
     [[nodiscard]] std::optional<Scalar> ParameterOf(
         Linear::Point3T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         if (!ContainsPoint(point, tolerance)) {
             return std::nullopt;
         }
-        return ClosestParameter(point);
+        return SupportingParameter(point);
     }
 
     [[nodiscard]] constexpr Segment3T Translated(Linear::Vector3T<Scalar> vector) const noexcept {
@@ -235,6 +240,29 @@ private:
         return A + (B - A) * t;
     }
 
+    /// 直线上的未夹紧参数。零长度，或方向长度不是有限正数时返回 0。
+    [[nodiscard]] Scalar SupportingParameter(Linear::Point3T<Scalar> point) const noexcept {
+        const auto direction = Direction();
+        if (!direction.has_value()) {
+            return Scalar{0};
+        }
+        const Scalar length = Length();
+        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
+            return Scalar{0};
+        }
+        return Detail::ProjectParameter(A, *direction, point) / length;
+    }
+
+    /// 点到所在无限直线的距离。零长度时是到 `A` 的距离。
+    [[nodiscard]] Scalar DistanceToSupportingLine(Linear::Point3T<Scalar> point) const noexcept {
+        const auto direction = Direction();
+        const Scalar length = Length();
+        if (!direction.has_value() || !(length > Scalar{0}) || !Core::IsFinite(length)) {
+            return point.DistanceTo(A);
+        }
+        return point.DistanceTo(Locate(SupportingParameter(point)));
+    }
+
     /// 零长度，或方向长度不是有限正数时返回 0。否则把投影参数夹进 `[0, 1]`。
     [[nodiscard]] Scalar ClosestParameter(Linear::Point3T<Scalar> point) const noexcept {
         const auto direction = Direction();
@@ -260,3 +288,12 @@ using Segment3 = Segment3T<double>;
 using Segment3f = Segment3T<float>;
 
 } // namespace DragonGeo::Prim
+
+// 线段类型已经完整。只包含本头的翻译单元从这里拉进直线头，从而实例化
+// `AsRay` / `AsLine`。`Line3.hpp` 开头会再包含本头；包含守卫让那条路径
+// 跳过本段，定义仍然只在 `Line3.hpp` 末尾出现一次。
+// 射线头在自身类型完成之前就包含本头。那时不能把直线头拉进来，否则
+// `Line3.hpp` 末尾对射线的定义会撞上不完整类型。射线头在类型完成后再包含直线头。
+#ifndef DRAGONGEO_DETAIL_INCLUDING_RAY3
+#include <DragonGeo/Prim/Line3.hpp>
+#endif

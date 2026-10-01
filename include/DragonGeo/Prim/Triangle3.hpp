@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <concepts>
 #include <optional>
 #include <span>
@@ -7,12 +8,17 @@
 #include <variant>
 
 #include <DragonGeo/Core/Numeric.hpp>
+#include <DragonGeo/Core/Tolerance.hpp>
 #include <DragonGeo/Detail/CurveParameter.hpp>
+#include <DragonGeo/Linear/Box3.hpp>
 #include <DragonGeo/Linear/Interval.hpp>
 #include <DragonGeo/Linear/Point3.hpp>
+#include <DragonGeo/Linear/Transform3.hpp>
+#include <DragonGeo/Linear/UnitVector3.hpp>
 #include <DragonGeo/Linear/Vector3.hpp>
 #include <DragonGeo/Predicates/Predicates.hpp>
 #include <DragonGeo/Prim/Polyline3.hpp>
+#include <DragonGeo/Prim/Segment3.hpp>
 #include <DragonGeo/Prim/Triangle2.hpp>
 
 namespace DragonGeo::Prim {
@@ -134,6 +140,171 @@ struct Triangle3T {
         return projected.Contains(Project(point, dropped));
     }
 
+    /// 闭合曲线的两端都是接缝上的顶点 `A`。
+    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> StartPoint() const noexcept {
+        return A;
+    }
+
+    /// 闭合曲线的两端都是接缝上的顶点 `A`。
+    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> EndPoint() const noexcept {
+        return A;
+    }
+
+    /// `A→B` 的单位方向。这条边没有有限正长度时为空。
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> StartTangent() const noexcept {
+        return UnitEdge(A, B);
+    }
+
+    /// `C→A` 的单位方向。这条边没有有限正长度时为空。
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> EndTangent() const noexcept {
+        return UnitEdge(C, A);
+    }
+
+    /// `B→C` 的单位方向。这条边没有有限正长度时为空。
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> MidTangent() const noexcept {
+        return UnitEdge(B, C);
+    }
+
+    /// `t` 不在 `[0, 3]`、非有限，或所在边没有有限正长度时为空。
+    /// `t == 3` 用边 `C→A`。其余参数用 `floor(t)`：`0` 是 `A→B`，`1` 是 `B→C`，`2` 是 `C→A`。
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> TangentAt(Scalar t) const noexcept {
+        if (!Detail::IsAcceptedParameter(t, Domain())) {
+            return std::nullopt;
+        }
+        const Linear::Point3T<Scalar> vertices[]{A, B, C, A};
+        const int edge = EdgeIndex(t);
+        return UnitEdge(vertices[edge], vertices[edge + 1]);
+    }
+
+    [[nodiscard]] constexpr bool IsClosed() const noexcept {
+        return true;
+    }
+
+    /// 周长 `|AB| + |BC| + |CA|`，非负。
+    [[nodiscard]] Scalar Length() const noexcept {
+        return A.DistanceTo(B) + B.DistanceTo(C) + C.DistanceTo(A);
+    }
+
+    /// 填充面积，即 `SignedArea` 的绝对值，含 0。
+    [[nodiscard]] std::optional<Scalar> Area() const noexcept {
+        return Core::AbsoluteValue(SignedArea());
+    }
+
+    /// 逆时针 `+1`，顺时针 `-1`，`SignedArea` 恰好为 0 时是 `0`。
+    /// 符号与 `SignedArea` 相同：落在 xy 平面上时逆时针为正。
+    [[nodiscard]] std::optional<int> Orientation() const noexcept {
+        const Scalar signedArea = SignedArea();
+        if (signedArea > Scalar{0}) {
+            return 1;
+        }
+        if (signedArea < Scalar{0}) {
+            return -1;
+        }
+        return 0;
+    }
+
+    /// 三个顶点的轴对齐包围盒。
+    [[nodiscard]] Linear::Box3T<Scalar> Bounds() const noexcept {
+        const Linear::Point3T<Scalar> vertices[]{A, B, C};
+        return Linear::Box3T<Scalar>::FromPoints(std::span<const Linear::Point3T<Scalar>>{vertices});
+    }
+
+    /// `(A + B + C) / 3`。`SignedArea` 为 0 时为空。
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> Centroid() const noexcept {
+        if (SignedArea() == Scalar{0}) {
+            return std::nullopt;
+        }
+        return Linear::Point3T<Scalar>{
+            (A.X + B.X + C.X) / Scalar{3},
+            (A.Y + B.Y + C.Y) / Scalar{3},
+            (A.Z + B.Z + C.Z) / Scalar{3},
+        };
+    }
+
+    /// 点到边界（三条边构成的曲线）的距离不超过 `tolerance.Resolve(尺度)`。
+    /// 严格落在内部、离每条边都比容差更远的点为假。
+    /// 尺度是包围盒对角线；对角线不是大于 0 的有限数时用 `1`。
+    [[nodiscard]] bool ContainsPoint(
+        Linear::Point3T<Scalar> point,
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+        const auto boundary = ClosestBoundary(point);
+        return std::sqrt(boundary.DistanceSquared) <= tolerance.Resolve(BoundaryScale());
+    }
+
+    /// 边界上最近点的参数，落在 `[0, 3]`。`ContainsPoint` 为假时为空。
+    /// 接缝上的点返回 `0`，不返回 `3`。
+    [[nodiscard]] std::optional<Scalar> ParameterOf(
+        Linear::Point3T<Scalar> point,
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+        if (!ContainsPoint(point, tolerance)) {
+            return std::nullopt;
+        }
+        return ClosestBoundary(point).Parameter;
+    }
+
+    [[nodiscard]] constexpr Triangle3T Translated(Linear::Vector3T<Scalar> vector) const noexcept {
+        return {A + vector, B + vector, C + vector};
+    }
+
+    /// 绕过 `origin`、方向为 `axis` 的轴旋转 `radians` 弧度。
+    [[nodiscard]] Triangle3T Rotated(
+        Linear::Point3T<Scalar> origin,
+        Linear::UnitVector3T<Scalar> axis,
+        Scalar radians) const noexcept {
+        const Linear::Transform3T<Scalar> rotation =
+            Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
+        return {rotation.TransformPoint(A), rotation.TransformPoint(B), rotation.TransformPoint(C)};
+    }
+
+    /// 关于过 `point`、法向为 `unitNormal` 的平面反射。
+    [[nodiscard]] constexpr Triangle3T Mirrored(
+        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) const noexcept {
+        const Linear::Transform3T<Scalar> mirror =
+            Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
+        return {mirror.TransformPoint(A), mirror.TransformPoint(B), mirror.TransformPoint(C)};
+    }
+
+    /// 变成 `{A, C, B}`。接缝仍是 `A`，`Orientation` 变号。
+    [[nodiscard]] constexpr Triangle3T Reversed() const noexcept {
+        return {A, C, B};
+    }
+
+    [[nodiscard]] constexpr Triangle3T Clone() const noexcept {
+        return *this;
+    }
+
+    /// 变换三个顶点。任一结果分量非有限时为空。零面积仍然是成功的三角形。
+    [[nodiscard]] std::optional<Triangle3T> Transformed(
+        const Linear::Transform3T<Scalar>& transform) const noexcept {
+        const Linear::Point3T<Scalar> movedA = transform.TransformPoint(A);
+        const Linear::Point3T<Scalar> movedB = transform.TransformPoint(B);
+        const Linear::Point3T<Scalar> movedC = transform.TransformPoint(C);
+        if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)
+            || !Detail::CoordinatesAreFinite(movedC)) {
+            return std::nullopt;
+        }
+        return Triangle3T{movedA, movedB, movedC};
+    }
+
+    /// 到填充三角形（面或边界）的平方距离。面上的点是它到平面的距离的平方。
+    [[nodiscard]] Scalar DistanceSquared(Linear::Point3T<Scalar> point) const noexcept {
+        return (point - ClosestPoint(point)).LengthSquared();
+    }
+
+    /// 到填充三角形的距离，即 `DistanceSquared` 的平方根。
+    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept {
+        return std::sqrt(DistanceSquared(point));
+    }
+
+    /// 填充三角形上的最近点。投影落在面内时，结果是 `A`、`B`、`C` 的仿射组合；
+    /// 否则取三条边上的最近点。
+    [[nodiscard]] Linear::Point3T<Scalar> ClosestPoint(Linear::Point3T<Scalar> point) const noexcept {
+        if (const auto onFace = FacePoint(point)) {
+            return *onFace;
+        }
+        return ClosestBoundary(point).Point;
+    }
+
     /// 区间必须落在 `[0, 3]` 内且长度大于 0，否则为空。端点非有限或区间倒置同样为空。
     /// 整段落在同一条边上时返回 `Segment3`，跨过顶点时返回 `Polyline3`。
     [[nodiscard]] std::optional<std::variant<Segment3T<Scalar>, Polyline3T<Scalar>>> Subcurve(
@@ -181,6 +352,105 @@ private:
         const int index = edge >= 3 ? 2 : edge;
         const Scalar local = t - static_cast<Scalar>(index);
         return vertices[index] + (vertices[index + 1] - vertices[index]) * local;
+    }
+
+    struct BoundaryLocation {
+        Scalar DistanceSquared{};
+        Scalar Parameter{};
+        Linear::Point3T<Scalar> Point{};
+    };
+
+    /// `t == 3` 落在 `C→A`。其余用截断后的边号。
+    [[nodiscard]] static int EdgeIndex(Scalar t) noexcept {
+        if (t == Scalar{3}) {
+            return 2;
+        }
+        const int edge = static_cast<int>(t);
+        return edge >= 3 ? 2 : edge;
+    }
+
+    /// 边没有有限正长度，或方向无法归一化时为空。
+    [[nodiscard]] static std::optional<Linear::UnitVector3T<Scalar>> UnitEdge(
+        Linear::Point3T<Scalar> from, Linear::Point3T<Scalar> to) noexcept {
+        const Scalar length = from.DistanceTo(to);
+        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
+            return std::nullopt;
+        }
+        return (to - from).Normalized();
+    }
+
+    /// 包围盒对角线。不是大于 0 的有限数时用 `1`。
+    [[nodiscard]] Scalar BoundaryScale() const noexcept {
+        const Scalar diagonal = Bounds().Extent().Length();
+        if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
+            return diagonal;
+        }
+        return Scalar{1};
+    }
+
+    /// 投影落在面内（含边界）时，返回 `A`、`B`、`C` 的仿射组合。
+    /// 不把除法重建的点再交给 `Contains`：那次除法会让点离开平面。
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> FacePoint(
+        Linear::Point3T<Scalar> point) const noexcept {
+        const Linear::Vector3T<Scalar> ab = B - A;
+        const Linear::Vector3T<Scalar> ac = C - A;
+        const Linear::Vector3T<Scalar> normal = ab.Cross(ac);
+        const Scalar normalLengthSquared = normal.LengthSquared();
+        if (!(normalLengthSquared > Scalar{0}) || !Core::IsFinite(normalLengthSquared)) {
+            return std::nullopt;
+        }
+        const Linear::Vector3T<Scalar> ap = point - A;
+        const Scalar alongB = ap.Cross(ac).Dot(normal) / normalLengthSquared;
+        const Scalar alongC = ab.Cross(ap).Dot(normal) / normalLengthSquared;
+        const Scalar alongA = Scalar{1} - alongB - alongC;
+        if (!Core::IsFinite(alongA) || !Core::IsFinite(alongB) || !Core::IsFinite(alongC)
+            || alongA < Scalar{0} || alongB < Scalar{0} || alongC < Scalar{0}) {
+            return std::nullopt;
+        }
+        return A + ab * alongB + ac * alongC;
+    }
+
+    /// 三条边上的最近点。距离相同取较小的参数。参数 `3` 折回接缝 `0`。
+    [[nodiscard]] BoundaryLocation ClosestBoundary(Linear::Point3T<Scalar> point) const noexcept {
+        const Linear::Point3T<Scalar> vertices[]{A, B, C, A};
+        BoundaryLocation best{};
+        for (int edge = 0; edge < 3; ++edge) {
+            const Segment3T<Scalar> segment{vertices[edge], vertices[edge + 1]};
+            const Linear::Point3T<Scalar> candidate = segment.ClosestPoint(point);
+            const Scalar distanceSquared = (point - candidate).LengthSquared();
+            const Scalar parameter =
+                BoundaryParameter(edge, vertices[edge], vertices[edge + 1], candidate);
+            if (edge == 0 || distanceSquared < best.DistanceSquared
+                || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
+                best = BoundaryLocation{distanceSquared, parameter, candidate};
+            }
+        }
+        return best;
+    }
+
+    [[nodiscard]] static Scalar BoundaryParameter(
+        int edge,
+        Linear::Point3T<Scalar> from,
+        Linear::Point3T<Scalar> to,
+        Linear::Point3T<Scalar> closest) noexcept {
+        Scalar parameter = static_cast<Scalar>(edge);
+        const Scalar length = from.DistanceTo(to);
+        if (length > Scalar{0} && Core::IsFinite(length)) {
+            const auto direction = (to - from).Normalized();
+            if (direction.has_value()) {
+                Scalar local = Detail::ProjectParameter(from, *direction, closest) / length;
+                if (local < Scalar{0}) {
+                    local = Scalar{0};
+                } else if (local > Scalar{1}) {
+                    local = Scalar{1};
+                }
+                parameter += local;
+            }
+        }
+        if (parameter == Scalar{3}) {
+            parameter = Scalar{0};
+        }
+        return parameter;
     }
 
     /// 投影时丢掉的轴：0 是 X，1 是 Y，2 是 Z。只从 `double` 的 `Contains` 调用。
