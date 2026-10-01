@@ -78,3 +78,24 @@ TEST_CASE("Plane signed distance, distance, closest point, and flipped normal", 
     STATIC_REQUIRE(noexcept(plane.ClosestPoint(Point3{})));
     STATIC_REQUIRE(noexcept(plane.Flipped()));
 }
+
+TEST_CASE("Plane project, mirror, contains, and offset", "[prim][plane]") {
+    const auto normal = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
+    Plane plane{Point3{0.0, 0.0, 0.0}, normal};
+
+    CHECK(plane.Project(Vector3{1.0, 2.0, 3.0}) == Vector3{1.0, 2.0, 0.0});
+    CHECK_FALSE(plane.Project(UnitVector3::ZAxis).has_value());
+
+    CHECK(plane.Mirror(Point3{0.0, 0.0, 2.0}) == Point3{0.0, 0.0, -2.0});
+    CHECK(plane.Mirror(Vector3{0.0, 0.0, 2.0}) == Vector3{0.0, 0.0, -2.0});
+
+    CHECK_FALSE(plane.Contains(Point3{0.0, 0.0, 2.0}));
+    CHECK(plane.Contains(plane.Origin));
+
+    const Plane beforeOffset = plane;
+    plane.Offset(2.0);
+    CHECK(plane.Origin == Point3{0.0, 0.0, 2.0});
+    CHECK(plane.Normal == normal);
+    CHECK(beforeOffset.Origin == Point3{0.0, 0.0, 0.0});
+    CHECK(beforeOffset.Normal == normal);
+}

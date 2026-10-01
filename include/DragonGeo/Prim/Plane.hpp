@@ -1,6 +1,9 @@
 #pragma once
 
+#include <optional>
+
 #include <DragonGeo/Core/Numeric.hpp>
+#include <DragonGeo/Core/Tolerance.hpp>
 #include <DragonGeo/Linear/Point3.hpp>
 #include <DragonGeo/Linear/UnitVector3.hpp>
 
@@ -11,6 +14,9 @@ namespace DragonGeo::Prim {
 /// `SignedDistance` 是 `Normal · (Point - Origin)`，法线一侧为正，平面上为 0。
 /// `Distance` 是它的绝对值。`ClosestPoint` 是垂足；点已在平面上时就是该点。
 /// `Flipped` 取反法线、保持原点，得到的平面与原平面表示不相等。
+/// `Project` 把向量投到平面内；单位向量版本在投影退化时为空。
+/// `Mirror` 关于平面反射点或方向向量，不修改平面本身。
+/// `Contains` 在带符号距离不超过容差时为真。`Offset` 沿法线平移原点。
 /// 非有限坐标可以存入；`IsValid` 只检查分量是否有限，不检查法线是否已归一化。
 template <typename Scalar>
 struct PlaneT {
@@ -48,6 +54,42 @@ struct PlaneT {
     /// 法线取反，原点不变。结果与原平面表示不相等。
     [[nodiscard]] constexpr PlaneT Flipped() const noexcept {
         return PlaneT{Origin, -Normal};
+    }
+
+    /// 把向量投到平面内：`v - Normal * (Normal · v)`。
+    [[nodiscard]] constexpr Linear::Vector3T<Scalar> Project(
+        Linear::Vector3T<Scalar> vector) const noexcept {
+        return vector - Normal * Normal.AsVector().Dot(vector);
+    }
+
+    /// 把单位方向投到平面内再归一化。与法线平行时投影为零，返回空。
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Project(
+        Linear::UnitVector3T<Scalar> direction) const noexcept {
+        return Project(direction.AsVector()).Normalized();
+    }
+
+    /// 关于本平面反射点：`point - 2 * SignedDistance(point) * Normal`。
+    [[nodiscard]] constexpr Linear::Point3T<Scalar> Mirror(
+        Linear::Point3T<Scalar> point) const noexcept {
+        return point - Normal * (Scalar{2} * SignedDistance(point));
+    }
+
+    /// 关于本平面反射方向：`v - 2 * (Normal · v) * Normal`。
+    [[nodiscard]] constexpr Linear::Vector3T<Scalar> Mirror(
+        Linear::Vector3T<Scalar> vector) const noexcept {
+        return vector - Normal * (Scalar{2} * Normal.AsVector().Dot(vector));
+    }
+
+    /// 带符号距离的绝对值不超过 `tolerance.Resolve(1)`。
+    [[nodiscard]] constexpr bool Contains(
+        Linear::Point3T<Scalar> point,
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
+        return Core::AbsoluteValue(SignedDistance(point)) <= tolerance.Resolve(Scalar{1});
+    }
+
+    /// 沿法线平移原点 `distance`：`Origin += distance * Normal`。
+    constexpr void Offset(Scalar distance) noexcept {
+        Origin = Origin + Normal * distance;
     }
 };
 
