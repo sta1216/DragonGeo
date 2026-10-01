@@ -14,10 +14,10 @@ namespace DragonGeo::Linear {
 
 /// 三维仿射变换，内部为 4×4 齐次矩阵（行主序，列向量约定 `M * v`）。平移量位于第 4 列。
 ///
-/// 第 4 行假定为 (0,0,0,1)，且 TransformPoint / operator* 都不读取它 —— 直接改写 Matrix 而破坏这个前提时，两者的结果不再被保证。类型不做这项检查。
+/// 第 4 行假定为 (0,0,0,1)，且 TransformPoint、TransformVector 与 operator* 都不读取它。直接改写 Matrix 而破坏这个前提时，结果不再被保证。类型不做这项检查。
 ///
-/// 两种「施加」语义不要混用 —— operator*(Point3T)    施加完整仿射变换，输入按**位置**解读 operator*(Vector3T)   只施加线性部分，输入按**方向**解读（平移不生效）
-/// TransformPoint(Point3T) 与 operator*(Point3T) 等价，名字更直白。不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让 `a * b.Apply(v)` 静默丢掉 a 的平移。
+/// 两种「施加」语义不要混用。`TransformPoint` / `operator*(Point3T)` 施加完整仿射，输入按位置解读。`TransformVector` / `operator*(Vector3T)` 只施加线性部分，输入按方向解读，平移不生效。
+/// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让 `a * b.Apply(v)` 静默丢掉 a 的平移。
 template <typename Scalar> struct Transform3T {
     using ScalarType = Scalar;
 
@@ -157,6 +157,18 @@ template <typename Scalar> struct Transform3T {
         };
     }
 
+    /// 只施加线性部分，输入按**方向**解读。平移不生效。
+    ///
+    /// 与 operator*(Vector3T) 等价，名字更直白。
+    [[nodiscard]] constexpr Vector3T<Scalar> TransformVector(Vector3T<Scalar> direction) const noexcept {
+        const MatrixT<Scalar, 4>& m = Matrix;
+        return Vector3T<Scalar>{
+            m.Data[0][0] * direction.X + m.Data[0][1] * direction.Y + m.Data[0][2] * direction.Z,
+            m.Data[1][0] * direction.X + m.Data[1][1] * direction.Y + m.Data[1][2] * direction.Z,
+            m.Data[2][0] * direction.X + m.Data[2][1] * direction.Y + m.Data[2][2] * direction.Z,
+        };
+    }
+
     /// 逆变换。线性部分奇异时返回 std::nullopt。
     [[nodiscard]] std::optional<Transform3T<Scalar>> Inverse(Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const auto inverseMatrix = Matrix.Inverse(tolerance);
@@ -172,14 +184,9 @@ using Transform3f = Transform3T<float>;
 
 // ---- 运算符 ----
 
-/// 只施加线性部分，输入按**方向**解读（平移不生效）。
+/// 只施加线性部分，输入按**方向**解读（平移不生效）。与 TransformVector 等价。
 template <typename Scalar> [[nodiscard]] constexpr Vector3T<Scalar> operator*(const Transform3T<Scalar>& t, Vector3T<Scalar> direction) noexcept {
-    const MatrixT<Scalar, 4>& m = t.Matrix;
-    return Vector3T<Scalar>{
-        m.Data[0][0] * direction.X + m.Data[0][1] * direction.Y + m.Data[0][2] * direction.Z,
-        m.Data[1][0] * direction.X + m.Data[1][1] * direction.Y + m.Data[1][2] * direction.Z,
-        m.Data[2][0] * direction.X + m.Data[2][1] * direction.Y + m.Data[2][2] * direction.Z,
-    };
+    return t.TransformVector(direction);
 }
 
 /// 复合。`a * b` 表示先施加 b 再施加 a。

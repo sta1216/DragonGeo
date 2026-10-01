@@ -14,8 +14,8 @@ namespace DragonGeo::Linear {
 
 /// 二维仿射变换，内部为 3×3 齐次矩阵（行主序）。
 ///
-/// 两种「施加」语义不要混用 —— operator*(Point2T)    施加完整仿射变换，输入按**位置**解读 operator*(Vector2T)   只施加线性部分，输入按**方向**解读（平移不生效）
-/// TransformPoint(Point2T) 与 operator*(Point2T) 等价，名字更直白。不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让 `a * b.Apply(v)` 静默丢掉 a 的平移。三维同样不提供。
+/// 两种「施加」语义不要混用。`TransformPoint` / `operator*(Point2T)` 施加完整仿射，输入按位置解读。`TransformVector` / `operator*(Vector2T)` 只施加线性部分，输入按方向解读，平移不生效。
+/// 不提供把 Vector 当位置施加的 Apply：它与 TransformPoint 重复，并且会让 `a * b.Apply(v)` 静默丢掉 a 的平移。三维同样不提供。
 template <typename Scalar> struct Transform2T {
     using ScalarType = Scalar;
 
@@ -107,6 +107,14 @@ template <typename Scalar> struct Transform2T {
         };
     }
 
+    /// 只施加线性部分，输入按**方向**解读。平移不生效。
+    ///
+    /// 与 operator*(Vector2T) 等价，名字更直白。
+    [[nodiscard]] constexpr Vector2T<Scalar> TransformVector(Vector2T<Scalar> direction) const noexcept {
+        const MatrixT<Scalar, 3>& m = Matrix;
+        return Vector2T<Scalar>{m.Data[0][0] * direction.X + m.Data[0][1] * direction.Y, m.Data[1][0] * direction.X + m.Data[1][1] * direction.Y};
+    }
+
     /// 逆变换。线性部分奇异时返回 std::nullopt。
     [[nodiscard]] std::optional<Transform2T<Scalar>> Inverse(Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const auto inverseMatrix = Matrix.Inverse(tolerance);
@@ -122,10 +130,9 @@ using Transform2f = Transform2T<float>;
 
 // ---- 运算符 ----
 
-/// 只施加线性部分，输入按**方向**解读。
+/// 只施加线性部分，输入按**方向**解读。与 TransformVector 等价。
 template <typename Scalar> [[nodiscard]] constexpr Vector2T<Scalar> operator*(const Transform2T<Scalar>& t, Vector2T<Scalar> direction) noexcept {
-    const MatrixT<Scalar, 3>& m = t.Matrix;
-    return Vector2T<Scalar>{m.Data[0][0] * direction.X + m.Data[0][1] * direction.Y, m.Data[1][0] * direction.X + m.Data[1][1] * direction.Y};
+    return t.TransformVector(direction);
 }
 
 /// 复合。`a * b` 表示先施加 b 再施加 a。

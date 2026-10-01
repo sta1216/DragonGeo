@@ -1,9 +1,7 @@
 #include <DragonGeo/Prim/Polyline.hpp>
 
 #include <DragonGeo/Detail/CurveContainment.hpp>
-
-#include <algorithm>
-#include <cmath>
+#include <DragonGeo/Detail/CurveShape.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -64,11 +62,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> 
 }
 
 template <typename Scalar> [[nodiscard]] Scalar PolylineT<Scalar>::Length() const noexcept {
-    Scalar length{0};
-    for (std::size_t index = 0; index < SegmentCount(); ++index) {
-        length += m_points[index].DistanceTo(m_points[index + 1]);
-    }
-    return length;
+    return Detail::ChainLength(m_points.data(), SegmentCount());
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Scalar> PolylineT<Scalar>::Area() const noexcept {
@@ -82,14 +76,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Winding> PolylineT<Scalar
     if (!IsClosed()) {
         return std::nullopt;
     }
-    const Scalar sum = SignedAreaSum();
-    if (sum > Scalar{0}) {
-        return Winding::CounterClockwise;
-    }
-    if (sum < Scalar{0}) {
-        return Winding::Clockwise;
-    }
-    return Winding::Degenerate;
+    return Detail::WindingFromSign(SignedAreaSum());
 }
 
 template <typename Scalar> [[nodiscard]] Linear::Box2T<Scalar> PolylineT<Scalar>::Box() const noexcept {
@@ -100,13 +87,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> 
     if (!IsClosed() || SignedAreaSum() == Scalar{0}) {
         return std::nullopt;
     }
-    const std::size_t count = m_points.size() - 1;
-    Linear::Vector2T<Scalar> sum{};
-    for (std::size_t index = 0; index < count; ++index) {
-        sum = sum + Linear::Vector2T<Scalar>{m_points[index].X, m_points[index].Y};
-    }
-    const Scalar divisor = static_cast<Scalar>(count);
-    return Linear::Point2T<Scalar>{sum.X / divisor, sum.Y / divisor};
+    return Detail::AverageOf(m_points.data(), m_points.size() - 1);
 }
 
 template <typename Scalar> template <typename S> requires std::same_as<Scalar, double> && std::same_as<S, double>
@@ -159,31 +140,21 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scal
 }
 
 template <typename Scalar> void PolylineT<Scalar>::Translate(Linear::Vector2T<Scalar> vector) noexcept {
-    for (Linear::Point2T<Scalar>& point : m_points) {
-        point = point + vector;
-    }
+    Detail::TranslatePoints(m_points.data(), m_points.size(), vector);
 }
 
 template <typename Scalar> void PolylineT<Scalar>::Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
     const Linear::Transform2T<Scalar> rotation = Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-    for (Linear::Point2T<Scalar>& point : m_points) {
-        point = rotation.TransformPoint(point);
-    }
+    Detail::ApplyTransform(m_points.data(), m_points.size(), rotation);
 }
 
 template <typename Scalar> void PolylineT<Scalar>::Mirror(Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
     const Linear::Transform2T<Scalar> mirror = Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-    for (Linear::Point2T<Scalar>& vertex : m_points) {
-        vertex = mirror.TransformPoint(vertex);
-    }
+    Detail::ApplyTransform(m_points.data(), m_points.size(), mirror);
 }
 
 template <typename Scalar> void PolylineT<Scalar>::Reverse() noexcept {
-    if (IsClosed()) {
-        std::reverse(m_points.begin() + 1, m_points.end() - 1);
-        return;
-    }
-    std::reverse(m_points.begin(), m_points.end());
+    Detail::ReverseChain(m_points.data(), m_points.size(), IsClosed());
 }
 
 template <typename Scalar> [[nodiscard]] PolylineT<Scalar> PolylineT<Scalar>::Clone() const {
@@ -191,45 +162,13 @@ template <typename Scalar> [[nodiscard]] PolylineT<Scalar> PolylineT<Scalar>::Cl
 }
 
 template <typename Scalar> [[nodiscard]] bool PolylineT<Scalar>::Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
-    for (const Linear::Point2T<Scalar>& point : m_points) {
-        if (!Detail::CoordinatesAreFinite(transform.TransformPoint(point))) {
-            return false;
-        }
-    }
-    for (Linear::Point2T<Scalar>& point : m_points) {
-        point = transform.TransformPoint(point);
-    }
-    return true;
+    return Detail::TryTransformPoints(m_points.data(), m_points.size(), transform);
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<std::variant<Segment2T<Scalar>, PolylineT<Scalar>>>
 PolylineT<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const {
-    using Curve = std::variant<Segment2T<Scalar>, PolylineT<Scalar>>;
-    if (!Detail::IsFiniteSubinterval(interval, Domain())) {
-        return std::nullopt;
-    }
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Scalar edgeMin = static_cast<Scalar>(edge);
-        const Scalar edgeMax = edgeMin + Scalar{1};
-        if (interval.Min >= edgeMin && interval.Max <= edgeMax) {
-            return Curve{Segment2T<Scalar>{Locate(interval.Min), Locate(interval.Max)}};
-        }
-    }
-
-    std::vector<Linear::Point2T<Scalar>> corners;
-    corners.push_back(Locate(interval.Min));
-    for (std::size_t vertex = 1; vertex < SegmentCount(); ++vertex) {
-        const Scalar parameter = static_cast<Scalar>(vertex);
-        if (parameter > interval.Min && parameter < interval.Max) {
-            corners.push_back(m_points[vertex]);
-        }
-    }
-    corners.push_back(Locate(interval.Max));
-    auto polyline = FromPoints(corners);
-    if (!polyline.has_value()) {
-        return std::nullopt;
-    }
-    return Curve{std::move(*polyline)};
+    const auto locate = [this](Scalar parameter) noexcept { return Locate(parameter); };
+    return Detail::ChainSubcurve<Segment2T<Scalar>, PolylineT<Scalar>>(SegmentCount(), interval, Domain(), m_points.data(), locate);
 }
 
 template <typename Scalar> PolylineT<Scalar>::PolylineT(std::vector<Linear::Point2T<Scalar>> points): m_points(std::move(points)) {}
@@ -245,19 +184,11 @@ template <typename Scalar> [[nodiscard]] Scalar PolylineT<Scalar>::SignedAreaSum
 }
 
 template <typename Scalar> [[nodiscard]] Linear::Point2T<Scalar> PolylineT<Scalar>::Locate(Scalar t) const noexcept {
-    if (t == static_cast<Scalar>(SegmentCount())) {
-        return m_points.back();
-    }
-    const auto index = static_cast<std::size_t>(t);
-    const Scalar local = t - static_cast<Scalar>(index);
-    return m_points[index] + (m_points[index + 1] - m_points[index]) * local;
+    return Detail::LocateOnChain(m_points.data(), SegmentCount(), t);
 }
 
 template <typename Scalar> [[nodiscard]] std::size_t PolylineT<Scalar>::EdgeIndex(Scalar t) const noexcept {
-    if (t == static_cast<Scalar>(SegmentCount())) {
-        return SegmentCount() - 1;
-    }
-    return static_cast<std::size_t>(t);
+    return Detail::EdgeIndexOnChain(SegmentCount(), t);
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> PolylineT<Scalar>::UnitEdge(

@@ -108,8 +108,9 @@ TEST_CASE("a 2D transform carries points, not just vectors", "[linear][transform
     CHECK(t * p == Point2{11.0, 2.0});
     CHECK(t.TransformPoint(p) == Point2{11.0, 2.0});
 
-    // 方向不被平移 —— 这是 operator* 与 TransformPoint 的分工
+    // 方向不被平移 —— 这是 operator* / TransformVector 与 TransformPoint 的分工
     CHECK(t * Vector2{1.0, 2.0} == Vector2{1.0, 2.0});
+    CHECK(t.TransformVector(Vector2{1.0, 2.0}) == Vector2{1.0, 2.0});
 }
 
 TEST_CASE("2D TransformPoint is the explicit spelling of carrying a position", "[linear][transform2]") {
@@ -126,6 +127,20 @@ TEST_CASE("2D TransformPoint is the explicit spelling of carrying a position", "
 
     // 同一个矩阵、同一组数字：点吃平移、方向不吃，两者之差恰是平移量。
     CHECK((t * Point2{1.0, 2.0}) - (t * Vector2{1.0, 2.0}) == Point2{1.0, 10.0});
+}
+
+TEST_CASE("2D TransformVector is the explicit spelling of carrying a direction", "[linear][transform2]") {
+    const Transform2 t = Transform2::Translation(Vector2{1.0, 10.0}) * Transform2::Scaling(Vector2{2.0, 3.0});
+    const Vector2 direction{1.0, 2.0};
+
+    STATIC_REQUIRE(std::is_same_v<decltype(t.TransformVector(direction)), Vector2>);
+    CHECK(t.TransformVector(direction) == Vector2{2.0, 6.0});
+    CHECK(t * direction == t.TransformVector(direction));
+    CHECK(t.TransformPoint(Point2{1.0, 2.0}) - t.TransformVector(direction) == Point2{1.0, 10.0});
+
+    constexpr Transform2 translation = Transform2::Translation(Vector2{10.0, 0.0});
+    STATIC_REQUIRE(translation.TransformVector(Vector2{1.0, 2.0}) == Vector2{1.0, 2.0});
+    STATIC_REQUIRE(noexcept(translation.TransformVector(Vector2{1.0, 2.0})));
 }
 
 TEST_CASE("a 2D rotation carries points off the diagonal", "[linear][transform2]") {

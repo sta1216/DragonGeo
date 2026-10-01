@@ -1,6 +1,7 @@
 #include <DragonGeo/Prim/Polyline3.hpp>
 
 #include <DragonGeo/Detail/CurveContainment.hpp>
+#include <DragonGeo/Detail/CurveShape.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -61,11 +62,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::Point3T<Scalar>> 
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Polyline3T<Scalar>::Length() const noexcept {
-    Scalar length{0};
-    for (std::size_t index = 0; index < SegmentCount(); ++index) {
-        length += m_points[index].DistanceTo(m_points[index + 1]);
-    }
-    return length;
+    return Detail::ChainLength(m_points.data(), SegmentCount());
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Scalar> Polyline3T<Scalar>::Area() const noexcept {
@@ -83,17 +80,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Winding> Polyline3T<Scala
     if (sum.LengthSquared() == Scalar{0}) {
         return Winding::Degenerate;
     }
-    Scalar component = sum.X;
-    Scalar magnitude = Core::AbsoluteValue(sum.X);
-    const Scalar absY = Core::AbsoluteValue(sum.Y);
-    if (absY > magnitude) {
-        component = sum.Y;
-        magnitude = absY;
-    }
-    const Scalar absZ = Core::AbsoluteValue(sum.Z);
-    if (absZ > magnitude) {
-        component = sum.Z;
-    }
+    const Scalar component = Detail::DominantComponent(sum.X, sum.Y, sum.Z);
     if (component > Scalar{0}) {
         return Winding::CounterClockwise;
     }
@@ -108,13 +95,7 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::Point3T<Scalar>> 
     if (!IsClosed() || VectorAreaSum().LengthSquared() == Scalar{0}) {
         return std::nullopt;
     }
-    const std::size_t count = m_points.size() - 1;
-    Linear::Vector3T<Scalar> sum{};
-    for (std::size_t index = 0; index < count; ++index) {
-        sum = sum + Position(m_points[index]);
-    }
-    const Scalar divisor = static_cast<Scalar>(count);
-    return Linear::Point3T<Scalar>{sum.X / divisor, sum.Y / divisor, sum.Z / divisor};
+    return Detail::AverageOf(m_points.data(), m_points.size() - 1);
 }
 
 template <typename Scalar> template <typename S> requires std::same_as<Scalar, double> && std::same_as<S, double>
@@ -182,13 +163,13 @@ template <typename Scalar> template <typename S> requires std::same_as<Scalar, d
 
 template <typename Scalar>
 [[nodiscard]] bool Polyline3T<Scalar>::ContainsPoint(Linear::Point3T<Scalar> point, Core::ToleranceT<Scalar> tolerance) const noexcept {
-    return std::sqrt(ClosestBoundary(point).DistanceSquared) <= tolerance.Resolve(BoundaryScale());
+    return Detail::DistanceWithin(ClosestBoundary(point).DistanceSquared, tolerance.Resolve(BoundaryScale()));
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Scalar> Polyline3T<Scalar>::ParameterOf(Linear::Point3T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance) const noexcept {
     const auto boundary = ClosestBoundary(point);
-    if (!(std::sqrt(boundary.DistanceSquared) <= tolerance.Resolve(BoundaryScale()))) {
+    if (!Detail::DistanceWithin(boundary.DistanceSquared, tolerance.Resolve(BoundaryScale()))) {
         return std::nullopt;
     }
     return boundary.Parameter;
@@ -215,32 +196,22 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector3T<Scal
 }
 
 template <typename Scalar> void Polyline3T<Scalar>::Translate(Linear::Vector3T<Scalar> vector) noexcept {
-    for (Linear::Point3T<Scalar>& point : m_points) {
-        point = point + vector;
-    }
+    Detail::TranslatePoints(m_points.data(), m_points.size(), vector);
 }
 
 template <typename Scalar>
 void Polyline3T<Scalar>::Rotate(Linear::Point3T<Scalar> origin, Linear::UnitVector3T<Scalar> axis, Scalar radians) noexcept {
     const Linear::Transform3T<Scalar> rotation = Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
-    for (Linear::Point3T<Scalar>& point : m_points) {
-        point = rotation.TransformPoint(point);
-    }
+    Detail::ApplyTransform(m_points.data(), m_points.size(), rotation);
 }
 
 template <typename Scalar> void Polyline3T<Scalar>::Mirror(Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept {
     const Linear::Transform3T<Scalar> mirror = Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
-    for (Linear::Point3T<Scalar>& vertex : m_points) {
-        vertex = mirror.TransformPoint(vertex);
-    }
+    Detail::ApplyTransform(m_points.data(), m_points.size(), mirror);
 }
 
 template <typename Scalar> void Polyline3T<Scalar>::Reverse() noexcept {
-    if (IsClosed()) {
-        std::reverse(m_points.begin() + 1, m_points.end() - 1);
-        return;
-    }
-    std::reverse(m_points.begin(), m_points.end());
+    Detail::ReverseChain(m_points.data(), m_points.size(), IsClosed());
 }
 
 template <typename Scalar> [[nodiscard]] Polyline3T<Scalar> Polyline3T<Scalar>::Clone() const {
@@ -248,46 +219,14 @@ template <typename Scalar> [[nodiscard]] Polyline3T<Scalar> Polyline3T<Scalar>::
 }
 
 template <typename Scalar> [[nodiscard]] bool Polyline3T<Scalar>::Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
-    for (const Linear::Point3T<Scalar>& point : m_points) {
-        if (!Detail::CoordinatesAreFinite(transform.TransformPoint(point))) {
-            return false;
-        }
-    }
-    for (Linear::Point3T<Scalar>& point : m_points) {
-        point = transform.TransformPoint(point);
-    }
-    return true;
+    return Detail::TryTransformPoints(m_points.data(), m_points.size(), transform);
 }
 
 template <typename Scalar>
 [[nodiscard]] std::optional<std::variant<Segment3T<Scalar>, Polyline3T<Scalar>>>
 Polyline3T<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const {
-    using Curve = std::variant<Segment3T<Scalar>, Polyline3T<Scalar>>;
-    if (!Detail::IsFiniteSubinterval(interval, Domain())) {
-        return std::nullopt;
-    }
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Scalar edgeMin = static_cast<Scalar>(edge);
-        const Scalar edgeMax = edgeMin + Scalar{1};
-        if (interval.Min >= edgeMin && interval.Max <= edgeMax) {
-            return Curve{Segment3T<Scalar>{Locate(interval.Min), Locate(interval.Max)}};
-        }
-    }
-
-    std::vector<Linear::Point3T<Scalar>> corners;
-    corners.push_back(Locate(interval.Min));
-    for (std::size_t vertex = 1; vertex < SegmentCount(); ++vertex) {
-        const Scalar parameter = static_cast<Scalar>(vertex);
-        if (parameter > interval.Min && parameter < interval.Max) {
-            corners.push_back(m_points[vertex]);
-        }
-    }
-    corners.push_back(Locate(interval.Max));
-    auto polyline = FromPoints(corners);
-    if (!polyline.has_value()) {
-        return std::nullopt;
-    }
-    return Curve{std::move(*polyline)};
+    const auto locate = [this](Scalar parameter) noexcept { return Locate(parameter); };
+    return Detail::ChainSubcurve<Segment3T<Scalar>, Polyline3T<Scalar>>(SegmentCount(), interval, Domain(), m_points.data(), locate);
 }
 
 template <typename Scalar> Polyline3T<Scalar>::Polyline3T(std::vector<Linear::Point3T<Scalar>> points): m_points(std::move(points)) {}
@@ -305,19 +244,11 @@ template <typename Scalar> [[nodiscard]] Linear::Vector3T<Scalar> Polyline3T<Sca
 }
 
 template <typename Scalar> [[nodiscard]] Linear::Point3T<Scalar> Polyline3T<Scalar>::Locate(Scalar t) const noexcept {
-    if (t == static_cast<Scalar>(SegmentCount())) {
-        return m_points.back();
-    }
-    const auto index = static_cast<std::size_t>(t);
-    const Scalar local = t - static_cast<Scalar>(index);
-    return m_points[index] + (m_points[index + 1] - m_points[index]) * local;
+    return Detail::LocateOnChain(m_points.data(), SegmentCount(), t);
 }
 
 template <typename Scalar> [[nodiscard]] std::size_t Polyline3T<Scalar>::EdgeIndex(Scalar t) const noexcept {
-    if (t == static_cast<Scalar>(SegmentCount())) {
-        return SegmentCount() - 1;
-    }
-    return static_cast<std::size_t>(t);
+    return Detail::EdgeIndexOnChain(SegmentCount(), t);
 }
 
 template <typename Scalar>

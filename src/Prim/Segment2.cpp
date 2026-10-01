@@ -1,5 +1,6 @@
 #include <DragonGeo/Prim/Segment2.hpp>
 
+#include <DragonGeo/Detail/CurveShape.hpp>
 #include <DragonGeo/Prim/Ray2.hpp>
 #include <DragonGeo/Prim/Line2.hpp>
 
@@ -144,19 +145,7 @@ template <typename Scalar> [[nodiscard]] Segment2T<Scalar> Segment2T<Scalar>::Cl
 }
 
 template <typename Scalar> [[nodiscard]] bool Segment2T<Scalar>::Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
-    const Linear::Point2T<Scalar> movedA = transform.TransformPoint(A);
-    const Linear::Point2T<Scalar> movedB = transform.TransformPoint(B);
-    if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)) {
-        return false;
-    }
-    const Linear::Vector2T<Scalar> chord = B - A;
-    const Linear::Vector2T<Scalar> transformedChord = transform * chord;
-    if (chord.Normalized().has_value() && (!Detail::CoordinatesAreFinite(transformedChord) || !transformedChord.Normalized().has_value())) {
-        return false;
-    }
-    A = movedA;
-    B = movedB;
-    return true;
+    return Detail::TryTransformChord(A, B, transform);
 }
 
 template <typename Scalar>
@@ -172,36 +161,15 @@ template <typename Scalar> [[nodiscard]] Linear::Point2T<Scalar> Segment2T<Scala
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment2T<Scalar>::SupportingParameter(Linear::Point2T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    if (!direction.has_value()) {
-        return Scalar{0};
-    }
-    const Scalar length = Length();
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return Scalar{0};
-    }
-    return Detail::ProjectParameter(A, *direction, point) / length;
+    return Detail::ChordParameter(A, B, point);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment2T<Scalar>::DistanceToSupportingLine(Linear::Point2T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    const Scalar length = Length();
-    if (!direction.has_value() || !(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return point.DistanceTo(A);
-    }
-    return point.DistanceTo(Locate(SupportingParameter(point)));
+    return Detail::DistanceToChordLine(A, B, point);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment2T<Scalar>::ClosestParameter(Linear::Point2T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    if (!direction.has_value()) {
-        return Scalar{0};
-    }
-    const Scalar length = Length();
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return Scalar{0};
-    }
-    return Detail::ClampParameter(Detail::ProjectParameter(A, *direction, point) / length, Domain());
+    return Detail::ClampParameter(Detail::ChordParameter(A, B, point), Domain());
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Ray2T<Scalar>> Segment2T<Scalar>::AsRay() const noexcept {

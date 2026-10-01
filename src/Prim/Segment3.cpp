@@ -1,5 +1,6 @@
 #include <DragonGeo/Prim/Segment3.hpp>
 
+#include <DragonGeo/Detail/CurveShape.hpp>
 #include <DragonGeo/Prim/Ray3.hpp>
 #include <DragonGeo/Prim/Line3.hpp>
 
@@ -145,19 +146,7 @@ template <typename Scalar> [[nodiscard]] Segment3T<Scalar> Segment3T<Scalar>::Cl
 }
 
 template <typename Scalar> [[nodiscard]] bool Segment3T<Scalar>::Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
-    const Linear::Point3T<Scalar> movedA = transform.TransformPoint(A);
-    const Linear::Point3T<Scalar> movedB = transform.TransformPoint(B);
-    if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)) {
-        return false;
-    }
-    const Linear::Vector3T<Scalar> chord = B - A;
-    const Linear::Vector3T<Scalar> transformedChord = transform * chord;
-    if (chord.Normalized().has_value() && (!Detail::CoordinatesAreFinite(transformedChord) || !transformedChord.Normalized().has_value())) {
-        return false;
-    }
-    A = movedA;
-    B = movedB;
-    return true;
+    return Detail::TryTransformChord(A, B, transform);
 }
 
 template <typename Scalar>
@@ -173,36 +162,15 @@ template <typename Scalar> [[nodiscard]] Linear::Point3T<Scalar> Segment3T<Scala
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment3T<Scalar>::SupportingParameter(Linear::Point3T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    if (!direction.has_value()) {
-        return Scalar{0};
-    }
-    const Scalar length = Length();
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return Scalar{0};
-    }
-    return Detail::ProjectParameter(A, *direction, point) / length;
+    return Detail::ChordParameter(A, B, point);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment3T<Scalar>::DistanceToSupportingLine(Linear::Point3T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    const Scalar length = Length();
-    if (!direction.has_value() || !(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return point.DistanceTo(A);
-    }
-    return point.DistanceTo(Locate(SupportingParameter(point)));
+    return Detail::DistanceToChordLine(A, B, point);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Segment3T<Scalar>::ClosestParameter(Linear::Point3T<Scalar> point) const noexcept {
-    const auto direction = Direction();
-    if (!direction.has_value()) {
-        return Scalar{0};
-    }
-    const Scalar length = Length();
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return Scalar{0};
-    }
-    return Detail::ClampParameter(Detail::ProjectParameter(A, *direction, point) / length, Domain());
+    return Detail::ClampParameter(Detail::ChordParameter(A, B, point), Domain());
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Ray3T<Scalar>> Segment3T<Scalar>::AsRay() const noexcept {

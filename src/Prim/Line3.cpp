@@ -1,5 +1,6 @@
 #include <DragonGeo/Prim/Line3.hpp>
 
+#include <DragonGeo/Detail/CurveShape.hpp>
 #include <DragonGeo/Prim/Ray3.hpp>
 
 namespace DragonGeo::Prim {
@@ -105,14 +106,14 @@ template <typename Scalar> void Line3T<Scalar>::Translate(Linear::Vector3T<Scala
 
 template <typename Scalar> void Line3T<Scalar>::Rotate(Linear::Point3T<Scalar> origin, Linear::UnitVector3T<Scalar> axis, Scalar radians) noexcept {
     const Linear::Transform3T<Scalar> rotation = Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
-    const Linear::UnitVector3T<Scalar> direction = UnitDirection(rotation);
+    const Linear::UnitVector3T<Scalar> direction = Detail::RenormalizedDirection(Direction, rotation);
     Origin = rotation.TransformPoint(Origin);
     Direction = direction;
 }
 
 template <typename Scalar> void Line3T<Scalar>::Mirror(Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept {
     const Linear::Transform3T<Scalar> mirror = Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
-    const Linear::UnitVector3T<Scalar> direction = UnitDirection(mirror);
+    const Linear::UnitVector3T<Scalar> direction = Detail::RenormalizedDirection(Direction, mirror);
     Origin = mirror.TransformPoint(Origin);
     Direction = direction;
 }
@@ -126,18 +127,7 @@ template <typename Scalar> [[nodiscard]] Line3T<Scalar> Line3T<Scalar>::Clone() 
 }
 
 template <typename Scalar> [[nodiscard]] bool Line3T<Scalar>::Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
-    const Linear::Point3T<Scalar> moved = transform.TransformPoint(Origin);
-    const Linear::Vector3T<Scalar> transformedDirection = transform * Direction.AsVector();
-    if (!Detail::CoordinatesAreFinite(moved) || !Detail::CoordinatesAreFinite(transformedDirection)) {
-        return false;
-    }
-    const auto unit = transformedDirection.Normalized();
-    if (!unit.has_value()) {
-        return false;
-    }
-    Origin = moved;
-    Direction = *unit;
-    return true;
+    return Detail::TryTransformFrame(Origin, Direction, transform);
 }
 
 template <typename Scalar>
@@ -171,12 +161,7 @@ template <typename Scalar> [[nodiscard]] Scalar Line3T<Scalar>::ClosestParameter
 
 template <typename Scalar>
 [[nodiscard]] Linear::UnitVector3T<Scalar> Line3T<Scalar>::UnitDirection(const Linear::Transform3T<Scalar>& transform) const noexcept {
-    const Linear::Vector3T<Scalar> transformed = transform * Direction.AsVector();
-    const auto unit = transformed.Normalized();
-    if (unit.has_value()) {
-        return *unit;
-    }
-    return Linear::UnitVector3T<Scalar>::FromNormalizedUnchecked(transformed);
+    return Detail::RenormalizedDirection(Direction, transform);
 }
 
 template <typename Scalar> [[nodiscard]] Ray3T<Scalar> Line3T<Scalar>::AsRay() const noexcept {

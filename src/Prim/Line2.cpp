@@ -1,5 +1,6 @@
 #include <DragonGeo/Prim/Line2.hpp>
 
+#include <DragonGeo/Detail/CurveShape.hpp>
 #include <DragonGeo/Prim/Ray2.hpp>
 
 namespace DragonGeo::Prim {
@@ -105,14 +106,14 @@ template <typename Scalar> void Line2T<Scalar>::Translate(Linear::Vector2T<Scala
 
 template <typename Scalar> void Line2T<Scalar>::Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
     const Linear::Transform2T<Scalar> rotation = Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-    const Linear::UnitVector2T<Scalar> direction = UnitDirection(rotation);
+    const Linear::UnitVector2T<Scalar> direction = Detail::RenormalizedDirection(Direction, rotation);
     Origin = rotation.TransformPoint(Origin);
     Direction = direction;
 }
 
 template <typename Scalar> void Line2T<Scalar>::Mirror(Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
     const Linear::Transform2T<Scalar> mirror = Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-    const Linear::UnitVector2T<Scalar> direction = UnitDirection(mirror);
+    const Linear::UnitVector2T<Scalar> direction = Detail::RenormalizedDirection(Direction, mirror);
     Origin = mirror.TransformPoint(Origin);
     Direction = direction;
 }
@@ -126,18 +127,7 @@ template <typename Scalar> [[nodiscard]] Line2T<Scalar> Line2T<Scalar>::Clone() 
 }
 
 template <typename Scalar> [[nodiscard]] bool Line2T<Scalar>::Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
-    const Linear::Point2T<Scalar> moved = transform.TransformPoint(Origin);
-    const Linear::Vector2T<Scalar> transformedDirection = transform * Direction.AsVector();
-    if (!Detail::CoordinatesAreFinite(moved) || !Detail::CoordinatesAreFinite(transformedDirection)) {
-        return false;
-    }
-    const auto unit = transformedDirection.Normalized();
-    if (!unit.has_value()) {
-        return false;
-    }
-    Origin = moved;
-    Direction = *unit;
-    return true;
+    return Detail::TryTransformFrame(Origin, Direction, transform);
 }
 
 template <typename Scalar>
@@ -171,12 +161,7 @@ template <typename Scalar> [[nodiscard]] Scalar Line2T<Scalar>::ClosestParameter
 
 template <typename Scalar>
 [[nodiscard]] Linear::UnitVector2T<Scalar> Line2T<Scalar>::UnitDirection(const Linear::Transform2T<Scalar>& transform) const noexcept {
-    const Linear::Vector2T<Scalar> transformed = transform * Direction.AsVector();
-    const auto unit = transformed.Normalized();
-    if (unit.has_value()) {
-        return *unit;
-    }
-    return Linear::UnitVector2T<Scalar>::FromNormalizedUnchecked(transformed);
+    return Detail::RenormalizedDirection(Direction, transform);
 }
 
 template <typename Scalar> [[nodiscard]] Ray2T<Scalar> Line2T<Scalar>::AsRay() const noexcept {
