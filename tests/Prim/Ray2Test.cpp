@@ -83,7 +83,7 @@ TEST_CASE("Ray2 rejects a negative parameter and clamps behind the origin", "[pr
     CHECK(ray.Domain().Min == 0.0);
     CHECK(ray.Domain().Max == std::numeric_limits<double>::infinity());
     CHECK(ray.Length() == std::numeric_limits<double>::infinity());
-    CHECK(ray.Bounds() == Box2::Empty());
+    CHECK(ray.Box() == Box2::Empty());
     CHECK(ray.StartPoint() == Point2{0.0, 0.0});
     CHECK_FALSE(ray.EndPoint().has_value());
     CHECK_FALSE(ray.MidPoint().has_value());
@@ -100,26 +100,39 @@ TEST_CASE("Ray2 rejects a negative parameter and clamps behind the origin", "[pr
 
 TEST_CASE("Ray2 protocol keeps the origin and cuts a finite segment", "[prim][ray2]") {
     const Ray2 ray{Point2{0.0, 0.0}, UnitVector2::XAxis};
-    const Ray2 translated = ray.Translated(Vector2{1.0, 0.0});
+    Ray2 translated = ray;
+    translated.Translate(Vector2{1.0, 0.0});
     CHECK(translated.Origin == Point2{1.0, 0.0});
     CHECK(translated.Direction == UnitVector2::XAxis);
+    CHECK(ray == Ray2{Point2{0.0, 0.0}, UnitVector2::XAxis});
 
     const Ray2 upright{Point2{0.0, 1.0}, UnitVector2::XAxis};
-    const Ray2 mirrored = upright.Mirrored(Point2{0.0, 0.0}, UnitVector2::YAxis);
+    Ray2 mirrored = upright;
+    mirrored.Mirror(Point2{0.0, 0.0}, UnitVector2::YAxis);
     CHECK(mirrored.Origin == Point2{0.0, -1.0});
     CHECK(mirrored.Direction == UnitVector2::XAxis);
+    CHECK(upright == Ray2{Point2{0.0, 1.0}, UnitVector2::XAxis});
 
-    const Ray2 rotated = ray.Rotated(Point2{0.0, 0.0}, HALF_PI);
+    Ray2 rotated = ray;
+    rotated.Rotate(Point2{0.0, 0.0}, HALF_PI);
     CHECK(rotated.Origin.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.Origin.Y == Approx(0.0).margin(1e-12));
     CHECK(rotated.Direction.X() == Approx(0.0).margin(1e-12));
     CHECK(rotated.Direction.Y() == Approx(1.0).margin(1e-12));
+    CHECK(ray.Origin == Point2{0.0, 0.0});
+    CHECK(ray.Direction == UnitVector2::XAxis);
 
-    CHECK(ray.Transformed(Transform2::Identity()) == ray);
-    CHECK_FALSE(ray.Transformed(Transform2::Scaling(0.0)).has_value());
-    const Ray2 reversed = ray.Reversed();
+    Ray2 identity = ray;
+    CHECK(identity.Transform(Transform2::Identity()));
+    CHECK(identity == ray);
+    Ray2 collapsed = ray;
+    CHECK_FALSE(collapsed.Transform(Transform2::Scaling(0.0)));
+    CHECK(collapsed == ray);
+    Ray2 reversed = ray;
+    reversed.Reverse();
     CHECK(reversed.Origin == ray.Origin);
     CHECK(reversed.Direction == -ray.Direction);
+    CHECK(ray.Direction == UnitVector2::XAxis);
     CHECK(ray.Clone() == ray);
 
     const auto span = ray.Subcurve(Interval{0.0, 2.0});
@@ -140,7 +153,7 @@ TEST_CASE("Ray2 protocol keeps the origin and cuts a finite segment", "[prim][ra
     STATIC_REQUIRE(noexcept(ray.DistanceSquared(Point2{})));
     STATIC_REQUIRE(noexcept(ray.Distance(Point2{})));
     STATIC_REQUIRE(noexcept(ray.Length()));
-    STATIC_REQUIRE(noexcept(ray.Bounds()));
+    STATIC_REQUIRE(noexcept(ray.Box()));
     STATIC_REQUIRE(noexcept(ray.StartPoint()));
     STATIC_REQUIRE(noexcept(ray.EndPoint()));
     STATIC_REQUIRE(noexcept(ray.MidPoint()));
@@ -155,12 +168,13 @@ TEST_CASE("Ray2 protocol keeps the origin and cuts a finite segment", "[prim][ra
     STATIC_REQUIRE(noexcept(ray.Contains(Point2{})));
     STATIC_REQUIRE(noexcept(ray.ContainsPoint(Point2{})));
     STATIC_REQUIRE(noexcept(ray.ParameterOf(Point2{})));
-    STATIC_REQUIRE(noexcept(ray.Translated(Vector2{})));
-    STATIC_REQUIRE(noexcept(ray.Rotated(Point2{}, 0.0)));
-    STATIC_REQUIRE(noexcept(ray.Mirrored(Point2{}, UnitVector2::YAxis)));
-    STATIC_REQUIRE(noexcept(ray.Reversed()));
+    Ray2 mutableRay = ray;
+    STATIC_REQUIRE(noexcept(mutableRay.Translate(Vector2{})));
+    STATIC_REQUIRE(noexcept(mutableRay.Rotate(Point2{}, 0.0)));
+    STATIC_REQUIRE(noexcept(mutableRay.Mirror(Point2{}, UnitVector2::YAxis)));
+    STATIC_REQUIRE(noexcept(mutableRay.Reverse()));
     STATIC_REQUIRE(noexcept(ray.Clone()));
-    STATIC_REQUIRE(noexcept(ray.Transformed(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(mutableRay.Transform(Transform2::Identity())));
     STATIC_REQUIRE(noexcept(ray.Subcurve(Interval{})));
     STATIC_REQUIRE(noexcept(ray.AsLine()));
     STATIC_REQUIRE(noexcept(ray.AsSegment(1.0)));

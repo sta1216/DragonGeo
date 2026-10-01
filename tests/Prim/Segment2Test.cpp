@@ -77,7 +77,7 @@ TEST_CASE("Segment2 evaluates parameters and distances", "[prim][segment2]") {
     CHECK(segment.Length() == 3.0);
     CHECK(segment.LengthSquared() == 9.0);
     CHECK(segment.Direction() == UnitVector2::XAxis);
-    CHECK(segment.Bounds() == Box2::FromCorners(Point2{0.0, 0.0}, Point2{3.0, 0.0}));
+    CHECK(segment.Box() == Box2::FromCorners(Point2{0.0, 0.0}, Point2{3.0, 0.0}));
     CHECK(segment.StartPoint() == Point2{0.0, 0.0});
     CHECK(segment.EndPoint() == Point2{3.0, 0.0});
     CHECK(segment.MidPoint() == Point2{1.5, 0.0});
@@ -102,35 +102,51 @@ TEST_CASE("a zero-length Segment2 has no direction", "[prim][segment2]") {
     CHECK_FALSE(segment.TangentAt(0.0).has_value());
     CHECK(segment.ParameterOf(Point2{1.0, 1.0}) == 0.0);
     CHECK_FALSE(segment.ParameterOf(Point2{2.0, 1.0}).has_value());
-    CHECK(segment.Transformed(Transform2::Identity()) == segment);
+    Segment2 transformed = segment;
+    CHECK(transformed.Transform(Transform2::Identity()));
+    CHECK(transformed == segment);
 }
 
 TEST_CASE("Segment2 reverses and transforms its endpoints", "[prim][segment2]") {
     const Segment2 segment{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
-    const Segment2 reversed = segment.Reversed();
+    Segment2 reversed = segment;
+    reversed.Reverse();
     CHECK(reversed.A == Point2{3.0, 0.0});
     CHECK(reversed.B == Point2{0.0, 0.0});
+    CHECK(segment == Segment2{Point2{0.0, 0.0}, Point2{3.0, 0.0}});
 
-    const Segment2 translated = segment.Translated(Vector2{1.0, 0.0});
+    Segment2 translated = segment;
+    translated.Translate(Vector2{1.0, 0.0});
     CHECK(translated.A == Point2{1.0, 0.0});
     CHECK(translated.B == Point2{4.0, 0.0});
+    CHECK(segment == Segment2{Point2{0.0, 0.0}, Point2{3.0, 0.0}});
 
     const Segment2 upright{Point2{0.0, 1.0}, Point2{2.0, 1.0}};
-    const Segment2 mirrored = upright.Mirrored(Point2{0.0, 0.0}, UnitVector2::YAxis);
+    Segment2 mirrored = upright;
+    mirrored.Mirror(Point2{0.0, 0.0}, UnitVector2::YAxis);
     CHECK(mirrored.A == Point2{0.0, -1.0});
     CHECK(mirrored.B == Point2{2.0, -1.0});
+    CHECK(upright == Segment2{Point2{0.0, 1.0}, Point2{2.0, 1.0}});
 
     const Segment2 onAxis{Point2{1.0, 0.0}, Point2{2.0, 0.0}};
-    const Segment2 rotated = onAxis.Rotated(Point2{0.0, 0.0}, HALF_PI);
+    Segment2 rotated = onAxis;
+    rotated.Rotate(Point2{0.0, 0.0}, HALF_PI);
     CHECK(rotated.A.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.A.Y == Approx(1.0).margin(1e-12));
     CHECK(rotated.B.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.B.Y == Approx(2.0).margin(1e-12));
+    CHECK(onAxis == Segment2{Point2{1.0, 0.0}, Point2{2.0, 0.0}});
 
-    CHECK(segment.Transformed(Transform2::Identity()) == segment);
-    CHECK_FALSE(segment.Transformed(Transform2::Scaling(0.0)).has_value());
+    Segment2 identity = segment;
+    CHECK(identity.Transform(Transform2::Identity()));
+    CHECK(identity == segment);
+    Segment2 collapsed = segment;
+    CHECK_FALSE(collapsed.Transform(Transform2::Scaling(0.0)));
+    CHECK(collapsed == segment);
     const double infinity = std::numeric_limits<double>::infinity();
-    CHECK_FALSE(segment.Transformed(Transform2::Translation(Vector2{infinity, 0.0})).has_value());
+    Segment2 shifted = segment;
+    CHECK_FALSE(shifted.Transform(Transform2::Translation(Vector2{infinity, 0.0})));
+    CHECK(shifted == segment);
     CHECK(segment.Clone() == segment);
 }
 
@@ -181,7 +197,7 @@ TEST_CASE("CurveParameter projects and clamps", "[prim][segment2]") {
 }
 
 TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
-    const Segment2 segment{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
+    Segment2 segment{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
     STATIC_REQUIRE(noexcept(segment.Domain()));
     STATIC_REQUIRE(noexcept(segment.PointAt(0.0)));
     STATIC_REQUIRE(noexcept(segment.ClosestPoint(Point2{})));
@@ -190,7 +206,7 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(noexcept(segment.Length()));
     STATIC_REQUIRE(noexcept(segment.LengthSquared()));
     STATIC_REQUIRE(noexcept(segment.Direction()));
-    STATIC_REQUIRE(noexcept(segment.Bounds()));
+    STATIC_REQUIRE(noexcept(segment.Box()));
     STATIC_REQUIRE(noexcept(segment.StartPoint()));
     STATIC_REQUIRE(noexcept(segment.EndPoint()));
     STATIC_REQUIRE(noexcept(segment.MidPoint()));
@@ -205,12 +221,12 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(noexcept(segment.Contains(Point2{})));
     STATIC_REQUIRE(noexcept(segment.ContainsPoint(Point2{})));
     STATIC_REQUIRE(noexcept(segment.ParameterOf(Point2{})));
-    STATIC_REQUIRE(noexcept(segment.Translated(Vector2{})));
-    STATIC_REQUIRE(noexcept(segment.Rotated(Point2{}, 0.0)));
-    STATIC_REQUIRE(noexcept(segment.Mirrored(Point2{}, UnitVector2::YAxis)));
-    STATIC_REQUIRE(noexcept(segment.Reversed()));
+    STATIC_REQUIRE(noexcept(segment.Translate(Vector2{})));
+    STATIC_REQUIRE(noexcept(segment.Rotate(Point2{}, 0.0)));
+    STATIC_REQUIRE(noexcept(segment.Mirror(Point2{}, UnitVector2::YAxis)));
+    STATIC_REQUIRE(noexcept(segment.Reverse()));
     STATIC_REQUIRE(noexcept(segment.Clone()));
-    STATIC_REQUIRE(noexcept(segment.Transformed(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(segment.Transform(Transform2::Identity())));
     STATIC_REQUIRE(noexcept(segment.AsRay()));
     STATIC_REQUIRE(noexcept(segment.AsLine()));
     STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
@@ -223,8 +239,13 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(axis.LengthSquared() == 9.0);
     STATIC_REQUIRE_FALSE(axis.IsClosed());
     STATIC_REQUIRE_FALSE(axis.Contains(Point2{}));
-    STATIC_REQUIRE(axis.Reversed().A == Point2{3.0, 0.0});
-    STATIC_REQUIRE(axis.Reversed().B == Point2{0.0, 0.0});
+    constexpr Segment2 reversedAxis = [] {
+        Segment2 copy{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
+        copy.Reverse();
+        return copy;
+    }();
+    STATIC_REQUIRE(reversedAxis.A == Point2{3.0, 0.0});
+    STATIC_REQUIRE(reversedAxis.B == Point2{0.0, 0.0});
 }
 
 TEST_CASE("Segment2 containment uses the supporting line and a parameter window", "[prim][segment2]") {

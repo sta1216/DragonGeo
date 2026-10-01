@@ -96,7 +96,7 @@ TEST_CASE("Polyline3 reports domain, point, bounds, and a clone", "[prim][polyli
     CHECK_FALSE(polyline->PointAt(2.1).has_value());
     CHECK_FALSE(polyline->PointAt(nan).has_value());
     CHECK_FALSE(polyline->PointAt(std::numeric_limits<double>::infinity()).has_value());
-    CHECK(polyline->Bounds() == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}));
+    CHECK(polyline->Box() == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{1.0, 2.0, 0.0}));
     CHECK(polyline->Clone() == *polyline);
     CHECK(polyline->IsValid());
 
@@ -105,11 +105,11 @@ TEST_CASE("Polyline3 reports domain, point, bounds, and a clone", "[prim][polyli
     REQUIRE(single.has_value());
     CHECK(single->Domain() == Interval{0.0, 1.0});
     CHECK(single->PointAt(0.5) == Point3{0.5, 0.0, 0.0});
-    CHECK(single->Bounds() == Box3::FromCorners(first.A, first.B));
+    CHECK(single->Box() == Box3::FromCorners(first.A, first.B));
     CHECK(single->Clone() == *single);
 
     STATIC_REQUIRE(noexcept(polyline->Domain()));
     STATIC_REQUIRE(noexcept(polyline->PointAt(0.0)));
-    STATIC_REQUIRE(noexcept(polyline->Bounds()));
+    STATIC_REQUIRE(noexcept(polyline->Box()));
     STATIC_REQUIRE(noexcept(polyline->IsValid()));
 }

@@ -15,6 +15,7 @@
 #include <DragonGeo/Linear/UnitVector2.hpp>
 #include <DragonGeo/Predicates/Predicates.hpp>
 #include <DragonGeo/Prim/Segment2.hpp>
+#include <DragonGeo/Prim/Winding.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -151,20 +152,20 @@ struct Triangle2T {
         return Core::AbsoluteValue(SignedArea());
     }
 
-    /// 逆时针 `+1`，顺时针 `-1`，`SignedArea` 恰好为 0 时是 `0`。
-    [[nodiscard]] constexpr std::optional<int> Orientation() const noexcept {
+    /// 正的有符号面积是 `CounterClockwise`，负的是 `Clockwise`，恰好为 0 是 `Degenerate`。
+    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
         const Scalar signedArea = SignedArea();
         if (signedArea > Scalar{0}) {
-            return 1;
+            return Winding::CounterClockwise;
         }
         if (signedArea < Scalar{0}) {
-            return -1;
+            return Winding::Clockwise;
         }
-        return 0;
+        return Winding::Degenerate;
     }
 
     /// 三个顶点的轴对齐包围盒。
-    [[nodiscard]] Linear::Box2T<Scalar> Bounds() const noexcept {
+    [[nodiscard]] Linear::Box2T<Scalar> Box() const noexcept {
         const Linear::Point2T<Scalar> vertices[]{A, B, C};
         return Linear::Box2T<Scalar>::FromPoints(std::span<const Linear::Point2T<Scalar>>{vertices});
     }
@@ -201,45 +202,56 @@ struct Triangle2T {
         return ClosestBoundary(point).Parameter;
     }
 
-    [[nodiscard]] constexpr Triangle2T Translated(Linear::Vector2T<Scalar> vector) const noexcept {
-        return {A + vector, B + vector, C + vector};
+    constexpr void Translate(Linear::Vector2T<Scalar> vector) noexcept {
+        A = A + vector;
+        B = B + vector;
+        C = C + vector;
     }
 
     /// 绕 `center` 逆时针旋转 `radians` 弧度。
-    [[nodiscard]] Triangle2T Rotated(Linear::Point2T<Scalar> center, Scalar radians) const noexcept {
+    void Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
         const Linear::Transform2T<Scalar> rotation =
             Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-        return {rotation.TransformPoint(A), rotation.TransformPoint(B), rotation.TransformPoint(C)};
+        A = rotation.TransformPoint(A);
+        B = rotation.TransformPoint(B);
+        C = rotation.TransformPoint(C);
     }
 
     /// 关于过 `point`、法向为 `unitNormal` 的直线反射。
-    [[nodiscard]] constexpr Triangle2T Mirrored(
-        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) const noexcept {
+    constexpr void Mirror(
+        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
         const Linear::Transform2T<Scalar> mirror =
             Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-        return {mirror.TransformPoint(A), mirror.TransformPoint(B), mirror.TransformPoint(C)};
+        A = mirror.TransformPoint(A);
+        B = mirror.TransformPoint(B);
+        C = mirror.TransformPoint(C);
     }
 
     /// 变成 `{A, C, B}`。接缝仍是 `A`，`Orientation` 变号。
-    [[nodiscard]] constexpr Triangle2T Reversed() const noexcept {
-        return {A, C, B};
+    constexpr void Reverse() noexcept {
+        const Linear::Point2T<Scalar> vertexB = B;
+        B = C;
+        C = vertexB;
     }
 
     [[nodiscard]] constexpr Triangle2T Clone() const noexcept {
         return *this;
     }
 
-    /// 变换三个顶点。任一结果分量非有限时为空。零面积仍然是成功的三角形。
-    [[nodiscard]] std::optional<Triangle2T> Transformed(
-        const Linear::Transform2T<Scalar>& transform) const noexcept {
+    /// 变换三个顶点。任一结果分量非有限时返回 `false`，字段保持原样。
+    /// 零面积仍然成功。
+    [[nodiscard]] bool Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
         const Linear::Point2T<Scalar> movedA = transform.TransformPoint(A);
         const Linear::Point2T<Scalar> movedB = transform.TransformPoint(B);
         const Linear::Point2T<Scalar> movedC = transform.TransformPoint(C);
         if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)
             || !Detail::CoordinatesAreFinite(movedC)) {
-            return std::nullopt;
+            return false;
         }
-        return Triangle2T{movedA, movedB, movedC};
+        A = movedA;
+        B = movedB;
+        C = movedC;
+        return true;
     }
 
     /// 到填充三角形（面或边界）的平方距离。内部的点是 0。
@@ -316,7 +328,7 @@ private:
 
     /// 包围盒对角线。不是大于 0 的有限数时用 `1`。
     [[nodiscard]] Scalar BoundaryScale() const noexcept {
-        const Scalar diagonal = Bounds().Extent().Length();
+        const Scalar diagonal = Box().Extent().Length();
         if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
             return diagonal;
         }

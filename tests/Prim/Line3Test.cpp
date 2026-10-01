@@ -64,7 +64,7 @@ TEST_CASE("Line3 has no start point", "[prim][line3]") {
     CHECK(line.ClosestPoint(Point3{4.0, 0.0, 1.0}) == Point3{0.0, 0.0, 1.0});
     CHECK(line.DistanceSquared(Point3{4.0, 0.0, 1.0}) == 16.0);
     CHECK(line.Distance(Point3{4.0, 0.0, 1.0}) == 4.0);
-    CHECK(line.Bounds() == Box3::Empty());
+    CHECK(line.Box() == Box3::Empty());
     CHECK(line.Length() == std::numeric_limits<double>::infinity());
     CHECK(line.Domain() == Interval::Unbounded());
     CHECK(line.TangentAt(1.0) == UnitVector3::ZAxis);
@@ -78,15 +78,28 @@ TEST_CASE("Line3 has no start point", "[prim][line3]") {
     CHECK_FALSE(line.Orientation().has_value());
     CHECK_FALSE(line.Centroid().has_value());
 
-    const Line3 translated = line.Translated(Vector3{1.0, 0.0, 0.0});
+    Line3 translated = line;
+    translated.Translate(Vector3{1.0, 0.0, 0.0});
     CHECK(translated.Origin == Point3{1.0, 0.0, 0.0});
-    const Line3 mirrored = line.Mirrored(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
+    CHECK(line.Origin == Point3{0.0, 0.0, 0.0});
+    Line3 mirrored = line;
+    mirrored.Mirror(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
     CHECK(mirrored.Direction == -UnitVector3::ZAxis);
-    const Line3 rotated = line.Rotated(Point3{0.0, 0.0, 0.0}, UnitVector3::YAxis, 0.0);
+    CHECK(line.Direction == UnitVector3::ZAxis);
+    Line3 rotated = line;
+    rotated.Rotate(Point3{0.0, 0.0, 0.0}, UnitVector3::YAxis, 0.0);
     CHECK(rotated == line);
-    CHECK(line.Transformed(Transform3::Identity()) == line);
-    CHECK_FALSE(line.Transformed(Transform3::Scaling(0.0)).has_value());
-    CHECK(line.Reversed().Direction == -line.Direction);
+    CHECK(line == Line3{Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis});
+    Line3 identity = line;
+    CHECK(identity.Transform(Transform3::Identity()));
+    CHECK(identity == line);
+    Line3 collapsed = line;
+    CHECK_FALSE(collapsed.Transform(Transform3::Scaling(0.0)));
+    CHECK(collapsed == line);
+    Line3 reversed = line;
+    reversed.Reverse();
+    CHECK(reversed.Direction == -line.Direction);
+    CHECK(line.Direction == UnitVector3::ZAxis);
     CHECK(line.Clone() == line);
     const auto span = line.Subcurve(Interval{-1.0, 1.0});
     REQUIRE(span.has_value());
@@ -95,7 +108,8 @@ TEST_CASE("Line3 has no start point", "[prim][line3]") {
 
     STATIC_REQUIRE(noexcept(line.StartPoint()));
     STATIC_REQUIRE(noexcept(line.ClosestPoint(Point3{})));
-    STATIC_REQUIRE(noexcept(line.Rotated(Point3{}, UnitVector3::ZAxis, 0.0)));
-    STATIC_REQUIRE(noexcept(line.Transformed(Transform3::Identity())));
+    Line3 mutableLine = line;
+    STATIC_REQUIRE(noexcept(mutableLine.Rotate(Point3{}, UnitVector3::ZAxis, 0.0)));
+    STATIC_REQUIRE(noexcept(mutableLine.Transform(Transform3::Identity())));
     STATIC_REQUIRE(noexcept(line.Subcurve(Interval{})));
 }

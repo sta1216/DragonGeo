@@ -28,6 +28,7 @@ using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Vector2;
 using DragonGeo::Prim::Segment2;
 using DragonGeo::Prim::Triangle2;
+using DragonGeo::Prim::Winding;
 using DragonGeo::Prim::Triangle2T;
 using DragonGeo::Prim::Triangle2f;
 
@@ -154,9 +155,9 @@ TEST_CASE("Triangle2 is a closed curve with perimeter and tangents", "[prim][tri
     CHECK(triangle.EndPoint() == Point2{0.0, 0.0});
     CHECK(triangle.Length() == Approx(2.0 + std::sqrt(2.0)));
     CHECK(triangle.Area() == 0.5);
-    CHECK(triangle.Orientation() == 1);
+    CHECK(triangle.Orientation() == Winding::CounterClockwise);
     CHECK(triangle.Centroid() == Point2{1.0 / 3.0, 1.0 / 3.0});
-    CHECK(triangle.Bounds() == Box2::FromCorners(Point2{0.0, 0.0}, Point2{1.0, 1.0}));
+    CHECK(triangle.Box() == Box2::FromCorners(Point2{0.0, 0.0}, Point2{1.0, 1.0}));
     CHECK(triangle.StartTangent() == UnitVector2::XAxis);
     CHECK(triangle.EndTangent() == -UnitVector2::YAxis);
     CHECK(triangle.TangentAt(0.0) == UnitVector2::XAxis);
@@ -183,7 +184,7 @@ TEST_CASE("Triangle2 is a closed curve with perimeter and tangents", "[prim][tri
     STATIC_REQUIRE(triangle.StartPoint() == Point2{0.0, 0.0});
     STATIC_REQUIRE(triangle.EndPoint() == Point2{0.0, 0.0});
     STATIC_REQUIRE(triangle.Area() == 0.5);
-    STATIC_REQUIRE(triangle.Orientation() == 1);
+    STATIC_REQUIRE(triangle.Orientation() == Winding::CounterClockwise);
     STATIC_REQUIRE(triangle.Centroid() == Point2{1.0 / 3.0, 1.0 / 3.0});
     STATIC_REQUIRE(noexcept(triangle.Length()));
     STATIC_REQUIRE(noexcept(triangle.TangentAt(0.0)));
@@ -194,7 +195,7 @@ TEST_CASE("Triangle2 is a closed curve with perimeter and tangents", "[prim][tri
 TEST_CASE("a zero-area Triangle2 has no centroid", "[prim][triangle2]") {
     const Triangle2 flat{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{2.0, 0.0}};
     CHECK(flat.Area() == 0.0);
-    CHECK(flat.Orientation() == 0);
+    CHECK(flat.Orientation() == Winding::Degenerate);
     CHECK_FALSE(flat.Centroid().has_value());
     CHECK(flat.Length() == 4.0);
 
@@ -233,44 +234,63 @@ TEST_CASE("Triangle2 ContainsPoint follows the boundary, not the interior", "[pr
 
 TEST_CASE("Triangle2 reverses, mirrors, rotates and transforms", "[prim][triangle2]") {
     constexpr Triangle2 triangle{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
-    const Triangle2 reversed = triangle.Reversed();
-    CHECK(reversed.Orientation() == -1);
+    Triangle2 reversed = triangle;
+    reversed.Reverse();
+    CHECK(reversed.Orientation() == Winding::Clockwise);
     CHECK(reversed.StartPoint() == triangle.A);
     CHECK(reversed.EndPoint() == triangle.A);
     CHECK(reversed.B == triangle.C);
     CHECK(reversed.C == triangle.B);
     CHECK(reversed.Area() == 0.5);
-    STATIC_REQUIRE(triangle.Reversed().Orientation() == -1);
-    STATIC_REQUIRE(triangle.Reversed().StartPoint() == Point2{0.0, 0.0});
+    CHECK(triangle == Triangle2{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}});
+    constexpr Triangle2 reversedTriangle = [] {
+        Triangle2 copy{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
+        copy.Reverse();
+        return copy;
+    }();
+    STATIC_REQUIRE(reversedTriangle.Orientation() == Winding::Clockwise);
+    STATIC_REQUIRE(reversedTriangle.StartPoint() == Point2{0.0, 0.0});
 
-    const Triangle2 translated = triangle.Translated(Vector2{1.0, 0.0});
+    Triangle2 translated = triangle;
+    translated.Translate(Vector2{1.0, 0.0});
     CHECK(translated.A == Point2{1.0, 0.0});
     CHECK(translated.B == Point2{2.0, 0.0});
     CHECK(translated.C == Point2{1.0, 1.0});
+    CHECK(triangle.A == Point2{0.0, 0.0});
 
-    const Triangle2 mirrored = triangle.Mirrored(Point2{0.0, 0.0}, UnitVector2::YAxis);
+    Triangle2 mirrored = triangle;
+    mirrored.Mirror(Point2{0.0, 0.0}, UnitVector2::YAxis);
     CHECK(mirrored.A == Point2{0.0, 0.0});
     CHECK(mirrored.B == Point2{1.0, 0.0});
     CHECK(mirrored.C == Point2{0.0, -1.0});
+    CHECK(triangle.C == Point2{0.0, 1.0});
 
-    const Triangle2 rotated = triangle.Rotated(Point2{0.0, 0.0}, HALF_PI);
+    Triangle2 rotated = triangle;
+    rotated.Rotate(Point2{0.0, 0.0}, HALF_PI);
     CHECK(rotated.A.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.A.Y == Approx(0.0).margin(1e-12));
     CHECK(rotated.B.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.B.Y == Approx(1.0).margin(1e-12));
     CHECK(rotated.C.X == Approx(-1.0).margin(1e-12));
     CHECK(rotated.C.Y == Approx(0.0).margin(1e-12));
+    CHECK(triangle.B == Point2{1.0, 0.0});
 
     CHECK(triangle.Clone() == triangle);
-    CHECK(triangle.Transformed(Transform2::Identity()) == triangle);
-    const auto collapsed = triangle.Transformed(Transform2::Scaling(0.0));
-    REQUIRE(collapsed.has_value());
-    CHECK(collapsed->Area() == 0.0);
+    Triangle2 identity = triangle;
+    CHECK(identity.Transform(Transform2::Identity()));
+    CHECK(identity == triangle);
+    Triangle2 collapsed = triangle;
+    CHECK(collapsed.Transform(Transform2::Scaling(0.0)));
+    CHECK(collapsed.Area() == 0.0);
+    CHECK(triangle.Area() == 0.5);
     const double infinity = std::numeric_limits<double>::infinity();
-    CHECK_FALSE(triangle.Transformed(Transform2::Translation(Vector2{infinity, 0.0})).has_value());
-    STATIC_REQUIRE(noexcept(triangle.Rotated(Point2{}, 0.0)));
-    STATIC_REQUIRE(noexcept(triangle.Mirrored(Point2{}, UnitVector2::YAxis)));
-    STATIC_REQUIRE(noexcept(triangle.Transformed(Transform2::Identity())));
-    STATIC_REQUIRE(noexcept(triangle.Reversed()));
+    Triangle2 shifted = triangle;
+    CHECK_FALSE(shifted.Transform(Transform2::Translation(Vector2{infinity, 0.0})));
+    CHECK(shifted == triangle);
+    Triangle2 mutableTriangle = triangle;
+    STATIC_REQUIRE(noexcept(mutableTriangle.Rotate(Point2{}, 0.0)));
+    STATIC_REQUIRE(noexcept(mutableTriangle.Mirror(Point2{}, UnitVector2::YAxis)));
+    STATIC_REQUIRE(noexcept(mutableTriangle.Transform(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(mutableTriangle.Reverse()));
     STATIC_REQUIRE(noexcept(triangle.Clone()));
 }

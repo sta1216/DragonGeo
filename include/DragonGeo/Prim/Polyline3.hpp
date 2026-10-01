@@ -17,7 +17,7 @@ namespace DragonGeo::Prim {
 /// 段序列是私有的，只能经 `FromSegments` 构造，因此本类型不是聚合。
 /// 相接判定使用点的 `operator==`，不容差。
 /// 参数域是 `[0, SegmentCount()]`，每一段占长度 1。
-/// 本步只提供 `Domain`、`PointAt`、`IsValid`、`Bounds`、`Clone`。
+/// 本步只提供 `Domain`、`PointAt`、`IsValid`、`Box`、`Clone`。
 /// 其余曲线协议方法尚未声明。
 template <typename Scalar>
 class Polyline3T {
@@ -92,10 +92,10 @@ public:
     }
 
     /// 各段包围盒的并。
-    [[nodiscard]] constexpr Linear::Box3T<Scalar> Bounds() const noexcept {
+    [[nodiscard]] constexpr Linear::Box3T<Scalar> Box() const noexcept {
         Linear::Box3T<Scalar> bounds = Linear::Box3T<Scalar>::Empty();
         for (const Segment3T<Scalar>& segment : m_segments) {
-            bounds = bounds.Merged(segment.Bounds());
+            bounds = bounds.Merged(segment.Box());
         }
         return bounds;
     }

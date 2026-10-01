@@ -61,7 +61,7 @@ TEST_CASE("Ray3 rejects a negative parameter", "[prim][ray3]") {
     CHECK(ray.Distance(Point3{0.0, 0.0, -4.0}) == 4.0);
     CHECK(ray.Domain().Min == 0.0);
     CHECK(ray.Length() == std::numeric_limits<double>::infinity());
-    CHECK(ray.Bounds() == Box3::Empty());
+    CHECK(ray.Box() == Box3::Empty());
     CHECK(ray.StartPoint() == Point3{0.0, 0.0, 0.0});
     CHECK_FALSE(ray.EndPoint().has_value());
     CHECK_FALSE(ray.MidPoint().has_value());
@@ -80,18 +80,30 @@ TEST_CASE("Ray3 rejects a negative parameter", "[prim][ray3]") {
     CHECK_FALSE(ray.Orientation().has_value());
     CHECK_FALSE(ray.Centroid().has_value());
 
-    const Ray3 translated = ray.Translated(Vector3{1.0, 0.0, 0.0});
+    Ray3 translated = ray;
+    translated.Translate(Vector3{1.0, 0.0, 0.0});
     CHECK(translated.Origin == Point3{1.0, 0.0, 0.0});
     CHECK(translated.Direction == UnitVector3::ZAxis);
-    const Ray3 mirrored = ray.Mirrored(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
+    CHECK(ray.Origin == Point3{0.0, 0.0, 0.0});
+    Ray3 mirrored = ray;
+    mirrored.Mirror(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
     CHECK(mirrored.Direction == -UnitVector3::ZAxis);
-    const Ray3 rotated = ray.Rotated(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis, 0.0);
+    CHECK(ray.Direction == UnitVector3::ZAxis);
+    Ray3 rotated = ray;
+    rotated.Rotate(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis, 0.0);
     CHECK(rotated.Origin == ray.Origin);
     CHECK(rotated.Direction == ray.Direction);
-    CHECK(ray.Transformed(Transform3::Identity()) == ray);
-    CHECK_FALSE(ray.Transformed(Transform3::Scaling(0.0)).has_value());
-    CHECK(ray.Reversed().Direction == -ray.Direction);
-    CHECK(ray.Reversed().Origin == ray.Origin);
+    Ray3 identity = ray;
+    CHECK(identity.Transform(Transform3::Identity()));
+    CHECK(identity == ray);
+    Ray3 collapsed = ray;
+    CHECK_FALSE(collapsed.Transform(Transform3::Scaling(0.0)));
+    CHECK(collapsed == ray);
+    Ray3 reversed = ray;
+    reversed.Reverse();
+    CHECK(reversed.Direction == -ray.Direction);
+    CHECK(reversed.Origin == ray.Origin);
+    CHECK(ray.Direction == UnitVector3::ZAxis);
     CHECK(ray.Clone() == ray);
     const auto span = ray.Subcurve(Interval{0.0, 2.0});
     REQUIRE(span.has_value());
@@ -100,8 +112,9 @@ TEST_CASE("Ray3 rejects a negative parameter", "[prim][ray3]") {
 
     STATIC_REQUIRE(noexcept(ray.PointAt(-1.0)));
     STATIC_REQUIRE(noexcept(ray.ClosestPoint(Point3{})));
-    STATIC_REQUIRE(noexcept(ray.Rotated(Point3{}, UnitVector3::ZAxis, 0.0)));
-    STATIC_REQUIRE(noexcept(ray.Mirrored(Point3{}, UnitVector3::XAxis)));
-    STATIC_REQUIRE(noexcept(ray.Transformed(Transform3::Identity())));
+    Ray3 mutableRay = ray;
+    STATIC_REQUIRE(noexcept(mutableRay.Rotate(Point3{}, UnitVector3::ZAxis, 0.0)));
+    STATIC_REQUIRE(noexcept(mutableRay.Mirror(Point3{}, UnitVector3::XAxis)));
+    STATIC_REQUIRE(noexcept(mutableRay.Transform(Transform3::Identity())));
     STATIC_REQUIRE(noexcept(ray.Subcurve(Interval{})));
 }

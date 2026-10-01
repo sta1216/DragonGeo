@@ -12,6 +12,7 @@
 #include <DragonGeo/Linear/Transform3.hpp>
 #include <DragonGeo/Linear/UnitVector3.hpp>
 #include <DragonGeo/Prim/Segment3.hpp>
+#include <DragonGeo/Prim/Winding.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -75,7 +76,7 @@ struct Line3T {
     }
 
     /// 直线没有有限包围盒，返回规范空盒。
-    [[nodiscard]] constexpr Linear::Box3T<Scalar> Bounds() const noexcept {
+    [[nodiscard]] constexpr Linear::Box3T<Scalar> Box() const noexcept {
         return Linear::Box3T<Scalar>::Empty();
     }
 
@@ -120,7 +121,7 @@ struct Line3T {
         return std::nullopt;
     }
 
-    [[nodiscard]] constexpr std::optional<int> Orientation() const noexcept {
+    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
         return std::nullopt;
     }
 
@@ -150,31 +151,35 @@ struct Line3T {
         return ClosestParameter(point);
     }
 
-    [[nodiscard]] constexpr Line3T Translated(Linear::Vector3T<Scalar> vector) const noexcept {
-        return {Origin + vector, Direction};
+    constexpr void Translate(Linear::Vector3T<Scalar> vector) noexcept {
+        Origin = Origin + vector;
     }
 
     /// 绕过 `origin`、方向为 `axis` 的轴旋转 `radians` 弧度。方向随线性部分旋转后再归一化。
-    [[nodiscard]] Line3T Rotated(
+    void Rotate(
         Linear::Point3T<Scalar> origin,
         Linear::UnitVector3T<Scalar> axis,
-        Scalar radians) const noexcept {
+        Scalar radians) noexcept {
         const Linear::Transform3T<Scalar> rotation =
             Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
-        return Line3T{rotation.TransformPoint(Origin), UnitDirection(rotation)};
+        const Linear::UnitVector3T<Scalar> direction = UnitDirection(rotation);
+        Origin = rotation.TransformPoint(Origin);
+        Direction = direction;
     }
 
     /// 关于过 `point`、法向为 `unitNormal` 的平面反射。
-    [[nodiscard]] Line3T Mirrored(
-        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) const noexcept {
+    void Mirror(
+        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept {
         const Linear::Transform3T<Scalar> mirror =
             Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
-        return Line3T{mirror.TransformPoint(Origin), UnitDirection(mirror)};
+        const Linear::UnitVector3T<Scalar> direction = UnitDirection(mirror);
+        Origin = mirror.TransformPoint(Origin);
+        Direction = direction;
     }
 
     /// 原点不变，方向取反。点集不变，参数方向相反。
-    [[nodiscard]] constexpr Line3T Reversed() const noexcept {
-        return {Origin, -Direction};
+    constexpr void Reverse() noexcept {
+        Direction = -Direction;
     }
 
     [[nodiscard]] constexpr Line3T Clone() const noexcept {
@@ -182,20 +187,21 @@ struct Line3T {
     }
 
     /// 变换原点，方向只施加线性部分再归一化。
-    /// 方向无法归一化，或结果含非有限分量时为空。
-    [[nodiscard]] std::optional<Line3T> Transformed(
-        const Linear::Transform3T<Scalar>& transform) const noexcept {
+    /// 方向无法归一化，或结果含非有限分量时返回 `false`，字段保持原样。
+    [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
         const Linear::Point3T<Scalar> moved = transform.TransformPoint(Origin);
         const Linear::Vector3T<Scalar> transformedDirection = transform * Direction.AsVector();
         if (!Detail::CoordinatesAreFinite(moved)
             || !Detail::CoordinatesAreFinite(transformedDirection)) {
-            return std::nullopt;
+            return false;
         }
         const auto unit = transformedDirection.Normalized();
         if (!unit.has_value()) {
-            return std::nullopt;
+            return false;
         }
-        return Line3T{moved, *unit};
+        Origin = moved;
+        Direction = *unit;
+        return true;
     }
 
     /// 有限子区间是同维度线段。端点非有限或长度不大于 0 时为空。

@@ -12,6 +12,7 @@
 #include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
 #include <DragonGeo/Prim/Segment2.hpp>
+#include <DragonGeo/Prim/Winding.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -75,7 +76,7 @@ struct Line2T {
     }
 
     /// 直线没有有限包围盒，返回规范空盒。
-    [[nodiscard]] constexpr Linear::Box2T<Scalar> Bounds() const noexcept {
+    [[nodiscard]] constexpr Linear::Box2T<Scalar> Box() const noexcept {
         return Linear::Box2T<Scalar>::Empty();
     }
 
@@ -120,7 +121,7 @@ struct Line2T {
         return std::nullopt;
     }
 
-    [[nodiscard]] constexpr std::optional<int> Orientation() const noexcept {
+    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
         return std::nullopt;
     }
 
@@ -150,28 +151,32 @@ struct Line2T {
         return ClosestParameter(point);
     }
 
-    [[nodiscard]] constexpr Line2T Translated(Linear::Vector2T<Scalar> vector) const noexcept {
-        return {Origin + vector, Direction};
+    constexpr void Translate(Linear::Vector2T<Scalar> vector) noexcept {
+        Origin = Origin + vector;
     }
 
     /// 绕 `center` 逆时针旋转 `radians` 弧度。方向随线性部分旋转后再归一化。
-    [[nodiscard]] Line2T Rotated(Linear::Point2T<Scalar> center, Scalar radians) const noexcept {
+    void Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
         const Linear::Transform2T<Scalar> rotation =
             Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-        return Line2T{rotation.TransformPoint(Origin), UnitDirection(rotation)};
+        const Linear::UnitVector2T<Scalar> direction = UnitDirection(rotation);
+        Origin = rotation.TransformPoint(Origin);
+        Direction = direction;
     }
 
     /// 关于过 `point`、法向为 `unitNormal` 的直线反射。
-    [[nodiscard]] Line2T Mirrored(
-        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) const noexcept {
+    void Mirror(
+        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
         const Linear::Transform2T<Scalar> mirror =
             Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-        return Line2T{mirror.TransformPoint(Origin), UnitDirection(mirror)};
+        const Linear::UnitVector2T<Scalar> direction = UnitDirection(mirror);
+        Origin = mirror.TransformPoint(Origin);
+        Direction = direction;
     }
 
     /// 原点不变，方向取反。点集不变，参数方向相反。
-    [[nodiscard]] constexpr Line2T Reversed() const noexcept {
-        return {Origin, -Direction};
+    constexpr void Reverse() noexcept {
+        Direction = -Direction;
     }
 
     [[nodiscard]] constexpr Line2T Clone() const noexcept {
@@ -179,20 +184,21 @@ struct Line2T {
     }
 
     /// 变换原点，方向只施加线性部分再归一化。
-    /// 方向无法归一化，或结果含非有限分量时为空。
-    [[nodiscard]] std::optional<Line2T> Transformed(
-        const Linear::Transform2T<Scalar>& transform) const noexcept {
+    /// 方向无法归一化，或结果含非有限分量时返回 `false`，字段保持原样。
+    [[nodiscard]] bool Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
         const Linear::Point2T<Scalar> moved = transform.TransformPoint(Origin);
         const Linear::Vector2T<Scalar> transformedDirection = transform * Direction.AsVector();
         if (!Detail::CoordinatesAreFinite(moved)
             || !Detail::CoordinatesAreFinite(transformedDirection)) {
-            return std::nullopt;
+            return false;
         }
         const auto unit = transformedDirection.Normalized();
         if (!unit.has_value()) {
-            return std::nullopt;
+            return false;
         }
-        return Line2T{moved, *unit};
+        Origin = moved;
+        Direction = *unit;
+        return true;
     }
 
     /// 有限子区间是同维度线段。端点非有限或长度不大于 0 时为空。

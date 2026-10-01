@@ -11,6 +11,7 @@
 #include <DragonGeo/Linear/Point2.hpp>
 #include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
+#include <DragonGeo/Prim/Winding.hpp>
 
 namespace DragonGeo::Prim {
 
@@ -85,7 +86,7 @@ struct Segment2T {
     }
 
     /// 两端点的轴对齐包围盒。
-    [[nodiscard]] constexpr Linear::Box2T<Scalar> Bounds() const noexcept {
+    [[nodiscard]] constexpr Linear::Box2T<Scalar> Box() const noexcept {
         return Linear::Box2T<Scalar>::FromCorners(A, B);
     }
 
@@ -130,7 +131,7 @@ struct Segment2T {
         return std::nullopt;
     }
 
-    [[nodiscard]] constexpr std::optional<int> Orientation() const noexcept {
+    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
         return std::nullopt;
     }
 
@@ -169,52 +170,58 @@ struct Segment2T {
         return SupportingParameter(point);
     }
 
-    [[nodiscard]] constexpr Segment2T Translated(Linear::Vector2T<Scalar> vector) const noexcept {
-        return {A + vector, B + vector};
+    constexpr void Translate(Linear::Vector2T<Scalar> vector) noexcept {
+        A = A + vector;
+        B = B + vector;
     }
 
     /// 绕 `center` 逆时针旋转 `radians` 弧度。
-    [[nodiscard]] Segment2T Rotated(Linear::Point2T<Scalar> center, Scalar radians) const noexcept {
+    void Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
         const Linear::Transform2T<Scalar> rotation =
             Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-        return {rotation.TransformPoint(A), rotation.TransformPoint(B)};
+        A = rotation.TransformPoint(A);
+        B = rotation.TransformPoint(B);
     }
 
     /// 关于过 `point`、法向为 `unitNormal` 的直线反射。
-    [[nodiscard]] constexpr Segment2T Mirrored(
-        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) const noexcept {
+    constexpr void Mirror(
+        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
         const Linear::Transform2T<Scalar> mirror =
             Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-        return {mirror.TransformPoint(A), mirror.TransformPoint(B)};
+        A = mirror.TransformPoint(A);
+        B = mirror.TransformPoint(B);
     }
 
     /// 交换两端，参数方向相反。
-    [[nodiscard]] constexpr Segment2T Reversed() const noexcept {
-        return {B, A};
+    constexpr void Reverse() noexcept {
+        const Linear::Point2T<Scalar> start = A;
+        A = B;
+        B = start;
     }
 
     [[nodiscard]] constexpr Segment2T Clone() const noexcept {
         return *this;
     }
 
-    /// 变换两端点。任一结果分量非有限时为空。
-    /// 原本能归一化的方向在变换后不能归一化时也为空；零长度线段没有方向，
-    /// 端点有限时仍返回线段。
-    [[nodiscard]] std::optional<Segment2T> Transformed(
-        const Linear::Transform2T<Scalar>& transform) const noexcept {
+    /// 变换两端点。任一结果分量非有限时返回 `false`，字段保持原样。
+    /// 原本能归一化的方向在变换后不能归一化时同样失败；零长度线段没有方向，
+    /// 端点有限时写入两端并返回 `true`。
+    [[nodiscard]] bool Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
         const Linear::Point2T<Scalar> movedA = transform.TransformPoint(A);
         const Linear::Point2T<Scalar> movedB = transform.TransformPoint(B);
         if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)) {
-            return std::nullopt;
+            return false;
         }
         const Linear::Vector2T<Scalar> chord = B - A;
         const Linear::Vector2T<Scalar> transformedChord = transform * chord;
         if (chord.Normalized().has_value()
             && (!Detail::CoordinatesAreFinite(transformedChord)
                 || !transformedChord.Normalized().has_value())) {
-            return std::nullopt;
+            return false;
         }
-        return Segment2T{movedA, movedB};
+        A = movedA;
+        B = movedB;
+        return true;
     }
 
     /// 区间必须落在 `[0, 1]` 内且长度大于 0，否则为空。

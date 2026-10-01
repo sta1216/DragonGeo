@@ -69,7 +69,7 @@ TEST_CASE("Line2 has no endpoints and does not clamp", "[prim][line2]") {
     CHECK(line.ClosestPoint(Point2{-2.0, 3.0}) == Point2{-2.0, 0.0});
     CHECK(line.DistanceSquared(Point2{1.0, 2.0}) == 4.0);
     CHECK(line.Distance(Point2{1.0, 2.0}) == 2.0);
-    CHECK(line.Bounds() == Box2::Empty());
+    CHECK(line.Box() == Box2::Empty());
     const double infinity = std::numeric_limits<double>::infinity();
     CHECK(line.Length() == infinity);
     CHECK(line.Domain() == Interval::Unbounded());
@@ -83,25 +83,37 @@ TEST_CASE("Line2 has no endpoints and does not clamp", "[prim][line2]") {
 
 TEST_CASE("Line2 protocol copies, reflects and cuts a finite span", "[prim][line2]") {
     const Line2 line{Point2{0.0, 0.0}, UnitVector2::XAxis};
-    const Line2 translated = line.Translated(Vector2{1.0, 0.0});
+    Line2 translated = line;
+    translated.Translate(Vector2{1.0, 0.0});
     CHECK(translated.Origin == Point2{1.0, 0.0});
     CHECK(translated.Direction == UnitVector2::XAxis);
+    CHECK(line == Line2{Point2{0.0, 0.0}, UnitVector2::XAxis});
 
-    const Line2 mirrored = line.Mirrored(Point2{0.0, 0.0}, UnitVector2::YAxis);
+    Line2 mirrored = line;
+    mirrored.Mirror(Point2{0.0, 0.0}, UnitVector2::YAxis);
     CHECK(mirrored.Origin == Point2{0.0, 0.0});
     CHECK(mirrored.Direction == UnitVector2::XAxis);
+    CHECK(line.Direction == UnitVector2::XAxis);
 
-    const Line2 rotated = line.Rotated(Point2{0.0, 0.0}, HALF_PI);
+    Line2 rotated = line;
+    rotated.Rotate(Point2{0.0, 0.0}, HALF_PI);
     CHECK(rotated.Origin.X == Approx(0.0).margin(1e-12));
     CHECK(rotated.Origin.Y == Approx(0.0).margin(1e-12));
     CHECK(rotated.Direction.X() == Approx(0.0).margin(1e-12));
     CHECK(rotated.Direction.Y() == Approx(1.0).margin(1e-12));
+    CHECK(line.Direction == UnitVector2::XAxis);
 
-    CHECK(line.Transformed(Transform2::Identity()) == line);
-    CHECK_FALSE(line.Transformed(Transform2::Scaling(0.0)).has_value());
-    const Line2 reversed = line.Reversed();
+    Line2 identity = line;
+    CHECK(identity.Transform(Transform2::Identity()));
+    CHECK(identity == line);
+    Line2 collapsed = line;
+    CHECK_FALSE(collapsed.Transform(Transform2::Scaling(0.0)));
+    CHECK(collapsed == line);
+    Line2 reversed = line;
+    reversed.Reverse();
     CHECK(reversed.Origin == line.Origin);
     CHECK(reversed.Direction == -line.Direction);
+    CHECK(line.Direction == UnitVector2::XAxis);
     CHECK(line.Clone() == line);
 
     const auto span = line.Subcurve(Interval{-1.0, 1.0});
@@ -124,17 +136,18 @@ TEST_CASE("Line2 protocol copies, reflects and cuts a finite span", "[prim][line
     STATIC_REQUIRE(noexcept(line.DistanceSquared(Point2{})));
     STATIC_REQUIRE(noexcept(line.Distance(Point2{})));
     STATIC_REQUIRE(noexcept(line.Length()));
-    STATIC_REQUIRE(noexcept(line.Bounds()));
+    STATIC_REQUIRE(noexcept(line.Box()));
     STATIC_REQUIRE(noexcept(line.StartPoint()));
     STATIC_REQUIRE(noexcept(line.TangentAt(0.0)));
     STATIC_REQUIRE(noexcept(line.ContainsPoint(Point2{})));
     STATIC_REQUIRE(noexcept(line.ParameterOf(Point2{})));
-    STATIC_REQUIRE(noexcept(line.Translated(Vector2{})));
-    STATIC_REQUIRE(noexcept(line.Rotated(Point2{}, 0.0)));
-    STATIC_REQUIRE(noexcept(line.Mirrored(Point2{}, UnitVector2::YAxis)));
-    STATIC_REQUIRE(noexcept(line.Reversed()));
+    Line2 mutableLine = line;
+    STATIC_REQUIRE(noexcept(mutableLine.Translate(Vector2{})));
+    STATIC_REQUIRE(noexcept(mutableLine.Rotate(Point2{}, 0.0)));
+    STATIC_REQUIRE(noexcept(mutableLine.Mirror(Point2{}, UnitVector2::YAxis)));
+    STATIC_REQUIRE(noexcept(mutableLine.Reverse()));
     STATIC_REQUIRE(noexcept(line.Clone()));
-    STATIC_REQUIRE(noexcept(line.Transformed(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(mutableLine.Transform(Transform2::Identity())));
     STATIC_REQUIRE(noexcept(line.Subcurve(Interval{})));
     STATIC_REQUIRE(noexcept(line.AsRay()));
     STATIC_REQUIRE(noexcept(line.AsSegment(0.0, 1.0)));
