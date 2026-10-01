@@ -1,12 +1,27 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
 #include <type_traits>
 
+#include <DragonGeo/Core/Constants.hpp>
+#include <DragonGeo/Linear/Box3.hpp>
+#include <DragonGeo/Linear/Interval.hpp>
+#include <DragonGeo/Linear/Transform3.hpp>
+#include <DragonGeo/Linear/UnitVector3.hpp>
+#include <DragonGeo/Linear/Vector3.hpp>
 #include <DragonGeo/Prim/Prim.hpp>
 #include <DragonGeo/Prim/Segment3.hpp>
 
+using Catch::Approx;
+
+using DragonGeo::Core::HALF_PI;
+using DragonGeo::Linear::Box3;
+using DragonGeo::Linear::Interval;
 using DragonGeo::Linear::Point3;
+using DragonGeo::Linear::Transform3;
+using DragonGeo::Linear::UnitVector3;
+using DragonGeo::Linear::Vector3;
 using DragonGeo::Prim::Segment3;
 using DragonGeo::Prim::Segment3T;
 using DragonGeo::Prim::Segment3f;
@@ -37,4 +52,74 @@ TEST_CASE("Segment3 with a non-finite coordinate is invalid", "[prim][segment3]"
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const Segment3 segment{Point3{nan, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}};
     CHECK_FALSE(segment.IsValid());
+}
+
+TEST_CASE("Segment3 midpoint is PointAt one half", "[prim][segment3]") {
+    const Segment3 segment{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 4.0}};
+    CHECK(segment.PointAt(0.0) == Point3{0.0, 0.0, 0.0});
+    CHECK(segment.PointAt(1.0) == Point3{0.0, 0.0, 4.0});
+    CHECK(segment.PointAt(0.5) == Point3{0.0, 0.0, 2.0});
+    CHECK(segment.MidPoint() == Point3{0.0, 0.0, 2.0});
+    CHECK_FALSE(segment.PointAt(2.0).has_value());
+    CHECK(segment.Domain() == Interval{0.0, 1.0});
+    CHECK(segment.ClosestPoint(Point3{3.0, 0.0, 1.0}) == Point3{0.0, 0.0, 1.0});
+    CHECK(segment.DistanceSquared(Point3{3.0, 0.0, 1.0}) == 9.0);
+    CHECK(segment.Distance(Point3{3.0, 0.0, 1.0}) == 3.0);
+    CHECK(segment.Length() == 4.0);
+    CHECK(segment.LengthSquared() == 16.0);
+    CHECK(segment.Direction() == UnitVector3::ZAxis);
+    CHECK(segment.Bounds() == Box3::FromCorners(Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 4.0}));
+    CHECK(segment.StartPoint() == Point3{0.0, 0.0, 0.0});
+    CHECK(segment.EndPoint() == Point3{0.0, 0.0, 4.0});
+    CHECK(segment.StartTangent() == UnitVector3::ZAxis);
+    CHECK(segment.EndTangent() == UnitVector3::ZAxis);
+    CHECK(segment.MidTangent() == UnitVector3::ZAxis);
+    CHECK(segment.TangentAt(0.25) == UnitVector3::ZAxis);
+
+    const Segment3 degenerate{Point3{1.0, 1.0, 1.0}, Point3{1.0, 1.0, 1.0}};
+    CHECK_FALSE(degenerate.Direction().has_value());
+    CHECK(degenerate.Length() == 0.0);
+    CHECK(degenerate.ParameterOf(Point3{1.0, 1.0, 1.0}) == 0.0);
+    CHECK_FALSE(degenerate.TangentAt(0.0).has_value());
+
+    const Segment3 reversed = segment.Reversed();
+    CHECK(reversed.A == Point3{0.0, 0.0, 4.0});
+    CHECK(reversed.B == Point3{0.0, 0.0, 0.0});
+    const Segment3 translated = segment.Translated(Vector3{1.0, 0.0, 0.0});
+    CHECK(translated.A == Point3{1.0, 0.0, 0.0});
+    CHECK(translated.B == Point3{1.0, 0.0, 4.0});
+
+    const Segment3 above{Point3{0.0, 0.0, 1.0}, Point3{2.0, 0.0, 1.0}};
+    const Segment3 mirrored = above.Mirrored(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
+    CHECK(mirrored.A == Point3{0.0, 0.0, -1.0});
+    CHECK(mirrored.B == Point3{2.0, 0.0, -1.0});
+
+    const Segment3 onAxis{Point3{1.0, 0.0, 0.0}, Point3{2.0, 0.0, 0.0}};
+    const Segment3 rotated = onAxis.Rotated(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis, HALF_PI);
+    CHECK(rotated.A.X == Approx(0.0).margin(1e-12));
+    CHECK(rotated.A.Y == Approx(1.0).margin(1e-12));
+    CHECK(rotated.A.Z == Approx(0.0).margin(1e-12));
+
+    CHECK(segment.Transformed(Transform3::Identity()) == segment);
+    CHECK_FALSE(segment.Transformed(Transform3::Scaling(0.0)).has_value());
+    CHECK(segment.Clone() == segment);
+    CHECK(segment.ContainsPoint(Point3{0.0, 0.0, 2.0}));
+    CHECK_FALSE(segment.ContainsPoint(Point3{0.0, 1.0, 2.0}));
+    CHECK(segment.ParameterOf(Point3{0.0, 0.0, 0.0}) == 0.0);
+    const auto half = segment.Subcurve(Interval{0.0, 0.5});
+    REQUIRE(half.has_value());
+    CHECK(*half == Segment3{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 2.0}});
+    CHECK_FALSE(segment.Subcurve(Interval{0.0, 2.0}).has_value());
+    CHECK_FALSE(segment.IsClosed());
+    CHECK_FALSE(segment.Area().has_value());
+    CHECK_FALSE(segment.Orientation().has_value());
+    CHECK_FALSE(segment.Centroid().has_value());
+    CHECK_FALSE(segment.Contains(Point3{0.0, 0.0, 2.0}));
+
+    STATIC_REQUIRE(noexcept(segment.Domain()));
+    STATIC_REQUIRE(noexcept(segment.PointAt(0.5)));
+    STATIC_REQUIRE(noexcept(segment.Rotated(Point3{}, UnitVector3::ZAxis, 0.0)));
+    STATIC_REQUIRE(noexcept(segment.Mirrored(Point3{}, UnitVector3::ZAxis)));
+    STATIC_REQUIRE(noexcept(segment.Transformed(Transform3::Identity())));
+    STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
 }

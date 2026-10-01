@@ -1,17 +1,30 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
 #include <type_traits>
 
+#include <DragonGeo/Core/Constants.hpp>
+#include <DragonGeo/Linear/Box2.hpp>
+#include <DragonGeo/Linear/Interval.hpp>
+#include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Prim/Prim.hpp>
 #include <DragonGeo/Prim/Ray2.hpp>
+#include <DragonGeo/Prim/Segment2.hpp>
 
+using Catch::Approx;
+
+using DragonGeo::Core::HALF_PI;
+using DragonGeo::Linear::Box2;
+using DragonGeo::Linear::Interval;
 using DragonGeo::Linear::Point2;
+using DragonGeo::Linear::Transform2;
 using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Vector2;
 using DragonGeo::Prim::Ray2;
 using DragonGeo::Prim::Ray2T;
 using DragonGeo::Prim::Ray2f;
+using DragonGeo::Prim::Segment2;
 
 TEST_CASE("Prim.hpp includes every step-1 shell", "[prim]") {
     STATIC_REQUIRE(std::is_aggregate_v<DragonGeo::Prim::Segment2>);
@@ -55,4 +68,97 @@ TEST_CASE("Ray2 with a non-finite coordinate is invalid", "[prim][ray2]") {
     const auto nanDirection = UnitVector2::FromNormalizedUnchecked(Vector2{nan, 0.0});
     const Ray2 nanDirectionRay{Point2{0.0, 0.0}, nanDirection};
     CHECK_FALSE(nanDirectionRay.IsValid());
+}
+
+TEST_CASE("Ray2 rejects a negative parameter and clamps behind the origin", "[prim][ray2]") {
+    const auto negativeX = -UnitVector2::XAxis;
+    const Ray2 ray{Point2{0.0, 0.0}, negativeX};
+    CHECK_FALSE(ray.PointAt(-1.0).has_value());
+    CHECK(ray.PointAt(0.0) == Point2{0.0, 0.0});
+    CHECK(ray.PointAt(2.0) == Point2{-2.0, 0.0});
+    CHECK(ray.ClosestPoint(Point2{4.0, 0.0}) == Point2{0.0, 0.0});
+    CHECK(ray.DistanceSquared(Point2{4.0, 0.0}) == 16.0);
+    CHECK(ray.Distance(Point2{4.0, 0.0}) == 4.0);
+    CHECK(ray.Domain().Min == 0.0);
+    CHECK(ray.Domain().Max == std::numeric_limits<double>::infinity());
+    CHECK(ray.Length() == std::numeric_limits<double>::infinity());
+    CHECK(ray.Bounds() == Box2::Empty());
+    CHECK(ray.StartPoint() == Point2{0.0, 0.0});
+    CHECK_FALSE(ray.EndPoint().has_value());
+    CHECK_FALSE(ray.MidPoint().has_value());
+    CHECK(ray.StartTangent() == negativeX);
+    CHECK_FALSE(ray.EndTangent().has_value());
+    CHECK_FALSE(ray.MidTangent().has_value());
+    CHECK(ray.TangentAt(1.0) == negativeX);
+    CHECK_FALSE(ray.TangentAt(-1.0).has_value());
+    CHECK(ray.ParameterOf(Point2{0.0, 0.0}) == 0.0);
+    CHECK_FALSE(ray.ParameterOf(Point2{4.0, 0.0}).has_value());
+    CHECK(ray.ContainsPoint(Point2{-2.0, 0.0}));
+    CHECK_FALSE(ray.ContainsPoint(Point2{4.0, 0.0}));
+}
+
+TEST_CASE("Ray2 protocol keeps the origin and cuts a finite segment", "[prim][ray2]") {
+    const Ray2 ray{Point2{0.0, 0.0}, UnitVector2::XAxis};
+    const Ray2 translated = ray.Translated(Vector2{1.0, 0.0});
+    CHECK(translated.Origin == Point2{1.0, 0.0});
+    CHECK(translated.Direction == UnitVector2::XAxis);
+
+    const Ray2 upright{Point2{0.0, 1.0}, UnitVector2::XAxis};
+    const Ray2 mirrored = upright.Mirrored(Point2{0.0, 0.0}, UnitVector2::YAxis);
+    CHECK(mirrored.Origin == Point2{0.0, -1.0});
+    CHECK(mirrored.Direction == UnitVector2::XAxis);
+
+    const Ray2 rotated = ray.Rotated(Point2{0.0, 0.0}, HALF_PI);
+    CHECK(rotated.Origin.X == Approx(0.0).margin(1e-12));
+    CHECK(rotated.Origin.Y == Approx(0.0).margin(1e-12));
+    CHECK(rotated.Direction.X() == Approx(0.0).margin(1e-12));
+    CHECK(rotated.Direction.Y() == Approx(1.0).margin(1e-12));
+
+    CHECK(ray.Transformed(Transform2::Identity()) == ray);
+    CHECK_FALSE(ray.Transformed(Transform2::Scaling(0.0)).has_value());
+    const Ray2 reversed = ray.Reversed();
+    CHECK(reversed.Origin == ray.Origin);
+    CHECK(reversed.Direction == -ray.Direction);
+    CHECK(ray.Clone() == ray);
+
+    const auto span = ray.Subcurve(Interval{0.0, 2.0});
+    REQUIRE(span.has_value());
+    CHECK(*span == Segment2{Point2{0.0, 0.0}, Point2{2.0, 0.0}});
+    CHECK_FALSE(ray.Subcurve(Interval{-1.0, 1.0}).has_value());
+    CHECK_FALSE(ray.Subcurve(Interval{1.0, 1.0}).has_value());
+
+    CHECK_FALSE(ray.IsClosed());
+    CHECK_FALSE(ray.Area().has_value());
+    CHECK_FALSE(ray.Orientation().has_value());
+    CHECK_FALSE(ray.Centroid().has_value());
+    CHECK_FALSE(ray.Contains(Point2{1.0, 0.0}));
+
+    STATIC_REQUIRE(noexcept(ray.Domain()));
+    STATIC_REQUIRE(noexcept(ray.PointAt(0.0)));
+    STATIC_REQUIRE(noexcept(ray.ClosestPoint(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.DistanceSquared(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.Distance(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.Length()));
+    STATIC_REQUIRE(noexcept(ray.Bounds()));
+    STATIC_REQUIRE(noexcept(ray.StartPoint()));
+    STATIC_REQUIRE(noexcept(ray.EndPoint()));
+    STATIC_REQUIRE(noexcept(ray.MidPoint()));
+    STATIC_REQUIRE(noexcept(ray.StartTangent()));
+    STATIC_REQUIRE(noexcept(ray.EndTangent()));
+    STATIC_REQUIRE(noexcept(ray.MidTangent()));
+    STATIC_REQUIRE(noexcept(ray.TangentAt(0.0)));
+    STATIC_REQUIRE(noexcept(ray.IsClosed()));
+    STATIC_REQUIRE(noexcept(ray.Area()));
+    STATIC_REQUIRE(noexcept(ray.Orientation()));
+    STATIC_REQUIRE(noexcept(ray.Centroid()));
+    STATIC_REQUIRE(noexcept(ray.Contains(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.ContainsPoint(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.ParameterOf(Point2{})));
+    STATIC_REQUIRE(noexcept(ray.Translated(Vector2{})));
+    STATIC_REQUIRE(noexcept(ray.Rotated(Point2{}, 0.0)));
+    STATIC_REQUIRE(noexcept(ray.Mirrored(Point2{}, UnitVector2::YAxis)));
+    STATIC_REQUIRE(noexcept(ray.Reversed()));
+    STATIC_REQUIRE(noexcept(ray.Clone()));
+    STATIC_REQUIRE(noexcept(ray.Transformed(Transform2::Identity())));
+    STATIC_REQUIRE(noexcept(ray.Subcurve(Interval{})));
 }

@@ -3,14 +3,22 @@
 #include <limits>
 #include <type_traits>
 
+#include <DragonGeo/Linear/Box3.hpp>
+#include <DragonGeo/Linear/Interval.hpp>
+#include <DragonGeo/Linear/Transform3.hpp>
 #include <DragonGeo/Prim/Ray3.hpp>
+#include <DragonGeo/Prim/Segment3.hpp>
 
+using DragonGeo::Linear::Box3;
+using DragonGeo::Linear::Interval;
 using DragonGeo::Linear::Point3;
+using DragonGeo::Linear::Transform3;
 using DragonGeo::Linear::UnitVector3;
 using DragonGeo::Linear::Vector3;
 using DragonGeo::Prim::Ray3;
 using DragonGeo::Prim::Ray3T;
 using DragonGeo::Prim::Ray3f;
+using DragonGeo::Prim::Segment3;
 
 TEST_CASE("Ray3 is an aggregate of an origin and a direction", "[prim][ray3]") {
     const auto direction = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
@@ -41,4 +49,59 @@ TEST_CASE("Ray3 with a non-finite coordinate is invalid", "[prim][ray3]") {
     const auto nanDirection = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, nan});
     const Ray3 nanDirectionRay{Point3{0.0, 0.0, 0.0}, nanDirection};
     CHECK_FALSE(nanDirectionRay.IsValid());
+}
+
+TEST_CASE("Ray3 rejects a negative parameter", "[prim][ray3]") {
+    const Ray3 ray{Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis};
+    CHECK_FALSE(ray.PointAt(-1.0).has_value());
+    CHECK(ray.PointAt(0.0) == Point3{0.0, 0.0, 0.0});
+    CHECK(ray.PointAt(2.0) == Point3{0.0, 0.0, 2.0});
+    CHECK(ray.ClosestPoint(Point3{0.0, 0.0, -4.0}) == Point3{0.0, 0.0, 0.0});
+    CHECK(ray.DistanceSquared(Point3{0.0, 0.0, -4.0}) == 16.0);
+    CHECK(ray.Distance(Point3{0.0, 0.0, -4.0}) == 4.0);
+    CHECK(ray.Domain().Min == 0.0);
+    CHECK(ray.Length() == std::numeric_limits<double>::infinity());
+    CHECK(ray.Bounds() == Box3::Empty());
+    CHECK(ray.StartPoint() == Point3{0.0, 0.0, 0.0});
+    CHECK_FALSE(ray.EndPoint().has_value());
+    CHECK_FALSE(ray.MidPoint().has_value());
+    CHECK(ray.StartTangent() == UnitVector3::ZAxis);
+    CHECK_FALSE(ray.EndTangent().has_value());
+    CHECK_FALSE(ray.MidTangent().has_value());
+    CHECK(ray.TangentAt(1.0) == UnitVector3::ZAxis);
+    CHECK_FALSE(ray.TangentAt(-0.5).has_value());
+    CHECK(ray.ParameterOf(Point3{0.0, 0.0, 2.0}) == 2.0);
+    CHECK_FALSE(ray.ParameterOf(Point3{0.0, 0.0, -4.0}).has_value());
+    CHECK(ray.ContainsPoint(Point3{0.0, 0.0, 2.0}));
+    CHECK_FALSE(ray.ContainsPoint(Point3{0.0, 0.0, -4.0}));
+    CHECK_FALSE(ray.Contains(Point3{}));
+    CHECK_FALSE(ray.IsClosed());
+    CHECK_FALSE(ray.Area().has_value());
+    CHECK_FALSE(ray.Orientation().has_value());
+    CHECK_FALSE(ray.Centroid().has_value());
+
+    const Ray3 translated = ray.Translated(Vector3{1.0, 0.0, 0.0});
+    CHECK(translated.Origin == Point3{1.0, 0.0, 0.0});
+    CHECK(translated.Direction == UnitVector3::ZAxis);
+    const Ray3 mirrored = ray.Mirrored(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis);
+    CHECK(mirrored.Direction == -UnitVector3::ZAxis);
+    const Ray3 rotated = ray.Rotated(Point3{0.0, 0.0, 0.0}, UnitVector3::ZAxis, 0.0);
+    CHECK(rotated.Origin == ray.Origin);
+    CHECK(rotated.Direction == ray.Direction);
+    CHECK(ray.Transformed(Transform3::Identity()) == ray);
+    CHECK_FALSE(ray.Transformed(Transform3::Scaling(0.0)).has_value());
+    CHECK(ray.Reversed().Direction == -ray.Direction);
+    CHECK(ray.Reversed().Origin == ray.Origin);
+    CHECK(ray.Clone() == ray);
+    const auto span = ray.Subcurve(Interval{0.0, 2.0});
+    REQUIRE(span.has_value());
+    CHECK(*span == Segment3{Point3{0.0, 0.0, 0.0}, Point3{0.0, 0.0, 2.0}});
+    CHECK_FALSE(ray.Subcurve(Interval{-1.0, 1.0}).has_value());
+
+    STATIC_REQUIRE(noexcept(ray.PointAt(-1.0)));
+    STATIC_REQUIRE(noexcept(ray.ClosestPoint(Point3{})));
+    STATIC_REQUIRE(noexcept(ray.Rotated(Point3{}, UnitVector3::ZAxis, 0.0)));
+    STATIC_REQUIRE(noexcept(ray.Mirrored(Point3{}, UnitVector3::XAxis)));
+    STATIC_REQUIRE(noexcept(ray.Transformed(Transform3::Identity())));
+    STATIC_REQUIRE(noexcept(ray.Subcurve(Interval{})));
 }
