@@ -5,6 +5,7 @@
 #include <limits>
 #include <optional>
 #include <type_traits>
+#include <variant>
 
 #include <DragonGeo/Core/Constants.hpp>
 #include <DragonGeo/Linear/Box2.hpp>
@@ -26,6 +27,7 @@ using DragonGeo::Linear::Point2f;
 using DragonGeo::Linear::Transform2;
 using DragonGeo::Linear::UnitVector2;
 using DragonGeo::Linear::Vector2;
+using DragonGeo::Prim::Polyline;
 using DragonGeo::Prim::Segment2;
 using DragonGeo::Prim::Triangle2;
 using DragonGeo::Prim::Winding;
@@ -122,30 +124,40 @@ TEST_CASE("Triangle2 parameter midpoint is on the boundary", "[prim][triangle2]"
     STATIC_REQUIRE(noexcept(triangle.MidPoint()));
 }
 
-TEST_CASE("Triangle2 subcurve is a segment only on one edge", "[prim][triangle2]") {
+TEST_CASE("Triangle2 subcurve is a segment on one edge and a polyline across a vertex", "[prim][triangle2]") {
     const Triangle2 triangle{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
-    STATIC_REQUIRE(std::is_same_v<decltype(triangle.Subcurve(Interval{})), std::optional<Segment2>>);
+    STATIC_REQUIRE(std::is_same_v<
+        decltype(triangle.Subcurve(Interval{})), std::optional<std::variant<Segment2, Polyline>>>);
 
     const auto firstEdge = triangle.Subcurve(Interval{0.0, 1.0});
     REQUIRE(firstEdge.has_value());
-    CHECK(*firstEdge == Segment2{Point2{0.0, 0.0}, Point2{1.0, 0.0}});
+    REQUIRE(std::holds_alternative<Segment2>(*firstEdge));
+    CHECK(std::get<Segment2>(*firstEdge) == Segment2{Point2{0.0, 0.0}, Point2{1.0, 0.0}});
 
     const auto partial = triangle.Subcurve(Interval{0.25, 0.75});
     REQUIRE(partial.has_value());
-    CHECK(*partial == Segment2{Point2{0.25, 0.0}, Point2{0.75, 0.0}});
+    REQUIRE(std::holds_alternative<Segment2>(*partial));
+    CHECK(std::get<Segment2>(*partial) == Segment2{Point2{0.25, 0.0}, Point2{0.75, 0.0}});
 
     const auto secondEdge = triangle.Subcurve(Interval{1.0, 1.5});
     REQUIRE(secondEdge.has_value());
-    CHECK(*secondEdge == Segment2{Point2{1.0, 0.0}, Point2{0.5, 0.5}});
+    REQUIRE(std::holds_alternative<Segment2>(*secondEdge));
+    CHECK(std::get<Segment2>(*secondEdge) == Segment2{Point2{1.0, 0.0}, Point2{0.5, 0.5}});
 
-    CHECK_FALSE(triangle.Subcurve(Interval{0.5, 1.5}).has_value());
+    const auto across = triangle.Subcurve(Interval{0.5, 1.5});
+    REQUIRE(across.has_value());
+    REQUIRE(std::holds_alternative<Polyline>(*across));
+    const Polyline& polyline = std::get<Polyline>(*across);
+    CHECK(polyline.PointCount() == 3);
+    CHECK(polyline.Point(0) == Point2{0.5, 0.0});
+    CHECK(polyline.Point(1) == Point2{1.0, 0.0});
+    CHECK(polyline.Point(2) == Point2{0.5, 0.5});
     CHECK_FALSE(triangle.Subcurve(Interval{0.25, 0.25}).has_value());
     CHECK_FALSE(triangle.Subcurve(Interval{1.0, 0.0}).has_value());
     CHECK_FALSE(triangle.Subcurve(Interval{-0.1, 0.5}).has_value());
     CHECK_FALSE(triangle.Subcurve(Interval{2.5, 3.5}).has_value());
     const double nan = std::numeric_limits<double>::quiet_NaN();
     CHECK_FALSE(triangle.Subcurve(Interval{nan, 1.0}).has_value());
-    STATIC_REQUIRE(noexcept(triangle.Subcurve(Interval{})));
 }
 
 TEST_CASE("Triangle2 is a closed curve with perimeter and tangents", "[prim][triangle2]") {

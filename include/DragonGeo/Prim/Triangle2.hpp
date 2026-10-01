@@ -4,6 +4,7 @@
 #include <concepts>
 #include <optional>
 #include <span>
+#include <variant>
 
 #include <DragonGeo/Core/Numeric.hpp>
 #include <DragonGeo/Core/Tolerance.hpp>
@@ -14,6 +15,7 @@
 #include <DragonGeo/Linear/Transform2.hpp>
 #include <DragonGeo/Linear/UnitVector2.hpp>
 #include <DragonGeo/Predicates/Predicates.hpp>
+#include <DragonGeo/Prim/Polyline.hpp>
 #include <DragonGeo/Prim/Segment2.hpp>
 #include <DragonGeo/Prim/Winding.hpp>
 
@@ -142,12 +144,10 @@ struct Triangle2T {
     /// 填充三角形上的最近点。内部的点就是查询点本身；外部取三条边上的最近点。
     [[nodiscard]] Linear::Point2T<Scalar> ClosestPoint(Linear::Point2T<Scalar> point) const noexcept;
 
-    /// 区间必须落在 `[0, 3]` 内、长度大于 0，并且整段落在同一条边上，否则为空。
-    /// 端点非有限或区间倒置同样为空。不抛异常。
-    ///
-    /// 跨过顶点的区间需要 `Polyline`。该类型还不存在，因此不声明返回折线的重载。
-    [[nodiscard]] std::optional<Segment2T<Scalar>> Subcurve(
-        Linear::IntervalT<Scalar> interval) const noexcept;
+    /// 区间必须落在 `[0, 3]` 内且长度大于 0，否则为空。端点非有限或区间倒置同样为空。
+    /// 整段落在同一条边上时返回 `Segment2`，跨过顶点时返回 `Polyline`。
+    [[nodiscard]] std::optional<std::variant<Segment2T<Scalar>, PolylineT<Scalar>>> Subcurve(
+        Linear::IntervalT<Scalar> interval) const;
 
 private:
     /// `t` 必须已落在 `[0, 3]` 内。`3` 映射回 `A`。

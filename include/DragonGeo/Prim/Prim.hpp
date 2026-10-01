@@ -5,6 +5,7 @@
 #include <DragonGeo/Prim/Line2.hpp>
 #include <DragonGeo/Prim/Line3.hpp>
 #include <DragonGeo/Prim/Plane.hpp>
+#include <DragonGeo/Prim/Polyline.hpp>
 #include <DragonGeo/Prim/Polyline3.hpp>
 #include <DragonGeo/Prim/Ray2.hpp>
 #include <DragonGeo/Prim/Ray3.hpp>

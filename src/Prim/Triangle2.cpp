@@ -221,7 +221,9 @@ template <typename Scalar>
 }
 
 template <typename Scalar>
-[[nodiscard]] std::optional<Segment2T<Scalar>> Triangle2T<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const noexcept {
+[[nodiscard]] std::optional<std::variant<Segment2T<Scalar>, PolylineT<Scalar>>>
+Triangle2T<Scalar>::Subcurve(Linear::IntervalT<Scalar> interval) const {
+    using Curve = std::variant<Segment2T<Scalar>, PolylineT<Scalar>>;
     if (!Detail::IsFiniteSubinterval(interval, Domain())) {
         return std::nullopt;
     }
@@ -229,10 +231,27 @@ template <typename Scalar>
         const Scalar edgeMin = static_cast<Scalar>(edge);
         const Scalar edgeMax = edgeMin + Scalar{1};
         if (interval.Min >= edgeMin && interval.Max <= edgeMax) {
-            return Segment2T<Scalar>{Locate(interval.Min), Locate(interval.Max)};
+            return Curve{Segment2T<Scalar>{Locate(interval.Min), Locate(interval.Max)}};
         }
     }
-    return std::nullopt;
+
+    Linear::Point2T<Scalar> corners[4];
+    int count = 0;
+    corners[count++] = Locate(interval.Min);
+    for (int vertex = 1; vertex <= 2; ++vertex) {
+        const Scalar parameter = static_cast<Scalar>(vertex);
+        if (parameter > interval.Min && parameter < interval.Max) {
+            corners[count++] = Locate(parameter);
+        }
+    }
+    corners[count++] = Locate(interval.Max);
+
+    auto polyline = PolylineT<Scalar>::FromPoints(
+        std::span<const Linear::Point2T<Scalar>>{corners, static_cast<std::size_t>(count)});
+    if (!polyline.has_value()) {
+        return std::nullopt;
+    }
+    return Curve{std::move(*polyline)};
 }
 
 template <typename Scalar>

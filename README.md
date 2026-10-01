@@ -37,7 +37,7 @@ These are the commitments the design is built around.
   non-orthogonal or left-handed frame cannot be built through any public
   interface.
 
-See `docs/superpowers/specs/` for the full design. 命名以该文档 §3.4 为准：文件名、类名、方法名、模块名大驼峰；参数和变量小驼峰；public 成员大驼峰；非 public 成员 `m_` + 小驼峰；指针 `p` + 大驼峰（智能指针可用 `up` / `sp` / `wp`）；常量全大写、下划线分词；注释用中文。
+See `docs/superpowers/specs/` for the full design. 命名以该文档 §3.4 为准：文件名、类名、方法名、模块名大驼峰；参数和变量小驼峰；public 成员大驼峰；非 public 成员 `m_` + 小驼峰；指针 `p` + 大驼峰（智能指针可用 `up` / `sp` / `wp`）；常量全大写、下划线分词；注释用中文。单行最长 150 个字符，没有超过就不要换行。
 
 ## Using DragonGeo from another project
 

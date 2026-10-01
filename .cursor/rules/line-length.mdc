@@ -1,0 +1,15 @@
+---
+description: 单行最长 150 字符，没超过就不要换行
+alwaysApply: true
+---
+
+# 行宽
+
+单行最长 150 个字符。没有超过这个长度时不要换行。函数签名、调用、条件、初始化列表都一样：放得下就保持一行。
+
+```cpp
+// 放得下，保持一行
+[[nodiscard]] std::optional<Linear::Point2T<Scalar>> PointAt(Scalar t) const noexcept;
+
+// 超过 150 个字符才拆开
+```

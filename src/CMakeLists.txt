@@ -5,6 +5,7 @@ add_library(DragonGeo STATIC
     Prim/Line2.cpp
     Prim/Line3.cpp
     Prim/Plane.cpp
+    Prim/Polyline.cpp
     Prim/Polyline3.cpp
     Prim/Ray2.cpp
     Prim/Ray3.cpp
