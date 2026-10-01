@@ -220,6 +220,16 @@ TEST_CASE("a line, ray, or segment meets a Triangle3", "[query]") {
     const Segment3 coplanar{Point3{0.2, 0.2, 0.0}, Point3{0.4, 0.2, 0.0}};
     CHECK(Intersects(coplanar, triangle));
     CHECK_FALSE(Intersection(coplanar, triangle).has_value());
+
+    const Triangle3 tilted{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 1.0}};
+    const Segment3 transverse{Point3{0.2, 1.0, 0.0}, Point3{0.2, 0.0, 2.0}};
+    const auto tiltedHit = Intersection(transverse, tilted);
+    REQUIRE(tiltedHit.has_value());
+    CHECK(tiltedHit->Parameter == Approx(1.0 / 3.0));
+    CHECK(tiltedHit->Point.X == Approx(0.2));
+    CHECK(tiltedHit->Point.Y == Approx(2.0 / 3.0));
+    CHECK(tiltedHit->Point.Z == Approx(2.0 / 3.0));
+    CHECK(Intersects(transverse, tilted));
 }
 
 TEST_CASE("a segment or line crosses a Box2, and an empty box misses", "[query]") {
@@ -339,6 +349,11 @@ TEST_CASE("segment and triangle distances", "[query]") {
     const Segment2 flatB{Point2{0.0, 2.0}, Point2{1.0, 2.0}};
     CHECK(DistanceSquared(flatA, flatB) == 4.0);
     CHECK(Distance(flatA, flatB) == 2.0);
+
+    const Segment2 shaft{Point2{0.0, 0.0}, Point2{4.0, 0.0}};
+    const Segment2 zeroLength{Point2{2.0, 1.0}, Point2{2.0, 1.0}};
+    CHECK(DistanceSquared(shaft, zeroLength) == 1.0);
+    CHECK(DistanceSquared(zeroLength, shaft) == 1.0);
 
     const Triangle3 lower{Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0}, Point3{0.0, 1.0, 0.0}};
     const Triangle3 upper{Point3{0.0, 0.0, 2.0}, Point3{1.0, 0.0, 2.0}, Point3{0.0, 1.0, 2.0}};

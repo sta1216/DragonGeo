@@ -19,6 +19,7 @@
 #include <DragonGeo/Prim/Ray3.hpp>
 #include <DragonGeo/Prim/Segment2.hpp>
 #include <DragonGeo/Prim/Segment3.hpp>
+#include <DragonGeo/Prim/Triangle2.hpp>
 #include <DragonGeo/Prim/Triangle3.hpp>
 #include <DragonGeo/Query/CurveMeet.hpp>
 
@@ -380,6 +381,40 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
     return false;
 }
 
+/// 丢掉法向绝对值最大的轴。并列时按 X、Y、Z 取先出现的轴，与 `Triangle3` 投影一致。
+[[nodiscard]] inline int DroppedNormalAxis(Linear::Vector3 normal) noexcept {
+    const double absX = Core::AbsoluteValue(normal.X);
+    const double absY = Core::AbsoluteValue(normal.Y);
+    const double absZ = Core::AbsoluteValue(normal.Z);
+    if (absX >= absY && absX >= absZ) {
+        return 0;
+    }
+    if (absY >= absZ) {
+        return 1;
+    }
+    return 2;
+}
+
+[[nodiscard]] inline Linear::Point2 DropAxis(Linear::Point3 point, int axis) noexcept {
+    if (axis == 0) {
+        return Linear::Point2{point.Y, point.Z};
+    }
+    if (axis == 1) {
+        return Linear::Point2{point.X, point.Z};
+    }
+    return Linear::Point2{point.X, point.Y};
+}
+
+/// 平面求交得到的点可能离开三角形一个 ulp。`Triangle3::Contains` 要求 `Orient3d == 0`，
+/// 会把横向穿过的真实交点判掉。投影到坐标平面后，用与 `Triangle2::Contains` 相同的包含测试。
+[[nodiscard]] inline bool ContainsInProjection(Prim::Triangle3 triangle, Linear::Point3 point,
+                                               Linear::Vector3 normal) noexcept {
+    const int dropped = DroppedNormalAxis(normal);
+    const Prim::Triangle2 projected{
+        DropAxis(triangle.A, dropped), DropAxis(triangle.B, dropped), DropAxis(triangle.C, dropped)};
+    return projected.Contains(DropAxis(point, dropped));
+}
+
 [[nodiscard]] inline SolidHit HitTriangle(Linear::Point3 origin, Linear::Vector3 direction, CurveDomain domain,
                                           Prim::Triangle3 triangle) noexcept {
     if (direction.LengthSquared() == 0.0) {
@@ -414,7 +449,7 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
         return {};
     }
     const Linear::Point3 point = origin + direction * parameter;
-    if (!triangle.Contains(point)) {
+    if (!ContainsInProjection(triangle, point, normal)) {
         return {};
     }
     return SolidHit{HitKind::Point, ParameterPoint3{parameter, point}};
@@ -438,6 +473,18 @@ template <typename Point>
     const double c = v.Dot(v);
     const double d = u.Dot(w);
     const double e = v.Dot(w);
+    // 有一条线段长度为 0 时，把那个点投到另一条线段上并夹到 [0, 1]。
+    // 第二条退化为点时，通用公式会把参数留在起点，距离因此不对称。
+    if (!(c > 0.0)) {
+        const double s = !(a > 0.0) ? 0.0 : std::min(1.0, std::max(0.0, -d / a));
+        const auto difference = w + u * s;
+        return difference.LengthSquared();
+    }
+    if (!(a > 0.0)) {
+        const double t = std::min(1.0, std::max(0.0, e / c));
+        const auto difference = w - v * t;
+        return difference.LengthSquared();
+    }
     const double determinant = a * c - b * b;
     double sNumerator = 0.0;
     double sDenominator = determinant;
