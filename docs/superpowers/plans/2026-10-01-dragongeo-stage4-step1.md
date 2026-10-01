@@ -1,3 +1,5 @@
+> **2026-10-01 更正：** 折线改存点列，曲线变换改为就地修改并改名，包围盒方法改为 `Box`，闭合方向改为 `Winding`，平面补上点与矢量，阶段 4 的实现移入静态库。下文里与这些冲突的句子按当时的任务执行过，后续改代码以 `2026-10-01-dragongeo-stage4-curve-protocol-revision.md` 和需求合同为准。
+
 # DragonGeo 阶段 4 第 1 步 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

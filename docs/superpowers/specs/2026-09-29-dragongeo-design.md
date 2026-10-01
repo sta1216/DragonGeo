@@ -87,7 +87,7 @@ cmake/            包配置模板（find_package 支持）
 
 对外只暴露单一 `DragonGeo::DragonGeo` target，使用者无需做链接选择题。内部拆分为多个 OBJECT 库以并行编译。
 
-核心类型（`Core` / `Linear` / `Prim`）为 header-only。阶段 3 的 `Predicates` 只在头文件里放四个函数的声明，过滤与精确展开都编译进 `DragonGeo` 静态库；调用方链接这个目标。精确展开只在符号落进误差界时才执行，展开头不进入公共包含路径。`Polygon`、`Mesh`、`Solid` 与 BVH 继续追加到同一个库，避免这些体积更大的算法拖垮使用者的编译时间。四个函数的签名保持不变。
+核心类型里，`Core` 与 `Linear` 为 header-only。阶段 4 起 `Prim` 与 `Query` 只在头文件放声明，定义编译进 `DragonGeo` 静态库。阶段 3 的 `Predicates` 只在头文件里放四个函数的声明，过滤与精确展开都编译进 `DragonGeo` 静态库；调用方链接这个目标。精确展开只在符号落进误差界时才执行，展开头不进入公共包含路径。`Polygon`、`Mesh`、`Solid` 与 BVH 继续追加到同一个库，避免这些体积更大的算法拖垮使用者的编译时间。四个函数的签名保持不变。
 
 ### 3.4 命名规范
 

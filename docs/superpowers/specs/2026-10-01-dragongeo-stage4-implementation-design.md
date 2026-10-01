@@ -3,7 +3,7 @@
 日期：2026-10-01
 状态：已确认。第 1 步的实现计划见 `docs/superpowers/plans/2026-10-01-dragongeo-stage4-step1.md`。第 2–5 步在第 1 步落地后再写各自的计划。确认之前不写 `Prim` / `Query` 代码的约束已经解除，但只按该计划的任务顺序写。
 
-需求合同仍是 `2026-09-30-dragongeo-stage4-design.md`。本文只决定怎么落地，不改类型语义。两者冲突时，以需求合同为准，并在本文改正。
+需求合同仍是 `2026-09-30-dragongeo-stage4-design.md`，曲线协议的修订见 `2026-10-01-dragongeo-stage4-curve-protocol-revision.md`。两者冲突时，以需求合同为准。
 
 ---
 
@@ -23,11 +23,11 @@
 
 曲线协议是一组同名方法，不是公共基类。`Query` 是具体类型上的自由函数。`Clone` 按值拷贝。
 
-这样定，是因为返回类型本来就不是同一个类型。`Subcurve` 在一条直线边上是线段，跨过顶点才是折线；圆的子区间是圆弧。矩形在变换后不再轴对齐时，结果是 `Polygon`。这些类型在编译期就确定。公共虚基类会把它们收成基类指针，调用方再向下转换。
+这样定，是因为返回类型本来就不是同一个类型。`Subcurve` 在一条直线边上是线段，跨过顶点才是折线；圆的子区间是圆弧。这些类型在编译期就确定。公共虚基类会把它们收成基类指针，调用方再向下转换。矩形在变换后不再轴对齐时保持原样并返回 `false`，不在这次调用里变成 `Polygon`。
 
 `CurveCollection` 存放第 4.1 节的全部二维曲线，但它自己不是一条曲线，没有统一的起点、参数域或子曲线。它用 `std::variant` 按值存放成员。`MultiPolygon` 只用 `variant<Polygon, CurvePolygon>`。阶段 5 的布尔和三角剖分接收 `Prim::Polygon` 这个具体类型。
 
-重复算法放在 `DragonGeo::Detail` 的函数模板里，各具体类型做薄包装。调用点仍然是具体类型，没有虚调用，小函数保持可内联。`Prim` 与解析查询继续 header-only。GJK/EPA 的声明在 `Query` 头里，实现进 `DragonGeo` 静态库。
+重复算法放在 `DragonGeo::Detail` 的函数模板里，各具体类型做薄包装。调用点仍然是具体类型，没有虚调用。阶段 4 的 `Prim` 与解析查询不再 header-only：头文件只放声明，定义放进 `DragonGeo` 静态库，`double` 与 `float` 显式实例化。GJK/EPA 同样进这个库。细则见 `2026-10-01-dragongeo-stage4-curve-protocol-revision.md`。
 
 ---
 
