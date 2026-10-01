@@ -12,9 +12,7 @@
 #include <DragonGeo/Linear/Transform3.hpp>
 #include <DragonGeo/Linear/UnitVector3.hpp>
 #include <DragonGeo/Prim/Winding.hpp>
-#define DRAGONGEO_DETAIL_INCLUDING_RAY3
 #include <DragonGeo/Prim/Segment3.hpp>
-#undef DRAGONGEO_DETAIL_INCLUDING_RAY3
 
 namespace DragonGeo::Prim {
 
@@ -44,208 +42,103 @@ struct Ray3T {
     }
 
     /// 参数域 `[0, +inf)`。
-    [[nodiscard]] constexpr Linear::IntervalT<Scalar> Domain() const noexcept {
-        return {Scalar{0}, std::numeric_limits<Scalar>::infinity()};
-    }
+    [[nodiscard]] Linear::IntervalT<Scalar> Domain() const noexcept;
 
     /// `t < 0` 或 `t` 非有限时为空。
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> PointAt(Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Locate(t);
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> PointAt(Scalar t) const noexcept;
 
     /// 最近点把参数夹在 `t >= 0`。查询点落在起点后方时，最近点是原点。
-    [[nodiscard]] constexpr Linear::Point3T<Scalar> ClosestPoint(
-        Linear::Point3T<Scalar> point) const noexcept {
-        return Locate(ClosestParameter(point));
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> ClosestPoint(
+        Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到射线的平方距离。
-    [[nodiscard]] constexpr Scalar DistanceSquared(Linear::Point3T<Scalar> point) const noexcept {
-        return (point - ClosestPoint(point)).LengthSquared();
-    }
+    [[nodiscard]] Scalar DistanceSquared(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到射线的距离，即 `DistanceSquared` 的平方根。
-    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept {
-        return std::sqrt(DistanceSquared(point));
-    }
+    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 射线无界，长度为 `+inf`。
-    [[nodiscard]] constexpr Scalar Length() const noexcept {
-        return std::numeric_limits<Scalar>::infinity();
-    }
+    [[nodiscard]] Scalar Length() const noexcept;
 
     /// 射线没有有限包围盒，返回规范空盒。
-    [[nodiscard]] constexpr Linear::Box3T<Scalar> Box() const noexcept {
-        return Linear::Box3T<Scalar>::Empty();
-    }
+    [[nodiscard]] Linear::Box3T<Scalar> Box() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> StartPoint() const noexcept {
-        return Origin;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> StartPoint() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> EndPoint() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> EndPoint() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> MidPoint() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> MidPoint() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::UnitVector3T<Scalar>> StartTangent() const noexcept {
-        return Direction;
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> StartTangent() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::UnitVector3T<Scalar>> EndTangent() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> EndTangent() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::UnitVector3T<Scalar>> MidTangent() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> MidTangent() const noexcept;
 
     /// 域内返回存放的方向。负参数与非有限参数为空。
-    [[nodiscard]] constexpr std::optional<Linear::UnitVector3T<Scalar>> TangentAt(
-        Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Direction;
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> TangentAt(
+        Scalar t) const noexcept;
 
-    [[nodiscard]] constexpr bool IsClosed() const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool IsClosed() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Scalar> Area() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Scalar> Area() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Winding> Orientation() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> Centroid() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> Centroid() const noexcept;
 
     /// 射线不填充区域。
-    [[nodiscard]] constexpr bool Contains(Linear::Point3T<Scalar>) const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool Contains(Linear::Point3T<Scalar>) const noexcept;
 
     /// 点到射线的距离不超过 `tolerance.Resolve(1)`。尺度固定为 `1`。
     [[nodiscard]] bool ContainsPoint(
         Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        return Distance(point) <= tolerance.Resolve(Scalar{1});
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
     /// 最近点的参数。距离不满足同一容差下的 `ContainsPoint` 时为空。
     [[nodiscard]] std::optional<Scalar> ParameterOf(
         Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        if (!ContainsPoint(point, tolerance)) {
-            return std::nullopt;
-        }
-        return ClosestParameter(point);
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
-    constexpr void Translate(Linear::Vector3T<Scalar> vector) noexcept {
-        Origin = Origin + vector;
-    }
+    void Translate(Linear::Vector3T<Scalar> vector) noexcept;
 
     /// 绕过 `origin`、方向为 `axis` 的轴旋转 `radians` 弧度。方向随线性部分旋转后再归一化。
     void Rotate(
         Linear::Point3T<Scalar> origin,
         Linear::UnitVector3T<Scalar> axis,
-        Scalar radians) noexcept {
-        const Linear::Transform3T<Scalar> rotation =
-            Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
-        const Linear::UnitVector3T<Scalar> direction = UnitDirection(rotation);
-        Origin = rotation.TransformPoint(Origin);
-        Direction = direction;
-    }
+        Scalar radians) noexcept;
 
     /// 关于过 `point`、法向为 `unitNormal` 的平面反射。
     void Mirror(
-        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept {
-        const Linear::Transform3T<Scalar> mirror =
-            Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
-        const Linear::UnitVector3T<Scalar> direction = UnitDirection(mirror);
-        Origin = mirror.TransformPoint(Origin);
-        Direction = direction;
-    }
+        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept;
 
     /// 原点不变，方向取反。点集变成从同一原点指向另一侧的射线。
-    constexpr void Reverse() noexcept {
-        Direction = -Direction;
-    }
+    void Reverse() noexcept;
 
-    [[nodiscard]] constexpr Ray3T Clone() const noexcept {
-        return *this;
-    }
+    [[nodiscard]] Ray3T Clone() const noexcept;
 
     /// 变换原点，方向只施加线性部分再归一化。
     /// 方向无法归一化，或结果含非有限分量时返回 `false`，字段保持原样。
-    [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
-        const Linear::Point3T<Scalar> moved = transform.TransformPoint(Origin);
-        const Linear::Vector3T<Scalar> transformedDirection = transform * Direction.AsVector();
-        if (!Detail::CoordinatesAreFinite(moved)
-            || !Detail::CoordinatesAreFinite(transformedDirection)) {
-            return false;
-        }
-        const auto unit = transformedDirection.Normalized();
-        if (!unit.has_value()) {
-            return false;
-        }
-        Origin = moved;
-        Direction = *unit;
-        return true;
-    }
+    [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept;
 
     /// 有限子区间是同维度线段。区间不在 `[0, +inf)` 内、长度不大于 0，或端点非有限时为空。
-    [[nodiscard]] constexpr std::optional<Segment3T<Scalar>> Subcurve(
-        Linear::IntervalT<Scalar> interval) const noexcept {
-        if (!Detail::IsFiniteSubinterval(interval, Domain())) {
-            return std::nullopt;
-        }
-        return Segment3T<Scalar>{Locate(interval.Min), Locate(interval.Max)};
-    }
+    [[nodiscard]] std::optional<Segment3T<Scalar>> Subcurve(
+        Linear::IntervalT<Scalar> interval) const noexcept;
 
     /// 原点和方向原样带走。
     [[nodiscard]] Line3T<Scalar> AsLine() const noexcept;
 
     /// `length` 有限且大于 0 时，从原点到 `Origin + length * Direction` 的线段；否则为空。
-    [[nodiscard]] constexpr std::optional<Segment3T<Scalar>> AsSegment(Scalar length) const noexcept {
-        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return std::nullopt;
-        }
-        return Segment3T<Scalar>{Origin, Locate(length)};
-    }
+    [[nodiscard]] std::optional<Segment3T<Scalar>> AsSegment(Scalar length) const noexcept;
 
 private:
-    [[nodiscard]] constexpr Linear::Point3T<Scalar> Locate(Scalar t) const noexcept {
-        return Origin + Direction * t;
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> Locate(Scalar t) const noexcept;
 
-    [[nodiscard]] constexpr Scalar ClosestParameter(Linear::Point3T<Scalar> point) const noexcept {
-        return Detail::ClampParameter(
-            Detail::ProjectParameter(Origin, Direction, point), Domain());
-    }
+    [[nodiscard]] Scalar ClosestParameter(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 反射和旋转保持长度。归一化失败时保留变换后的分量，调用方仍得到一条射线。
     [[nodiscard]] Linear::UnitVector3T<Scalar> UnitDirection(
-        const Linear::Transform3T<Scalar>& transform) const noexcept {
-        const Linear::Vector3T<Scalar> transformed = transform * Direction.AsVector();
-        const auto unit = transformed.Normalized();
-        if (unit.has_value()) {
-            return *unit;
-        }
-        return Linear::UnitVector3T<Scalar>::FromNormalizedUnchecked(transformed);
-    }
+        const Linear::Transform3T<Scalar>& transform) const noexcept;
 };
 
 /// 逐字段比较。`operator!=` 由 C++20 自动生成，不手写。
@@ -257,15 +150,7 @@ template <typename Scalar>
 using Ray3 = Ray3T<double>;
 using Ray3f = Ray3T<float>;
 
-} // namespace DragonGeo::Prim
 
-#include <DragonGeo/Prim/Line3.hpp>
-
-namespace DragonGeo::Prim {
-
-template <typename Scalar>
-[[nodiscard]] Line3T<Scalar> Ray3T<Scalar>::AsLine() const noexcept {
-    return {Origin, Direction};
-}
-
+extern template struct Ray3T<double>;
+extern template struct Ray3T<float>;
 } // namespace DragonGeo::Prim

@@ -35,62 +35,42 @@ struct PlaneT {
     }
 
     /// `Normal · (point - Origin)`。法线一侧为正，平面上为 0。
-    [[nodiscard]] constexpr Scalar SignedDistance(Linear::Point3T<Scalar> point) const noexcept {
-        return (point - Origin).Dot(Normal.AsVector());
-    }
+    [[nodiscard]] Scalar SignedDistance(Linear::Point3T<Scalar> point) const noexcept;
 
     /// `SignedDistance` 的绝对值。
-    [[nodiscard]] constexpr Scalar Distance(Linear::Point3T<Scalar> point) const noexcept {
-        return Core::AbsoluteValue(SignedDistance(point));
-    }
+    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到平面的垂足：`point - SignedDistance(point) * Normal`。
     /// 点已在平面上时返回该点本身。
-    [[nodiscard]] constexpr Linear::Point3T<Scalar> ClosestPoint(
-        Linear::Point3T<Scalar> point) const noexcept {
-        return point - Normal * SignedDistance(point);
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> ClosestPoint(
+        Linear::Point3T<Scalar> point) const noexcept;
 
     /// 法线取反，原点不变。结果与原平面表示不相等。
-    [[nodiscard]] constexpr PlaneT Flipped() const noexcept {
-        return PlaneT{Origin, -Normal};
-    }
+    [[nodiscard]] PlaneT Flipped() const noexcept;
 
     /// 把向量投到平面内：`v - Normal * (Normal · v)`。
-    [[nodiscard]] constexpr Linear::Vector3T<Scalar> Project(
-        Linear::Vector3T<Scalar> vector) const noexcept {
-        return vector - Normal * Normal.AsVector().Dot(vector);
-    }
+    [[nodiscard]] Linear::Vector3T<Scalar> Project(
+        Linear::Vector3T<Scalar> vector) const noexcept;
 
     /// 把单位方向投到平面内再归一化。与法线平行时投影为零，返回空。
     [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Project(
-        Linear::UnitVector3T<Scalar> direction) const noexcept {
-        return Project(direction.AsVector()).Normalized();
-    }
+        Linear::UnitVector3T<Scalar> direction) const noexcept;
 
     /// 关于本平面反射点：`point - 2 * SignedDistance(point) * Normal`。
-    [[nodiscard]] constexpr Linear::Point3T<Scalar> Mirror(
-        Linear::Point3T<Scalar> point) const noexcept {
-        return point - Normal * (Scalar{2} * SignedDistance(point));
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> Mirror(
+        Linear::Point3T<Scalar> point) const noexcept;
 
     /// 关于本平面反射方向：`v - 2 * (Normal · v) * Normal`。
-    [[nodiscard]] constexpr Linear::Vector3T<Scalar> Mirror(
-        Linear::Vector3T<Scalar> vector) const noexcept {
-        return vector - Normal * (Scalar{2} * Normal.AsVector().Dot(vector));
-    }
+    [[nodiscard]] Linear::Vector3T<Scalar> Mirror(
+        Linear::Vector3T<Scalar> vector) const noexcept;
 
     /// 带符号距离的绝对值不超过 `tolerance.Resolve(1)`。
-    [[nodiscard]] constexpr bool Contains(
+    [[nodiscard]] bool Contains(
         Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        return Core::AbsoluteValue(SignedDistance(point)) <= tolerance.Resolve(Scalar{1});
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
     /// 沿法线平移原点 `distance`：`Origin += distance * Normal`。
-    constexpr void Offset(Scalar distance) noexcept {
-        Origin = Origin + Normal * distance;
-    }
+    void Offset(Scalar distance) noexcept;
 };
 
 /// 逐字段比较。`operator!=` 由 C++20 自动生成，不手写。
@@ -102,4 +82,7 @@ template <typename Scalar>
 using Plane = PlaneT<double>;
 using Planef = PlaneT<float>;
 
+
+extern template struct PlaneT<double>;
+extern template struct PlaneT<float>;
 } // namespace DragonGeo::Prim

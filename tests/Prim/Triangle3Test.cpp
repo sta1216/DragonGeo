@@ -118,8 +118,8 @@ TEST_CASE("Triangle3 parameter midpoint is on the boundary", "[prim][triangle3]"
     CHECK(triangle.PointAt(0.0) == triangle.PointAt(3.0));
     CHECK_FALSE(triangle.PointAt(4.0).has_value());
     CHECK_FALSE(triangle.PointAt(std::numeric_limits<double>::quiet_NaN()).has_value());
-    STATIC_REQUIRE(triangle.Domain() == Interval{0.0, 3.0});
-    STATIC_REQUIRE(triangle.MidPoint() == Point3{0.5, 0.5, 0.0});
+    CHECK(triangle.Domain() == Interval{0.0, 3.0});
+    CHECK(triangle.MidPoint() == Point3{0.5, 0.5, 0.0});
     STATIC_REQUIRE(noexcept(triangle.Domain()));
     STATIC_REQUIRE(noexcept(triangle.PointAt(0.0)));
     STATIC_REQUIRE(noexcept(triangle.MidPoint()));

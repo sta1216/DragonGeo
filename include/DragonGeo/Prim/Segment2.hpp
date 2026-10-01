@@ -40,109 +40,58 @@ struct Segment2T {
     }
 
     /// 参数域 `[0, 1]`。
-    [[nodiscard]] constexpr Linear::IntervalT<Scalar> Domain() const noexcept {
-        return {Scalar{0}, Scalar{1}};
-    }
+    [[nodiscard]] Linear::IntervalT<Scalar> Domain() const noexcept;
 
     /// `t` 不在 `[0, 1]` 或非有限时为空。
-    [[nodiscard]] constexpr std::optional<Linear::Point2T<Scalar>> PointAt(Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Locate(t);
-    }
+    [[nodiscard]] std::optional<Linear::Point2T<Scalar>> PointAt(Scalar t) const noexcept;
 
     /// 最近点把参数夹在 `[0, 1]`。零长度线段的最近点就是 `A`。
-    [[nodiscard]] Linear::Point2T<Scalar> ClosestPoint(Linear::Point2T<Scalar> point) const noexcept {
-        return Locate(ClosestParameter(point));
-    }
+    [[nodiscard]] Linear::Point2T<Scalar> ClosestPoint(Linear::Point2T<Scalar> point) const noexcept;
 
     /// 点到线段的平方距离。点在线段上时为 0。
-    [[nodiscard]] Scalar DistanceSquared(Linear::Point2T<Scalar> point) const noexcept {
-        return (point - ClosestPoint(point)).LengthSquared();
-    }
+    [[nodiscard]] Scalar DistanceSquared(Linear::Point2T<Scalar> point) const noexcept;
 
     /// 点到线段的距离，即 `DistanceSquared` 的平方根。
-    [[nodiscard]] Scalar Distance(Linear::Point2T<Scalar> point) const noexcept {
-        return std::sqrt(DistanceSquared(point));
-    }
+    [[nodiscard]] Scalar Distance(Linear::Point2T<Scalar> point) const noexcept;
 
     /// 两端点距离。`A == B` 时为 0。
-    [[nodiscard]] Scalar Length() const noexcept {
-        return A.DistanceTo(B);
-    }
+    [[nodiscard]] Scalar Length() const noexcept;
 
     /// 两端点距离的平方。`A == B` 时为 0。
-    [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
-        return (B - A).LengthSquared();
-    }
+    [[nodiscard]] Scalar LengthSquared() const noexcept;
 
     /// 从 `A` 指向 `B` 的单位方向。`A == B`，或方向无法归一化时为空。
-    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Direction() const noexcept {
-        if (A == B) {
-            return std::nullopt;
-        }
-        return (B - A).Normalized();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Direction() const noexcept;
 
     /// 两端点的轴对齐包围盒。
-    [[nodiscard]] constexpr Linear::Box2T<Scalar> Box() const noexcept {
-        return Linear::Box2T<Scalar>::FromCorners(A, B);
-    }
+    [[nodiscard]] Linear::Box2T<Scalar> Box() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point2T<Scalar>> StartPoint() const noexcept {
-        return A;
-    }
+    [[nodiscard]] std::optional<Linear::Point2T<Scalar>> StartPoint() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point2T<Scalar>> EndPoint() const noexcept {
-        return B;
-    }
+    [[nodiscard]] std::optional<Linear::Point2T<Scalar>> EndPoint() const noexcept;
 
     /// 参数中点，即 `PointAt(0.5)`，不是弧长以外的另一种中点。
-    [[nodiscard]] constexpr std::optional<Linear::Point2T<Scalar>> MidPoint() const noexcept {
-        return PointAt(Scalar{0.5});
-    }
+    [[nodiscard]] std::optional<Linear::Point2T<Scalar>> MidPoint() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> StartTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> StartTangent() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> EndTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> EndTangent() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> MidTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> MidTangent() const noexcept;
 
     /// 域内且方向非零时返回单位方向。越界、非有限参数，或零长度线段为空。
-    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> TangentAt(Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> TangentAt(Scalar t) const noexcept;
 
-    [[nodiscard]] constexpr bool IsClosed() const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool IsClosed() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Scalar> Area() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Scalar> Area() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Winding> Orientation() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point2T<Scalar>> Centroid() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::Point2T<Scalar>> Centroid() const noexcept;
 
     /// 线段不填充区域。
-    [[nodiscard]] constexpr bool Contains(Linear::Point2T<Scalar>) const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool Contains(Linear::Point2T<Scalar>) const noexcept;
 
     /// 点到所在直线的距离不超过 `tolerance.Resolve(尺度)`，并且投影参数落在
     /// `[-e, 1 + e]` 内，其中 `e = tolerance.Resolve(1)`。
@@ -150,88 +99,36 @@ struct Segment2T {
     /// 容差因此是绝对项 `Resolve(0)`，距离是到 `A` 的距离。
     [[nodiscard]] bool ContainsPoint(
         Linear::Point2T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        const Scalar expansion = tolerance.Resolve(Scalar{1});
-        const Scalar parameter = SupportingParameter(point);
-        if (!(parameter >= -expansion && parameter <= Scalar{1} + expansion)) {
-            return false;
-        }
-        return DistanceToSupportingLine(point) <= tolerance.Resolve(Length());
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
     /// 未夹紧的直线投影参数。同一容差下 `ContainsPoint` 为假时为空。
     /// 成功时可以略微落在 `[0, 1]` 之外。零长度线段返回 `0`。
     [[nodiscard]] std::optional<Scalar> ParameterOf(
         Linear::Point2T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        if (!ContainsPoint(point, tolerance)) {
-            return std::nullopt;
-        }
-        return SupportingParameter(point);
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
-    constexpr void Translate(Linear::Vector2T<Scalar> vector) noexcept {
-        A = A + vector;
-        B = B + vector;
-    }
+    void Translate(Linear::Vector2T<Scalar> vector) noexcept;
 
     /// 绕 `center` 逆时针旋转 `radians` 弧度。
-    void Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept {
-        const Linear::Transform2T<Scalar> rotation =
-            Linear::Transform2T<Scalar>::RotationAbout(center, radians);
-        A = rotation.TransformPoint(A);
-        B = rotation.TransformPoint(B);
-    }
+    void Rotate(Linear::Point2T<Scalar> center, Scalar radians) noexcept;
 
     /// 关于过 `point`、法向为 `unitNormal` 的直线反射。
-    constexpr void Mirror(
-        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept {
-        const Linear::Transform2T<Scalar> mirror =
-            Linear::Transform2T<Scalar>::Reflection(point, unitNormal);
-        A = mirror.TransformPoint(A);
-        B = mirror.TransformPoint(B);
-    }
+    void Mirror(
+        Linear::Point2T<Scalar> point, Linear::UnitVector2T<Scalar> unitNormal) noexcept;
 
     /// 交换两端，参数方向相反。
-    constexpr void Reverse() noexcept {
-        const Linear::Point2T<Scalar> start = A;
-        A = B;
-        B = start;
-    }
+    void Reverse() noexcept;
 
-    [[nodiscard]] constexpr Segment2T Clone() const noexcept {
-        return *this;
-    }
+    [[nodiscard]] Segment2T Clone() const noexcept;
 
     /// 变换两端点。任一结果分量非有限时返回 `false`，字段保持原样。
     /// 原本能归一化的方向在变换后不能归一化时同样失败；零长度线段没有方向，
     /// 端点有限时写入两端并返回 `true`。
-    [[nodiscard]] bool Transform(const Linear::Transform2T<Scalar>& transform) noexcept {
-        const Linear::Point2T<Scalar> movedA = transform.TransformPoint(A);
-        const Linear::Point2T<Scalar> movedB = transform.TransformPoint(B);
-        if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)) {
-            return false;
-        }
-        const Linear::Vector2T<Scalar> chord = B - A;
-        const Linear::Vector2T<Scalar> transformedChord = transform * chord;
-        if (chord.Normalized().has_value()
-            && (!Detail::CoordinatesAreFinite(transformedChord)
-                || !transformedChord.Normalized().has_value())) {
-            return false;
-        }
-        A = movedA;
-        B = movedB;
-        return true;
-    }
+    [[nodiscard]] bool Transform(const Linear::Transform2T<Scalar>& transform) noexcept;
 
     /// 区间必须落在 `[0, 1]` 内且长度大于 0，否则为空。
-    [[nodiscard]] constexpr std::optional<Segment2T> Subcurve(
-        Linear::IntervalT<Scalar> interval) const noexcept {
-        if (!Detail::IsFiniteSubinterval(interval, Domain())) {
-            return std::nullopt;
-        }
-        return Segment2T{Locate(interval.Min), Locate(interval.Max)};
-    }
+    [[nodiscard]] std::optional<Segment2T> Subcurve(
+        Linear::IntervalT<Scalar> interval) const noexcept;
 
     /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
     [[nodiscard]] std::optional<Ray2T<Scalar>> AsRay() const noexcept;
@@ -240,46 +137,16 @@ struct Segment2T {
     [[nodiscard]] std::optional<Line2T<Scalar>> AsLine() const noexcept;
 
 private:
-    [[nodiscard]] constexpr Linear::Point2T<Scalar> Locate(Scalar t) const noexcept {
-        return A + (B - A) * t;
-    }
+    [[nodiscard]] Linear::Point2T<Scalar> Locate(Scalar t) const noexcept;
 
     /// 直线上的未夹紧参数。零长度，或方向长度不是有限正数时返回 0。
-    [[nodiscard]] Scalar SupportingParameter(Linear::Point2T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        if (!direction.has_value()) {
-            return Scalar{0};
-        }
-        const Scalar length = Length();
-        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return Scalar{0};
-        }
-        return Detail::ProjectParameter(A, *direction, point) / length;
-    }
+    [[nodiscard]] Scalar SupportingParameter(Linear::Point2T<Scalar> point) const noexcept;
 
     /// 点到所在无限直线的距离。零长度时是到 `A` 的距离。
-    [[nodiscard]] Scalar DistanceToSupportingLine(Linear::Point2T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        const Scalar length = Length();
-        if (!direction.has_value() || !(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return point.DistanceTo(A);
-        }
-        return point.DistanceTo(Locate(SupportingParameter(point)));
-    }
+    [[nodiscard]] Scalar DistanceToSupportingLine(Linear::Point2T<Scalar> point) const noexcept;
 
     /// 零长度，或方向长度不是有限正数时返回 0。否则把投影参数夹进 `[0, 1]`。
-    [[nodiscard]] Scalar ClosestParameter(Linear::Point2T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        if (!direction.has_value()) {
-            return Scalar{0};
-        }
-        const Scalar length = Length();
-        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return Scalar{0};
-        }
-        return Detail::ClampParameter(
-            Detail::ProjectParameter(A, *direction, point) / length, Domain());
-    }
+    [[nodiscard]] Scalar ClosestParameter(Linear::Point2T<Scalar> point) const noexcept;
 };
 
 /// 逐字段比较。`operator!=` 由 C++20 自动生成，不手写。
@@ -291,13 +158,10 @@ template <typename Scalar>
 using Segment2 = Segment2T<double>;
 using Segment2f = Segment2T<float>;
 
+
+extern template struct Segment2T<double>;
+extern template struct Segment2T<float>;
 } // namespace DragonGeo::Prim
 
-// 线段类型已经完整。只包含本头的翻译单元从这里拉进直线头，从而实例化
-// `AsRay` / `AsLine`。`Line2.hpp` 开头会再包含本头；包含守卫让那条路径
-// 跳过本段，定义仍然只在 `Line2.hpp` 末尾出现一次。
-// 射线头在自身类型完成之前就包含本头。那时不能把直线头拉进来，否则
-// `Line2.hpp` 末尾对射线的定义会撞上不完整类型。射线头在类型完成后再包含直线头。
-#ifndef DRAGONGEO_DETAIL_INCLUDING_RAY2
+#include <DragonGeo/Prim/Ray2.hpp>
 #include <DragonGeo/Prim/Line2.hpp>
-#endif

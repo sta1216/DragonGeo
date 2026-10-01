@@ -64,9 +64,9 @@ TEST_CASE("Triangle2 signed area is positive counter-clockwise", "[prim][triangl
     CHECK(counterClockwise.SignedArea() == 0.5);
     CHECK(clockwise.SignedArea() == -0.5);
     CHECK(flat.SignedArea() == 0.0);
-    STATIC_REQUIRE(counterClockwise.SignedArea() == 0.5);
-    STATIC_REQUIRE(clockwise.SignedArea() == -0.5);
-    STATIC_REQUIRE(flat.SignedArea() == 0.0);
+    CHECK(counterClockwise.SignedArea() == 0.5);
+    CHECK(clockwise.SignedArea() == -0.5);
+    CHECK(flat.SignedArea() == 0.0);
     STATIC_REQUIRE(noexcept(counterClockwise.SignedArea()));
 }
 
@@ -114,9 +114,9 @@ TEST_CASE("Triangle2 parameter midpoint is on the boundary", "[prim][triangle2]"
     CHECK_FALSE(triangle.PointAt(nan).has_value());
     CHECK_FALSE(triangle.PointAt(std::numeric_limits<double>::infinity()).has_value());
 
-    STATIC_REQUIRE(triangle.Domain() == Interval{0.0, 3.0});
-    STATIC_REQUIRE(triangle.PointAt(1.5) == Point2{0.5, 0.5});
-    STATIC_REQUIRE(triangle.MidPoint() == Point2{0.5, 0.5});
+    CHECK(triangle.Domain() == Interval{0.0, 3.0});
+    CHECK(triangle.PointAt(1.5) == Point2{0.5, 0.5});
+    CHECK(triangle.MidPoint() == Point2{0.5, 0.5});
     STATIC_REQUIRE(noexcept(triangle.Domain()));
     STATIC_REQUIRE(noexcept(triangle.PointAt(1.5)));
     STATIC_REQUIRE(noexcept(triangle.MidPoint()));
@@ -180,12 +180,12 @@ TEST_CASE("Triangle2 is a closed curve with perimeter and tangents", "[prim][tri
     CHECK(missingEdge.MidTangent() == UnitVector2::XAxis);
     CHECK(missingEdge.EndTangent() == -UnitVector2::XAxis);
 
-    STATIC_REQUIRE(triangle.IsClosed());
-    STATIC_REQUIRE(triangle.StartPoint() == Point2{0.0, 0.0});
-    STATIC_REQUIRE(triangle.EndPoint() == Point2{0.0, 0.0});
-    STATIC_REQUIRE(triangle.Area() == 0.5);
-    STATIC_REQUIRE(triangle.Orientation() == Winding::CounterClockwise);
-    STATIC_REQUIRE(triangle.Centroid() == Point2{1.0 / 3.0, 1.0 / 3.0});
+    CHECK(triangle.IsClosed());
+    CHECK(triangle.StartPoint() == Point2{0.0, 0.0});
+    CHECK(triangle.EndPoint() == Point2{0.0, 0.0});
+    CHECK(triangle.Area() == 0.5);
+    CHECK(triangle.Orientation() == Winding::CounterClockwise);
+    CHECK(triangle.Centroid() == Point2{1.0 / 3.0, 1.0 / 3.0});
     STATIC_REQUIRE(noexcept(triangle.Length()));
     STATIC_REQUIRE(noexcept(triangle.TangentAt(0.0)));
     STATIC_REQUIRE(noexcept(triangle.ContainsPoint(Point2{})));
@@ -243,13 +243,10 @@ TEST_CASE("Triangle2 reverses, mirrors, rotates and transforms", "[prim][triangl
     CHECK(reversed.C == triangle.B);
     CHECK(reversed.Area() == 0.5);
     CHECK(triangle == Triangle2{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}});
-    constexpr Triangle2 reversedTriangle = [] {
-        Triangle2 copy{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
-        copy.Reverse();
-        return copy;
-    }();
-    STATIC_REQUIRE(reversedTriangle.Orientation() == Winding::Clockwise);
-    STATIC_REQUIRE(reversedTriangle.StartPoint() == Point2{0.0, 0.0});
+    Triangle2 reversedTriangle{Point2{0.0, 0.0}, Point2{1.0, 0.0}, Point2{0.0, 1.0}};
+    reversedTriangle.Reverse();
+    CHECK(reversedTriangle.Orientation() == Winding::Clockwise);
+    CHECK(reversedTriangle.StartPoint() == Point2{0.0, 0.0});
 
     Triangle2 translated = triangle;
     translated.Translate(Vector2{1.0, 0.0});

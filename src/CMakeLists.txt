@@ -1,7 +1,18 @@
 # 阶段 3 的谓词编译进这个静态库。Core 与 Linear 仍是头文件。
 # Polygon、Mesh、bvh 继续往这个目标追加源文件。
 add_library(DragonGeo STATIC
-    Predicates/Predicates.cpp)
+    Predicates/Predicates.cpp
+    Prim/Line2.cpp
+    Prim/Line3.cpp
+    Prim/Plane.cpp
+    Prim/Polyline3.cpp
+    Prim/Ray2.cpp
+    Prim/Ray3.cpp
+    Prim/Segment2.cpp
+    Prim/Segment3.cpp
+    Prim/Triangle2.cpp
+    Prim/Triangle3.cpp
+    Query/Intersection.cpp)
 add_library(DragonGeo::DragonGeo ALIAS DragonGeo)
 
 target_include_directories(DragonGeo PUBLIC

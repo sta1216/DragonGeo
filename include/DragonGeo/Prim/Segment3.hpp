@@ -40,109 +40,58 @@ struct Segment3T {
     }
 
     /// 参数域 `[0, 1]`。
-    [[nodiscard]] constexpr Linear::IntervalT<Scalar> Domain() const noexcept {
-        return {Scalar{0}, Scalar{1}};
-    }
+    [[nodiscard]] Linear::IntervalT<Scalar> Domain() const noexcept;
 
     /// `t` 不在 `[0, 1]` 或非有限时为空。
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> PointAt(Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Locate(t);
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> PointAt(Scalar t) const noexcept;
 
     /// 最近点把参数夹在 `[0, 1]`。零长度线段的最近点就是 `A`。
-    [[nodiscard]] Linear::Point3T<Scalar> ClosestPoint(Linear::Point3T<Scalar> point) const noexcept {
-        return Locate(ClosestParameter(point));
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> ClosestPoint(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到线段的平方距离。点在线段上时为 0。
-    [[nodiscard]] Scalar DistanceSquared(Linear::Point3T<Scalar> point) const noexcept {
-        return (point - ClosestPoint(point)).LengthSquared();
-    }
+    [[nodiscard]] Scalar DistanceSquared(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到线段的距离，即 `DistanceSquared` 的平方根。
-    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept {
-        return std::sqrt(DistanceSquared(point));
-    }
+    [[nodiscard]] Scalar Distance(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 两端点距离。`A == B` 时为 0。
-    [[nodiscard]] Scalar Length() const noexcept {
-        return A.DistanceTo(B);
-    }
+    [[nodiscard]] Scalar Length() const noexcept;
 
     /// 两端点距离的平方。`A == B` 时为 0。
-    [[nodiscard]] constexpr Scalar LengthSquared() const noexcept {
-        return (B - A).LengthSquared();
-    }
+    [[nodiscard]] Scalar LengthSquared() const noexcept;
 
     /// 从 `A` 指向 `B` 的单位方向。`A == B`，或方向无法归一化时为空。
-    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Direction() const noexcept {
-        if (A == B) {
-            return std::nullopt;
-        }
-        return (B - A).Normalized();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Direction() const noexcept;
 
     /// 两端点的轴对齐包围盒。
-    [[nodiscard]] constexpr Linear::Box3T<Scalar> Box() const noexcept {
-        return Linear::Box3T<Scalar>::FromCorners(A, B);
-    }
+    [[nodiscard]] Linear::Box3T<Scalar> Box() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> StartPoint() const noexcept {
-        return A;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> StartPoint() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> EndPoint() const noexcept {
-        return B;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> EndPoint() const noexcept;
 
     /// 参数中点，即 `PointAt(0.5)`。
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> MidPoint() const noexcept {
-        return PointAt(Scalar{0.5});
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> MidPoint() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> StartTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> StartTangent() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> EndTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> EndTangent() const noexcept;
 
-    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> MidTangent() const noexcept {
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> MidTangent() const noexcept;
 
     /// 域内且方向非零时返回单位方向。越界、非有限参数，或零长度线段为空。
-    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> TangentAt(Scalar t) const noexcept {
-        if (!Detail::IsAcceptedParameter(t, Domain())) {
-            return std::nullopt;
-        }
-        return Direction();
-    }
+    [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> TangentAt(Scalar t) const noexcept;
 
-    [[nodiscard]] constexpr bool IsClosed() const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool IsClosed() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Scalar> Area() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Scalar> Area() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Winding> Orientation() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Winding> Orientation() const noexcept;
 
-    [[nodiscard]] constexpr std::optional<Linear::Point3T<Scalar>> Centroid() const noexcept {
-        return std::nullopt;
-    }
+    [[nodiscard]] std::optional<Linear::Point3T<Scalar>> Centroid() const noexcept;
 
     /// 线段不填充区域。
-    [[nodiscard]] constexpr bool Contains(Linear::Point3T<Scalar>) const noexcept {
-        return false;
-    }
+    [[nodiscard]] bool Contains(Linear::Point3T<Scalar>) const noexcept;
 
     /// 点到所在直线的距离不超过 `tolerance.Resolve(尺度)`，并且投影参数落在
     /// `[-e, 1 + e]` 内，其中 `e = tolerance.Resolve(1)`。
@@ -150,91 +99,39 @@ struct Segment3T {
     /// 容差因此是绝对项 `Resolve(0)`，距离是到 `A` 的距离。
     [[nodiscard]] bool ContainsPoint(
         Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        const Scalar expansion = tolerance.Resolve(Scalar{1});
-        const Scalar parameter = SupportingParameter(point);
-        if (!(parameter >= -expansion && parameter <= Scalar{1} + expansion)) {
-            return false;
-        }
-        return DistanceToSupportingLine(point) <= tolerance.Resolve(Length());
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
     /// 未夹紧的直线投影参数。同一容差下 `ContainsPoint` 为假时为空。
     /// 成功时可以略微落在 `[0, 1]` 之外。零长度线段返回 `0`。
     [[nodiscard]] std::optional<Scalar> ParameterOf(
         Linear::Point3T<Scalar> point,
-        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
-        if (!ContainsPoint(point, tolerance)) {
-            return std::nullopt;
-        }
-        return SupportingParameter(point);
-    }
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 
-    constexpr void Translate(Linear::Vector3T<Scalar> vector) noexcept {
-        A = A + vector;
-        B = B + vector;
-    }
+    void Translate(Linear::Vector3T<Scalar> vector) noexcept;
 
     /// 绕过 `origin`、方向为 `axis` 的轴旋转 `radians` 弧度。
     void Rotate(
         Linear::Point3T<Scalar> origin,
         Linear::UnitVector3T<Scalar> axis,
-        Scalar radians) noexcept {
-        const Linear::Transform3T<Scalar> rotation =
-            Linear::Transform3T<Scalar>::RotationAbout(origin, axis, radians);
-        A = rotation.TransformPoint(A);
-        B = rotation.TransformPoint(B);
-    }
+        Scalar radians) noexcept;
 
     /// 关于过 `point`、法向为 `unitNormal` 的平面反射。
-    constexpr void Mirror(
-        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept {
-        const Linear::Transform3T<Scalar> mirror =
-            Linear::Transform3T<Scalar>::Reflection(point, unitNormal);
-        A = mirror.TransformPoint(A);
-        B = mirror.TransformPoint(B);
-    }
+    void Mirror(
+        Linear::Point3T<Scalar> point, Linear::UnitVector3T<Scalar> unitNormal) noexcept;
 
     /// 交换两端，参数方向相反。
-    constexpr void Reverse() noexcept {
-        const Linear::Point3T<Scalar> start = A;
-        A = B;
-        B = start;
-    }
+    void Reverse() noexcept;
 
-    [[nodiscard]] constexpr Segment3T Clone() const noexcept {
-        return *this;
-    }
+    [[nodiscard]] Segment3T Clone() const noexcept;
 
     /// 变换两端点。任一结果分量非有限时返回 `false`，字段保持原样。
     /// 原本能归一化的方向在变换后不能归一化时同样失败；零长度线段没有方向，
     /// 端点有限时写入两端并返回 `true`。
-    [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept {
-        const Linear::Point3T<Scalar> movedA = transform.TransformPoint(A);
-        const Linear::Point3T<Scalar> movedB = transform.TransformPoint(B);
-        if (!Detail::CoordinatesAreFinite(movedA) || !Detail::CoordinatesAreFinite(movedB)) {
-            return false;
-        }
-        const Linear::Vector3T<Scalar> chord = B - A;
-        const Linear::Vector3T<Scalar> transformedChord = transform * chord;
-        if (chord.Normalized().has_value()
-            && (!Detail::CoordinatesAreFinite(transformedChord)
-                || !transformedChord.Normalized().has_value())) {
-            return false;
-        }
-        A = movedA;
-        B = movedB;
-        return true;
-    }
+    [[nodiscard]] bool Transform(const Linear::Transform3T<Scalar>& transform) noexcept;
 
     /// 区间必须落在 `[0, 1]` 内且长度大于 0，否则为空。
-    [[nodiscard]] constexpr std::optional<Segment3T> Subcurve(
-        Linear::IntervalT<Scalar> interval) const noexcept {
-        if (!Detail::IsFiniteSubinterval(interval, Domain())) {
-            return std::nullopt;
-        }
-        return Segment3T{Locate(interval.Min), Locate(interval.Max)};
-    }
+    [[nodiscard]] std::optional<Segment3T> Subcurve(
+        Linear::IntervalT<Scalar> interval) const noexcept;
 
     /// 起点为 `A`，方向从 `A` 指向 `B`。`A == B`，或方向无法归一化时为空。
     [[nodiscard]] std::optional<Ray3T<Scalar>> AsRay() const noexcept;
@@ -243,46 +140,16 @@ struct Segment3T {
     [[nodiscard]] std::optional<Line3T<Scalar>> AsLine() const noexcept;
 
 private:
-    [[nodiscard]] constexpr Linear::Point3T<Scalar> Locate(Scalar t) const noexcept {
-        return A + (B - A) * t;
-    }
+    [[nodiscard]] Linear::Point3T<Scalar> Locate(Scalar t) const noexcept;
 
     /// 直线上的未夹紧参数。零长度，或方向长度不是有限正数时返回 0。
-    [[nodiscard]] Scalar SupportingParameter(Linear::Point3T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        if (!direction.has_value()) {
-            return Scalar{0};
-        }
-        const Scalar length = Length();
-        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return Scalar{0};
-        }
-        return Detail::ProjectParameter(A, *direction, point) / length;
-    }
+    [[nodiscard]] Scalar SupportingParameter(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 点到所在无限直线的距离。零长度时是到 `A` 的距离。
-    [[nodiscard]] Scalar DistanceToSupportingLine(Linear::Point3T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        const Scalar length = Length();
-        if (!direction.has_value() || !(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return point.DistanceTo(A);
-        }
-        return point.DistanceTo(Locate(SupportingParameter(point)));
-    }
+    [[nodiscard]] Scalar DistanceToSupportingLine(Linear::Point3T<Scalar> point) const noexcept;
 
     /// 零长度，或方向长度不是有限正数时返回 0。否则把投影参数夹进 `[0, 1]`。
-    [[nodiscard]] Scalar ClosestParameter(Linear::Point3T<Scalar> point) const noexcept {
-        const auto direction = Direction();
-        if (!direction.has_value()) {
-            return Scalar{0};
-        }
-        const Scalar length = Length();
-        if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-            return Scalar{0};
-        }
-        return Detail::ClampParameter(
-            Detail::ProjectParameter(A, *direction, point) / length, Domain());
-    }
+    [[nodiscard]] Scalar ClosestParameter(Linear::Point3T<Scalar> point) const noexcept;
 };
 
 /// 逐字段比较。`operator!=` 由 C++20 自动生成，不手写。
@@ -294,13 +161,10 @@ template <typename Scalar>
 using Segment3 = Segment3T<double>;
 using Segment3f = Segment3T<float>;
 
+
+extern template struct Segment3T<double>;
+extern template struct Segment3T<float>;
 } // namespace DragonGeo::Prim
 
-// 线段类型已经完整。只包含本头的翻译单元从这里拉进直线头，从而实例化
-// `AsRay` / `AsLine`。`Line3.hpp` 开头会再包含本头；包含守卫让那条路径
-// 跳过本段，定义仍然只在 `Line3.hpp` 末尾出现一次。
-// 射线头在自身类型完成之前就包含本头。那时不能把直线头拉进来，否则
-// `Line3.hpp` 末尾对射线的定义会撞上不完整类型。射线头在类型完成后再包含直线头。
-#ifndef DRAGONGEO_DETAIL_INCLUDING_RAY3
+#include <DragonGeo/Prim/Ray3.hpp>
 #include <DragonGeo/Prim/Line3.hpp>
-#endif

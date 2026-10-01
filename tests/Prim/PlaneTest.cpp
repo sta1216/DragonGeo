@@ -67,12 +67,12 @@ TEST_CASE("Plane signed distance, distance, closest point, and flipped normal", 
 
     constexpr auto constantNormal = UnitVector3::FromNormalizedUnchecked(Vector3{0.0, 0.0, 1.0});
     constexpr Plane constantPlane{Point3{0.0, 0.0, 0.0}, constantNormal};
-    STATIC_REQUIRE(constantPlane.SignedDistance(Point3{0.0, 0.0, 2.0}) == 2.0);
-    STATIC_REQUIRE(constantPlane.Distance(Point3{4.0, -2.0, -3.0}) == 3.0);
-    STATIC_REQUIRE(constantPlane.ClosestPoint(Point3{0.0, 0.0, 2.0}) == Point3{0.0, 0.0, 0.0});
-    STATIC_REQUIRE(constantPlane.Flipped().Origin == constantPlane.Origin);
-    STATIC_REQUIRE(constantPlane.Flipped().Normal == -constantNormal);
-    STATIC_REQUIRE(constantPlane.Flipped() != constantPlane);
+    CHECK(constantPlane.SignedDistance(Point3{0.0, 0.0, 2.0}) == 2.0);
+    CHECK(constantPlane.Distance(Point3{4.0, -2.0, -3.0}) == 3.0);
+    CHECK(constantPlane.ClosestPoint(Point3{0.0, 0.0, 2.0}) == Point3{0.0, 0.0, 0.0});
+    CHECK(constantPlane.Flipped().Origin == constantPlane.Origin);
+    CHECK(constantPlane.Flipped().Normal == -constantNormal);
+    CHECK(constantPlane.Flipped() != constantPlane);
     STATIC_REQUIRE(noexcept(plane.SignedDistance(Point3{})));
     STATIC_REQUIRE(noexcept(plane.Distance(Point3{})));
     STATIC_REQUIRE(noexcept(plane.ClosestPoint(Point3{})));

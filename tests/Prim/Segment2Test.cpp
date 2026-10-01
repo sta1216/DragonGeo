@@ -232,20 +232,17 @@ TEST_CASE("Segment2 curve methods are noexcept", "[prim][segment2]") {
     STATIC_REQUIRE(noexcept(segment.Subcurve(Interval{})));
 
     constexpr Segment2 axis{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
-    STATIC_REQUIRE(axis.Domain() == Interval{0.0, 1.0});
-    STATIC_REQUIRE(axis.PointAt(0.0) == Point2{0.0, 0.0});
-    STATIC_REQUIRE(axis.PointAt(1.0) == Point2{3.0, 0.0});
-    STATIC_REQUIRE_FALSE(axis.PointAt(2.0).has_value());
-    STATIC_REQUIRE(axis.LengthSquared() == 9.0);
-    STATIC_REQUIRE_FALSE(axis.IsClosed());
-    STATIC_REQUIRE_FALSE(axis.Contains(Point2{}));
-    constexpr Segment2 reversedAxis = [] {
-        Segment2 copy{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
-        copy.Reverse();
-        return copy;
-    }();
-    STATIC_REQUIRE(reversedAxis.A == Point2{3.0, 0.0});
-    STATIC_REQUIRE(reversedAxis.B == Point2{0.0, 0.0});
+    CHECK(axis.Domain() == Interval{0.0, 1.0});
+    CHECK(axis.PointAt(0.0) == Point2{0.0, 0.0});
+    CHECK(axis.PointAt(1.0) == Point2{3.0, 0.0});
+    CHECK_FALSE(axis.PointAt(2.0).has_value());
+    CHECK(axis.LengthSquared() == 9.0);
+    CHECK_FALSE(axis.IsClosed());
+    CHECK_FALSE(axis.Contains(Point2{}));
+    Segment2 reversedAxis{Point2{0.0, 0.0}, Point2{3.0, 0.0}};
+    reversedAxis.Reverse();
+    CHECK(reversedAxis.A == Point2{3.0, 0.0});
+    CHECK(reversedAxis.B == Point2{0.0, 0.0});
 }
 
 TEST_CASE("Segment2 containment uses the supporting line and a parameter window", "[prim][segment2]") {
