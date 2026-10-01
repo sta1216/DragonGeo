@@ -1,5 +1,7 @@
 #include <DragonGeo/Prim/Polyline3.hpp>
 
+#include <DragonGeo/Detail/CurveContainment.hpp>
+
 namespace DragonGeo::Prim {
 
 template <typename Scalar>
@@ -121,32 +123,9 @@ template <typename Scalar> template <typename S> requires std::same_as<Scalar, d
         return false;
     }
 
-    const auto collinear = [](Linear::Point3 first, Linear::Point3 second, Linear::Point3 third) noexcept {
-        const auto orient = [](double ax, double ay, double bx, double by, double cx, double cy) noexcept {
-            return Predicates::Orient2d(Linear::Point2{ax, ay}, Linear::Point2{bx, by}, Linear::Point2{cx, cy});
-        };
-        return orient(first.X, first.Y, second.X, second.Y, third.X, third.Y) == 0
-            && orient(first.Y, first.Z, second.Y, second.Z, third.Y, third.Z) == 0
-            && orient(first.Z, first.X, second.Z, second.X, third.Z, third.X) == 0;
-    };
-    const auto onEdge = [&](Linear::Point3 start, Linear::Point3 end, Linear::Point3 query) noexcept {
-        if (start == end) {
-            return query == start;
-        }
-        if (!collinear(start, end, query)) {
-            return false;
-        }
-        const Linear::Vector3 chord = end - start;
-        const double lengthSquared = chord.LengthSquared();
-        if (!(lengthSquared > 0.0)) {
-            return query == start || query == end;
-        }
-        const double parameter = (query - start).Dot(chord) / lengthSquared;
-        return parameter >= 0.0 && parameter <= 1.0;
-    };
     const auto onBoundary = [&]() noexcept {
         for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-            if (onEdge(m_points[edge], m_points[edge + 1], point)) {
+            if (Detail::PointOnSegment3(m_points[edge], m_points[edge + 1], point)) {
                 return true;
             }
         }
@@ -163,7 +142,7 @@ template <typename Scalar> template <typename S> requires std::same_as<Scalar, d
     }
     if (along < uniqueCount) {
         for (std::size_t off = along + 1; off < uniqueCount; ++off) {
-            if (!collinear(m_points[origin], m_points[along], m_points[off])) {
+            if (!Detail::PointsAreCollinear3(m_points[origin], m_points[along], m_points[off])) {
                 basis0 = m_points[origin];
                 basis1 = m_points[along];
                 basis2 = m_points[off];
@@ -197,17 +176,8 @@ template <typename Scalar> template <typename S> requires std::same_as<Scalar, d
 
     const int dropped = DroppedAxis(normal);
     const Linear::Point2 query = Project(point, dropped);
-    int winding = 0;
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Linear::Point2 start = Project(m_points[edge], dropped);
-        const Linear::Point2 next = Project(m_points[edge + 1], dropped);
-        if (start.Y <= query.Y) {
-            if (next.Y > query.Y && Predicates::Orient2d(start, next, query) > 0) {++winding;
-            }
-        } else if (next.Y <= query.Y && Predicates::Orient2d(start, next, query) < 0) {--winding;
-        }
-    }
-    return winding != 0;
+    const auto projected = [&](std::size_t index) noexcept { return Project(m_points[index], dropped); };
+    return Detail::WindingNumber(SegmentCount(), query, projected) != 0;
 }
 
 template <typename Scalar>
@@ -217,10 +187,11 @@ template <typename Scalar>
 
 template <typename Scalar> [[nodiscard]] std::optional<Scalar> Polyline3T<Scalar>::ParameterOf(Linear::Point3T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance) const noexcept {
-    if (!ContainsPoint(point, tolerance)) {
+    const auto boundary = ClosestBoundary(point);
+    if (!(std::sqrt(boundary.DistanceSquared) <= tolerance.Resolve(BoundaryScale()))) {
         return std::nullopt;
     }
-    return ClosestBoundary(point).Parameter;
+    return boundary.Parameter;
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Polyline3T<Scalar>::StartTangent() const noexcept {
@@ -352,52 +323,21 @@ template <typename Scalar> [[nodiscard]] std::size_t Polyline3T<Scalar>::EdgeInd
 template <typename Scalar>
 [[nodiscard]] std::optional<Linear::UnitVector3T<Scalar>> Polyline3T<Scalar>::UnitEdge(Linear::Point3T<Scalar> from,
     Linear::Point3T<Scalar> to) noexcept {
-    const Scalar length = from.DistanceTo(to);
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return std::nullopt;
-    }
-    return (to - from).Normalized();
+    return Detail::UnitDirection(from, to);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Polyline3T<Scalar>::BoundaryScale() const noexcept {
-    const Scalar diagonal = Box().Extent().Length();
-    if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
-        return diagonal;
-    }
-    return Scalar{1};
+    return Detail::DiagonalScale(Box());
 }
 
 template <typename Scalar>
 [[nodiscard]] typename Polyline3T<Scalar>::BoundaryLocation Polyline3T<Scalar>::ClosestBoundary(Linear::Point3T<Scalar> point) const noexcept {
-    BoundaryLocation best{};
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Segment3T<Scalar> segment{m_points[edge], m_points[edge + 1]};
-        const Linear::Point3T<Scalar> candidate = segment.ClosestPoint(point);
-        const Scalar distanceSquared = (point - candidate).LengthSquared();
-        const Scalar parameter = BoundaryParameter(edge, m_points[edge], m_points[edge + 1], candidate);
-        if (edge == 0 || distanceSquared < best.DistanceSquared || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
-            best = BoundaryLocation{distanceSquared, parameter, candidate};
-        }
-    }
-    return best;
+    return Detail::ClosestOnChain<BoundaryLocation>(m_points.data(), m_points.size(), point, IsClosed());
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Polyline3T<Scalar>::BoundaryParameter(std::size_t edge,
         Linear::Point3T<Scalar> from, Linear::Point3T<Scalar> to, Linear::Point3T<Scalar> closest) const noexcept {
-    Scalar parameter = static_cast<Scalar>(edge);
-    const Scalar length = from.DistanceTo(to);
-    if (length > Scalar{0} && Core::IsFinite(length)) {
-        const auto direction = (to - from).Normalized();
-        if (direction.has_value()) {
-            Scalar local = Detail::ProjectParameter(from, *direction, closest) / length;
-            if (local < Scalar{0}) {
-                local = Scalar{0};
-            } else if (local > Scalar{1}) {
-                local = Scalar{1};
-            }
-            parameter += local;
-        }
-    }
+    Scalar parameter = Detail::EdgeParameter(edge, from, to, closest);
     if (IsClosed() && parameter == static_cast<Scalar>(SegmentCount())) {
         parameter = Scalar{0};
     }
@@ -405,26 +345,11 @@ template <typename Scalar> [[nodiscard]] Scalar Polyline3T<Scalar>::BoundaryPara
 }
 
 template <typename Scalar> [[nodiscard]] int Polyline3T<Scalar>::DroppedAxis(Linear::Vector3 normal) noexcept {
-    const double absX = Core::AbsoluteValue(normal.X);
-    const double absY = Core::AbsoluteValue(normal.Y);
-    const double absZ = Core::AbsoluteValue(normal.Z);
-    if (absX >= absY && absX >= absZ) {
-        return 0;
-    }
-    if (absY >= absZ) {
-        return 1;
-    }
-    return 2;
+    return Detail::DominantAxis(normal);
 }
 
 template <typename Scalar> [[nodiscard]] Linear::Point2 Polyline3T<Scalar>::Project(Linear::Point3 point, int dropped) noexcept {
-    if (dropped == 0) {
-        return Linear::Point2{point.Y, point.Z};
-    }
-    if (dropped == 1) {
-        return Linear::Point2{point.X, point.Z};
-    }
-    return Linear::Point2{point.X, point.Y};
+    return Detail::DropAxis(point, dropped);
 }
 
 } // namespace DragonGeo::Prim

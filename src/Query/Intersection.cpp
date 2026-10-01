@@ -1,5 +1,7 @@
 #include <DragonGeo/Query/Intersection.hpp>
 
+#include <DragonGeo/Detail/CurveContainment.hpp>
+
 namespace DragonGeo::Query::Detail {
 
 enum class CurveDomain { Line, Ray, Segment };
@@ -343,26 +345,11 @@ template <typename Interval, typename Point, typename Vector, typename Corner>
 
 /// 丢掉法向绝对值最大的轴。并列时按 X、Y、Z 取先出现的轴，与 `Triangle3` 投影一致。
 [[nodiscard]] inline int DroppedNormalAxis(Linear::Vector3 normal) noexcept {
-    const double absX = Core::AbsoluteValue(normal.X);
-    const double absY = Core::AbsoluteValue(normal.Y);
-    const double absZ = Core::AbsoluteValue(normal.Z);
-    if (absX >= absY && absX >= absZ) {
-        return 0;
-    }
-    if (absY >= absZ) {
-        return 1;
-    }
-    return 2;
+    return DragonGeo::Detail::DominantAxis(normal);
 }
 
 [[nodiscard]] inline Linear::Point2 DropAxis(Linear::Point3 point, int axis) noexcept {
-    if (axis == 0) {
-        return Linear::Point2{point.Y, point.Z};
-    }
-    if (axis == 1) {
-        return Linear::Point2{point.X, point.Z};
-    }
-    return Linear::Point2{point.X, point.Y};
+    return DragonGeo::Detail::DropAxis(point, axis);
 }
 
 /// 平面求交得到的点可能离开三角形一个 ulp。`Triangle3::Contains` 要求 `Orient3d == 0`，会把横向穿过的真实交点判掉。投影到坐标平面后，用与 `Triangle2::Contains` 相同的包含测试。

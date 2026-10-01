@@ -1,5 +1,7 @@
 #include <DragonGeo/Prim/Triangle2.hpp>
 
+#include <DragonGeo/Detail/CurveContainment.hpp>
+
 namespace DragonGeo::Prim {
 
 template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::SignedArea() const noexcept {
@@ -23,24 +25,8 @@ template <typename Scalar> [[nodiscard]] std::optional<Linear::Point2T<Scalar>> 
 
 template <typename Scalar> template <typename S> requires std::same_as<Scalar, double> && std::same_as<S, double>
     [[nodiscard]] bool Triangle2T<Scalar>::Contains(Linear::Point2T<S> point) const noexcept {
-    const auto onEdge = [](Linear::Point2 start, Linear::Point2 end, Linear::Point2 query) noexcept {
-        if (Predicates::Orient2d(start, end, query) != 0) {
-            return false;
-        }
-        if (start == end) {
-            return query == start;
-        }
-        const Linear::Vector2 chord = end - start;
-        const double lengthSquared = chord.LengthSquared();
-        if (!(lengthSquared > 0.0)) {
-            return query == start || query == end;
-        }
-        const double parameter = (query - start).Dot(chord) / lengthSquared;
-        return parameter >= 0.0 && parameter <= 1.0;
-    };
-
     if (Predicates::Orient2d(A, B, C) == 0) {
-        return onEdge(A, B, point) || onEdge(B, C, point) || onEdge(C, A, point);
+        return Detail::PointOnSegment2(A, B, point) || Detail::PointOnSegment2(B, C, point) || Detail::PointOnSegment2(C, A, point);
     }
     const int ab = Predicates::Orient2d(A, B, point);
     const int bc = Predicates::Orient2d(B, C, point);
@@ -120,10 +106,11 @@ template <typename Scalar>
 
 template <typename Scalar> [[nodiscard]] std::optional<Scalar> Triangle2T<Scalar>::ParameterOf(Linear::Point2T<Scalar> point,
         Core::ToleranceT<Scalar> tolerance) const noexcept {
-    if (!ContainsPoint(point, tolerance)) {
+    const auto boundary = ClosestBoundary(point);
+    if (!(std::sqrt(boundary.DistanceSquared) <= tolerance.Resolve(BoundaryScale()))) {
         return std::nullopt;
     }
-    return ClosestBoundary(point).Parameter;
+    return boundary.Parameter;
 }
 
 template <typename Scalar> void Triangle2T<Scalar>::Translate(Linear::Vector2T<Scalar> vector) noexcept {
@@ -235,19 +222,11 @@ template <typename Scalar> [[nodiscard]] int Triangle2T<Scalar>::EdgeIndex(Scala
 template <typename Scalar>
 [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> Triangle2T<Scalar>::UnitEdge(Linear::Point2T<Scalar> from,
     Linear::Point2T<Scalar> to) noexcept {
-    const Scalar length = from.DistanceTo(to);
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return std::nullopt;
-    }
-    return (to - from).Normalized();
+    return Detail::UnitDirection(from, to);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryScale() const noexcept {
-    const Scalar diagonal = Box().Extent().Length();
-    if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
-        return diagonal;
-    }
-    return Scalar{1};
+    return Detail::DiagonalScale(Box());
 }
 
 template <typename Scalar> [[nodiscard]] bool Triangle2T<Scalar>::ProjectsInside(Linear::Point2T<Scalar> point) const noexcept {
@@ -268,35 +247,12 @@ template <typename Scalar> [[nodiscard]] bool Triangle2T<Scalar>::ProjectsInside
 template <typename Scalar>
 [[nodiscard]] typename Triangle2T<Scalar>::BoundaryLocation Triangle2T<Scalar>::ClosestBoundary(Linear::Point2T<Scalar> point) const noexcept {
     const Linear::Point2T<Scalar> vertices[]{A, B, C, A};
-    BoundaryLocation best{};
-    for (int edge = 0; edge < 3; ++edge) {
-        const Segment2T<Scalar> segment{vertices[edge], vertices[edge + 1]};
-        const Linear::Point2T<Scalar> candidate = segment.ClosestPoint(point);
-        const Scalar distanceSquared = (point - candidate).LengthSquared();
-        const Scalar parameter = BoundaryParameter(edge, vertices[edge], vertices[edge + 1], candidate);
-        if (edge == 0 || distanceSquared < best.DistanceSquared || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
-            best = BoundaryLocation{distanceSquared, parameter, candidate};
-        }
-    }
-    return best;
+    return Detail::ClosestOnChain<BoundaryLocation>(vertices, 4, point, true);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar Triangle2T<Scalar>::BoundaryParameter(int edge,
         Linear::Point2T<Scalar> from, Linear::Point2T<Scalar> to, Linear::Point2T<Scalar> closest) noexcept {
-    Scalar parameter = static_cast<Scalar>(edge);
-    const Scalar length = from.DistanceTo(to);
-    if (length > Scalar{0} && Core::IsFinite(length)) {
-        const auto direction = (to - from).Normalized();
-        if (direction.has_value()) {
-            Scalar local = Detail::ProjectParameter(from, *direction, closest) / length;
-            if (local < Scalar{0}) {
-                local = Scalar{0};
-            } else if (local > Scalar{1}) {
-                local = Scalar{1};
-            }
-            parameter += local;
-        }
-    }
+    Scalar parameter = Detail::EdgeParameter(edge, from, to, closest);
     if (parameter == Scalar{3}) {
         parameter = Scalar{0};
     }

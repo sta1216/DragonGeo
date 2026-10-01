@@ -1,5 +1,7 @@
 #include <DragonGeo/Prim/Polyline.hpp>
 
+#include <DragonGeo/Detail/CurveContainment.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -112,38 +114,13 @@ template <typename Scalar> template <typename S> requires std::same_as<Scalar, d
     if (!IsClosed()) {
         return false;
     }
-    const auto onEdge = [](Linear::Point2 start, Linear::Point2 end, Linear::Point2 query) noexcept {
-        if (Predicates::Orient2d(start, end, query) != 0) {
-            return false;
-        }
-        if (start == end) {
-            return query == start;
-        }
-        const Linear::Vector2 chord = end - start;
-        const double lengthSquared = chord.LengthSquared();
-        if (!(lengthSquared > 0.0)) {
-            return query == start || query == end;
-        }
-        const double parameter = (query - start).Dot(chord) / lengthSquared;
-        return parameter >= 0.0 && parameter <= 1.0;
-    };
     for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        if (onEdge(m_points[edge], m_points[edge + 1], point)) {
+        if (Detail::PointOnSegment2(m_points[edge], m_points[edge + 1], point)) {
             return true;
         }
     }
-
-    int winding = 0;
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Linear::Point2& start = m_points[edge];
-        const Linear::Point2& end = m_points[edge + 1];
-        if (start.Y <= point.Y) {
-            if (end.Y > point.Y && Predicates::Orient2d(start, end, point) > 0) {++winding;
-            }
-        } else if (end.Y <= point.Y && Predicates::Orient2d(start, end, point) < 0) {--winding;
-        }
-    }
-    return winding != 0;
+    const auto vertex = [this](std::size_t index) noexcept { return m_points[index]; };
+    return Detail::WindingNumber(SegmentCount(), point, vertex) != 0;
 }
 
 template <typename Scalar>
@@ -153,10 +130,12 @@ template <typename Scalar>
 
 template <typename Scalar>
 [[nodiscard]] std::optional<Scalar> PolylineT<Scalar>::ParameterOf(Linear::Point2T<Scalar> point, Core::ToleranceT<Scalar> tolerance) const noexcept {
-    if (!ContainsPoint(point, tolerance)) {
+    const auto boundary = ClosestBoundary(point);
+    const Scalar allowance = tolerance.Resolve(BoundaryScale());
+    if (!(boundary.DistanceSquared <= allowance * allowance)) {
         return std::nullopt;
     }
-    return ClosestBoundary(point).Parameter;
+    return boundary.Parameter;
 }
 
 template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> PolylineT<Scalar>::StartTangent() const noexcept {
@@ -283,52 +262,21 @@ template <typename Scalar> [[nodiscard]] std::size_t PolylineT<Scalar>::EdgeInde
 
 template <typename Scalar> [[nodiscard]] std::optional<Linear::UnitVector2T<Scalar>> PolylineT<Scalar>::UnitEdge(
     Linear::Point2T<Scalar> from, Linear::Point2T<Scalar> to) noexcept {
-    const Scalar length = from.DistanceTo(to);
-    if (!(length > Scalar{0}) || !Core::IsFinite(length)) {
-        return std::nullopt;
-    }
-    return (to - from).Normalized();
+    return Detail::UnitDirection(from, to);
 }
 
 template <typename Scalar> [[nodiscard]] Scalar PolylineT<Scalar>::BoundaryScale() const noexcept {
-    const Scalar diagonal = Box().Extent().Length();
-    if (diagonal > Scalar{0} && Core::IsFinite(diagonal)) {
-        return diagonal;
-    }
-    return Scalar{1};
+    return Detail::DiagonalScale(Box());
 }
 
 template <typename Scalar>
 [[nodiscard]] typename PolylineT<Scalar>::BoundaryLocation PolylineT<Scalar>::ClosestBoundary(Linear::Point2T<Scalar> point) const noexcept {
-    BoundaryLocation best{};
-    for (std::size_t edge = 0; edge < SegmentCount(); ++edge) {
-        const Segment2T<Scalar> segment{m_points[edge], m_points[edge + 1]};
-        const Linear::Point2T<Scalar> candidate = segment.ClosestPoint(point);
-        const Scalar distanceSquared = (point - candidate).LengthSquared();
-        const Scalar parameter = BoundaryParameter(edge, m_points[edge], m_points[edge + 1], candidate);
-        if (edge == 0 || distanceSquared < best.DistanceSquared || (distanceSquared == best.DistanceSquared && parameter < best.Parameter)) {
-            best = BoundaryLocation{distanceSquared, parameter, candidate};
-        }
-    }
-    return best;
+    return Detail::ClosestOnChain<BoundaryLocation>(m_points.data(), m_points.size(), point, IsClosed());
 }
 
 template <typename Scalar> [[nodiscard]] Scalar PolylineT<Scalar>::BoundaryParameter(
     std::size_t edge, Linear::Point2T<Scalar> from, Linear::Point2T<Scalar> to, Linear::Point2T<Scalar> closest) const noexcept {
-    Scalar parameter = static_cast<Scalar>(edge);
-    const Scalar length = from.DistanceTo(to);
-    if (length > Scalar{0} && Core::IsFinite(length)) {
-        const auto direction = (to - from).Normalized();
-        if (direction.has_value()) {
-            Scalar local = Detail::ProjectParameter(from, *direction, closest) / length;
-            if (local < Scalar{0}) {
-                local = Scalar{0};
-            } else if (local > Scalar{1}) {
-                local = Scalar{1};
-            }
-            parameter += local;
-        }
-    }
+    Scalar parameter = Detail::EdgeParameter(edge, from, to, closest);
     if (IsClosed() && parameter == static_cast<Scalar>(SegmentCount())) {
         parameter = Scalar{0};
     }
