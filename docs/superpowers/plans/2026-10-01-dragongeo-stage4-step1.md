@@ -29,7 +29,8 @@
 - 点到 `Box` 的距离已经在 Linear 里，本步不改 `Box`。
 - 测试文件放进 `tests/Prim/` 或 `tests/Query/`，CMake 用 `GLOB_RECURSE`，不必改 `tests/CMakeLists.txt`。
 - 每个新公开方法都有直接调用它的用例。跑测试：`cmake --build D:/personal/Geometry/build/windows-vs --config Debug --target DragonGeoTests`，再跑 `D:/personal/Geometry/build/windows-vs/tests/Debug/DragonGeoTests.exe "<用例名>"`。
-- 文中的 Commit 步骤只在用户明确要求提交时执行。计划本身不授权提交。
+- 曲线协议的空值条件对所有曲线相同，见实现方案。本步没有椭圆和 NURBS。`Subcurve` 的成功类型仍按需求合同的表。`Length()` 一律返回 `Scalar`。
+- 用户已授权执行本计划，每个任务的 Commit 步骤要执行。
 
 ## Review Focus
 

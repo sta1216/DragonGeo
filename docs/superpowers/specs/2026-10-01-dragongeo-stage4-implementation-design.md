@@ -35,7 +35,8 @@
 
 - 求交、包含、距离按具体类型重载，编译期选定实现。
 - 自交检查本阶段用同一条环上的边两两比较，不写扫描线。`HasSelfIntersection` 只看同一条环。洞是否穿出外环由 `HolesAreValid` 回答。
-- `Ellipse2::Length` 做自适应求积。内部迭代上限内达不到 `tolerance.Resolve(SemiAxisX + SemiAxisY)` 时返回 `std::nullopt`。其余有闭式的 `Length()` 不接收容差。
+- 每条曲线的 `Length()` 都返回非负 `Scalar`，无界为 `+inf`，不接收容差。`Ellipse2::Length` 在内部用固定的 `Core::Tolerance{}` 做自适应求积。迭代上限内仍达不到时返回当前估计，并在方法注释里写明上限。
+- NURBS 的求值方法与其它曲线使用同一套签名和空值条件。本阶段这些函数体抛 `std::logic_error`，表示定义尚未实现。实现求值后去掉抛异常，签名不变。
 - GJK/EPA 的迭代上限和停止条件写在 `src/Query/ConvexDistance.cpp` 内部，不做成调用参数。达到上限时返回当前有限估计，不抛异常。测试只覆盖距离已知、且能在上限内收敛的分离体与简单重叠。
 - 参与 GJK 的 `Polygon` 由调用方保证无洞、凸、且至少三个不共线顶点。函数不先扫描拒绝。
 - `MultiPolygon` 不检查成员重叠。面积和重心按成员相加，重叠会重复计算。重叠检查留到阶段 5。
