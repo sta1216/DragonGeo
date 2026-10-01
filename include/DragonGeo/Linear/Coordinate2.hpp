@@ -52,7 +52,7 @@ public:
     /// 定向是符号判断，不需要容差（正交单位轴对上 `|x × y| = 1`）。
     [[nodiscard]] static constexpr std::optional<Coordinate2T> FromAxes(
         Point2T<Scalar> origin, UnitVector2T<Scalar> x, UnitVector2T<Scalar> y,
-        Core::Tolerance tolerance = {}) noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         const bool unitLengths =
             tolerance.Equal(x.Dot(x), 1.0) && tolerance.Equal(y.Dot(y), 1.0);
         const bool orthogonal = tolerance.IsZero(x.Dot(y));
@@ -86,7 +86,7 @@ public:
     /// 3D 那边更严是它的实现路径使然，不是缺陷。
     [[nodiscard]] static constexpr std::optional<Coordinate2T> FromXAxis(
         Point2T<Scalar> origin, UnitVector2T<Scalar> x,
-        Core::Tolerance tolerance = {}) noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         const UnitVector2T<Scalar> y = x.Perpendicular();
         return FromAxes(origin, x, y, tolerance);
     }
@@ -105,7 +105,7 @@ public:
     /// 反射（正交但 det = −1，例如 `Scaling({1,-1})`）同样被拒绝：`FromAxes`
     /// 要求叉积为正，同一个不变量不能有两个说法。
     [[nodiscard]] static constexpr std::optional<Coordinate2T> FromTransform(
-        const Transform2T<Scalar>& transform, Core::Tolerance tolerance = {}) noexcept {
+        const Transform2T<Scalar>& transform, Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         const MatrixT<Scalar, 3>& m = transform.Matrix;
 
         // 线性部分的两列，**原样**取出（不归一化，理由同上）。

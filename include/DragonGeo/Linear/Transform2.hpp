@@ -126,7 +126,7 @@ struct Transform2T {
 
     /// 逆变换。线性部分奇异时返回 std::nullopt。
     [[nodiscard]] std::optional<Transform2T<Scalar>> Inverse(
-        Core::Tolerance tolerance = {}) const noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const auto inverseMatrix = Matrix.Inverse(tolerance);
         if (!inverseMatrix.has_value()) {
             return std::nullopt;

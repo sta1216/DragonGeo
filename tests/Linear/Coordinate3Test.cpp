@@ -16,6 +16,7 @@ using Catch::Approx;
 
 using DragonGeo::Core::HALF_PI;
 using DragonGeo::Core::Tolerance;
+using DragonGeo::Core::Tolerancef;
 using DragonGeo::Core::TWO_PI;
 using DragonGeo::Linear::Coordinate3;
 using DragonGeo::Linear::Coordinate3f;
@@ -730,25 +731,17 @@ TEST_CASE("the float instantiation is usable", "[linear][coordinate3]") {
     REQUIRE(fromXform.has_value());
     CHECK(fromXform->Origin() == origin);
 
-    // 默认容差是按 double 定标的：float 上算出来的旋转矩阵（长度² 偏差 ~1e-7）
-    // 会被它拒绝。要用 float 标架就显式给出与该精度相称的容差 —— 容差显式传参
-    // 的预期后果。这里同时证明了 FromTransform 的容差确实生效。
-    //
-    // 注意下面这条**否定的**断言钉的是**库级**的容差口径（`Core::Tolerance` 的
-    // 默认值是按 double 定标的），不是 `Coordinate3T` 自己的规格：它记录 1e-7
-    // 量级的重建误差落在默认阈值之外这个事实。若将来默认容差改成随标量自适应，
-    // 这条失败是**信号**（说明口径变了），不是噪声 —— 到时要改的是一整族 float
-    // 调用点，而不只是这一条。另一半（放宽容差后接受）是这一格真正要证明的
-    // 「容差被转发」。
+    // `ToleranceT<float>` 默认与 float 标量域一致：典型 float 旋转矩阵在默认容差下
+    // 可重建标架。零容差则仍会因舍入拒绝 —— 证明容差参数确实穿到底。
     const UnitVector3T<float> fzw =
         UnitVector3T<float>::FromNormalizedUnchecked(Vector3T<float>{0.0f, 0.0f, 1.0f});
     const Transform3T<float> spin = Transform3T<float>::Rotation(fzw, 1.5707963267948966f);
-    CHECK_FALSE(Coordinate3T<float>::FromTransform(spin).has_value());
-    const auto loose = Coordinate3T<float>::FromTransform(spin, Tolerance{1e-5, 1e-5});
-    REQUIRE(loose.has_value());
-    CHECK(loose->XAxis().X() == Approx(0.0f).margin(1e-6f));
-    CHECK(loose->XAxis().Y() == Approx(1.0f).margin(1e-6f));
-    CHECK(loose->YAxis().X() == Approx(-1.0f).margin(1e-6f));
+    const auto fromSpin = Coordinate3T<float>::FromTransform(spin);
+    REQUIRE(fromSpin.has_value());
+    CHECK(fromSpin->XAxis().X() == Approx(0.0f).margin(1e-6f));
+    CHECK(fromSpin->XAxis().Y() == Approx(1.0f).margin(1e-6f));
+    CHECK(fromSpin->YAxis().X() == Approx(-1.0f).margin(1e-6f));
+    CHECK_FALSE(Coordinate3T<float>::FromTransform(spin, Tolerancef{0.0f, 0.0f}).has_value());
 }
 
 TEST_CASE("every declared callable is noexcept", "[linear][coordinate3]") {

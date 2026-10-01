@@ -17,6 +17,7 @@
 using Catch::Approx;
 
 using DragonGeo::Core::Tolerance;
+using DragonGeo::Core::Tolerancef;
 using DragonGeo::Linear::Box2;
 using DragonGeo::Linear::Box2T;
 using DragonGeo::Linear::Coordinate2;
@@ -593,5 +594,5 @@ TEST_CASE("the float instantiation is usable", "[linear][orientedbox2]") {
     // 一拒一收，顺带证明 float 上的容差参数确实被穿到底。
     const Point2T<float> outside{1.001f, 0.0f};
     CHECK_FALSE(box.Contains(outside));
-    CHECK(box.Contains(outside, Tolerance{1e-2, 0.0}));
+    CHECK(box.Contains(outside, Tolerancef{1e-2f, 0.0f}));
 }

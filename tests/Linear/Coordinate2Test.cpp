@@ -16,6 +16,7 @@ using Catch::Approx;
 
 using DragonGeo::Core::HALF_PI;
 using DragonGeo::Core::Tolerance;
+using DragonGeo::Core::Tolerancef;
 using DragonGeo::Linear::Coordinate2;
 using DragonGeo::Linear::Coordinate2f;
 using DragonGeo::Linear::Coordinate2T;
@@ -507,7 +508,7 @@ TEST_CASE("the float instantiation is usable", "[linear][coordinate2]") {
     Transform2T<float> perturbed{};
     perturbed.Matrix.Data[0][1] = -1e-4f;
     CHECK_FALSE(Coordinate2T<float>::FromTransform(perturbed).has_value());
-    const auto loose = Coordinate2T<float>::FromTransform(perturbed, Tolerance{1e-2, 1e-2});
+    const auto loose = Coordinate2T<float>::FromTransform(perturbed, Tolerancef{1e-2f, 1e-2f});
     REQUIRE(loose.has_value());
     CHECK(loose->XAxis().X() == 1.0f);
     CHECK(loose->XAxis().Y() == 0.0f);

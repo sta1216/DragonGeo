@@ -36,7 +36,7 @@ namespace DragonGeo::Linear {
 /// `OrientedBox3T{Coordinate, HalfExtent}` 是全部的构造方式。**没有默认构造** ——
 /// `Coordinate3T` 没有，于是「有向盒必须有一个标架」不需要运行期检查。
 ///
-/// 所有容差都由调用者显式传入，默认值来自 `Core::Tolerance`，函数体内不硬编码
+/// 所有容差都由调用者显式传入，默认值为 `Core::ToleranceT<Scalar>{}`，函数体内不硬编码
 /// 阈值。默认容差按 double 定标；float 实例化请显式传入与该精度相称的容差。
 template <typename Scalar>
 struct OrientedBox3T {
@@ -82,7 +82,7 @@ struct OrientedBox3T {
     /// 几何意义上的对应物（那一边的结果由标架决定）—— 见 `ToAxisAligned`
     /// 与 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool Contains(Point3T<Scalar> point,
-                                          Core::Tolerance tolerance = {}) const noexcept {
+                                          Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const Point3T<Scalar> local = Coordinate.ToLocal(point);
         return Core::AbsoluteValue(local.X) <= HalfExtent.X + tolerance.Resolve(HalfExtent.X)
             && Core::AbsoluteValue(local.Y) <= HalfExtent.Y + tolerance.Resolve(HalfExtent.Y)

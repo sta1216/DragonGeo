@@ -128,10 +128,10 @@ template <typename Scalar>
 
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector2T<Scalar>> Vector2T<Scalar>::Normalized(
-    Core::Tolerance tolerance) const noexcept {
+    Core::ToleranceT<Scalar> tolerance) const noexcept {
     const Scalar length = this->Length();
     // 非有限长度同样返回 nullopt，理由见 Vector3T::normalized。
-    if (!Core::IsFinite(length) || tolerance.IsZero(static_cast<double>(length))) {
+    if (!Core::IsFinite(length) || tolerance.IsZero(length)) {
         return std::nullopt;
     }
     return UnitVector2T<Scalar>::FromNormalizedUnchecked(*this / length);

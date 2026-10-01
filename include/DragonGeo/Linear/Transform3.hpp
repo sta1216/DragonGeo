@@ -92,7 +92,7 @@ struct Transform3T {
 
     /// 变换单位法向：`(L^{-1})^T n` 再归一化。线性部分奇异时返回空。
     [[nodiscard]] std::optional<UnitVector3T<Scalar>> TransformNormal(
-        UnitVector3T<Scalar> normal, Core::Tolerance tolerance = {}) const noexcept {
+        UnitVector3T<Scalar> normal, Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         MatrixT<Scalar, 3> linear{};
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 3; ++j) {
@@ -110,7 +110,7 @@ struct Transform3T {
 
     /// 线性部分在容差下为旋转时，提取对应四元数。
     [[nodiscard]] std::optional<QuaternionT<Scalar>> RotationQuaternion(
-        Core::Tolerance tolerance = {}) const noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         MatrixT<Scalar, 3> rotation{};
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 3; ++j) {
@@ -183,7 +183,7 @@ struct Transform3T {
 
     /// 逆变换。线性部分奇异时返回 std::nullopt。
     [[nodiscard]] std::optional<Transform3T<Scalar>> Inverse(
-        Core::Tolerance tolerance = {}) const noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const auto inverseMatrix = Matrix.Inverse(tolerance);
         if (!inverseMatrix.has_value()) {
             return std::nullopt;

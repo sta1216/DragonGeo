@@ -36,7 +36,7 @@ namespace DragonGeo::Linear {
 /// 因此 `FromTransform` 也必须拒绝反射矩阵：那是正交但 det = −1 的线性部分，
 /// 放行它等于给同一个不变量留两种说法。
 ///
-/// 所有容差都由调用者显式传入，默认值来自 `Core::Tolerance`，函数体内不硬编码
+/// 所有容差都由调用者显式传入，默认值为 `Core::ToleranceT<Scalar>{}`，函数体内不硬编码
 /// 阈值。默认容差按 double 定标；float 实例化请显式传入与该精度相称的容差。
 ///
 /// 注意本类型只承诺**线性**部分是正交的：`Transform3T` 的第 4 行（`(0,0,0,1)`）
@@ -81,7 +81,7 @@ public:
         UnitVector3T<Scalar> x,
         UnitVector3T<Scalar> y,
         UnitVector3T<Scalar> z,
-        Core::Tolerance tolerance = {}) noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         const bool unitLengths = tolerance.Equal(x.Dot(x), 1.0)
                                && tolerance.Equal(y.Dot(y), 1.0)
                                && tolerance.Equal(z.Dot(z), 1.0);
@@ -118,7 +118,7 @@ public:
     /// `FromTransform` 不归一化，因此仍是 `constexpr`。
     [[nodiscard]] static std::optional<Coordinate3T> FromZAxis(
         Point3T<Scalar> origin, UnitVector3T<Scalar> z,
-        Core::Tolerance tolerance = {}) noexcept;
+        Core::ToleranceT<Scalar> tolerance = {}) noexcept;
 
     /// 由刚体变换（旋转 + 平移）构造标架。
     ///
@@ -136,7 +136,7 @@ public:
     /// 实现上把三列原样交给 `FromAxes`，由它完成 `AᵀA ≈ I` 与定向的校验 ——
     /// 于是「反射」（正交但 det = −1）也在同一个出口被拒绝。
     [[nodiscard]] static constexpr std::optional<Coordinate3T> FromTransform(
-        const Transform3T<Scalar>& transform, Core::Tolerance tolerance = {}) noexcept {
+        const Transform3T<Scalar>& transform, Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         const MatrixT<Scalar, 4>& m = transform.Matrix;
 
         // 线性部分的三列。**原样**取出，不做归一化 —— 归一化会把判据偷换成
@@ -207,7 +207,7 @@ using Coordinate3f = Coordinate3T<float>;
 
 template <typename Scalar>
 std::optional<Coordinate3T<Scalar>> Coordinate3T<Scalar>::FromZAxis(
-    Point3T<Scalar> origin, UnitVector3T<Scalar> z, Core::Tolerance tolerance) noexcept {
+    Point3T<Scalar> origin, UnitVector3T<Scalar> z, Core::ToleranceT<Scalar> tolerance) noexcept {
     const Scalar ax = Core::AbsoluteValue(z.X());
     const Scalar ay = Core::AbsoluteValue(z.Y());
     const Scalar az = Core::AbsoluteValue(z.Z());

@@ -148,16 +148,16 @@ cmake/            包配置模板（find_package 支持）
 ```cpp
 namespace DragonGeo::Core {
 
-struct Tolerance {
-    double abs = 1e-12;   // 绝对项
-    double rel = 1e-9;    // 相对项
+template <std::floating_point Scalar>
+struct ToleranceT { /* Abs, Rel, Resolve, Equal, IsZero — 均为 Scalar */ };
 
-    // 有效容差 = abs + rel * |magnitude|
-    [[nodiscard]] constexpr double resolve(double magnitude) const noexcept;
-};
+using Tolerance  = ToleranceT<double>;   // 默认 Abs=1e-12, Rel=1e-9
+using Tolerancef = ToleranceT<float>;    // 默认 Abs=1e-6f, Rel=1e-5f
 
 } // namespace DragonGeo::Core
 ```
+
+细节与 Linear API 签名见 `2026-10-01-dragongeo-tolerance-template-design.md`。
 
 **代价**：函数签名变长。
 **收益**：调用者始终知道自己在何种精度下工作，且能针对具体问题调参；不存在"库作者替你选了一个对你不合适的阈值"的情况。

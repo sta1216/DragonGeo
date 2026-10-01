@@ -98,7 +98,7 @@ struct MatrixT {
     ///
     /// 与 determinant 一样用 if constexpr 写成单一实现。
     [[nodiscard]] constexpr std::optional<MatrixT> Inverse(
-        Core::Tolerance tolerance = {}) const noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         static_assert(N == 2 || N == 3 || N == 4,
                       "inverse is implemented for 2x2, 3x3 and 4x4 matrices only");
 
@@ -187,7 +187,7 @@ struct MatrixT {
         // 矩阵会得到一个 has_value() 为真、内容全是 NaN 的逆矩阵 —— 调用者无从
         // 察觉，而 NaN 会污染后续全部计算。这与 Vector3T::normalized 的裁定是同一条原则。
         if (!Core::IsFinite(static_cast<double>(det))
-            || tolerance.IsZero(static_cast<double>(det))) {
+            || tolerance.IsZero(det)) {
             return std::nullopt;
         }
         const Scalar invDet = Scalar{1} / det;

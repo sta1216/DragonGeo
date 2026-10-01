@@ -88,7 +88,7 @@ struct Vector3T {
     /// 因此调用者不能只包含本头文件：UnitVector3T 不完整时，返回的
     /// std::optional 无法实例化。
     [[nodiscard]] std::optional<UnitVector3T<Scalar>> Normalized(
-        Core::Tolerance tolerance = {}) const noexcept;
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept;
 };
 
 template <typename Scalar>

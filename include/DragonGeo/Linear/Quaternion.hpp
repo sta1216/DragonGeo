@@ -67,13 +67,13 @@ struct QuaternionT {
 
     /// 归一化。模长在给定容差下可视为零、或本身不是有限值时返回 std::nullopt。
     [[nodiscard]] std::optional<QuaternionT> Normalized(
-        Core::Tolerance tolerance = {}) const noexcept {
+        Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const Scalar magnitude = Norm();
         // 与 UnitVector3T::normalized / MatrixT::inverse 同一条原则：绝不交出一个
         // has_value() 为真、内容却是 NaN 的结果 —— 调用者无从察觉，而 NaN 会
         // 污染后续全部计算。
         if (!Core::IsFinite(static_cast<double>(magnitude))
-            || tolerance.IsZero(static_cast<double>(magnitude))) {
+            || tolerance.IsZero(magnitude)) {
             return std::nullopt;
         }
         const Scalar inverseMagnitude = Scalar{1} / magnitude;
@@ -113,7 +113,7 @@ struct QuaternionT {
 
     /// 从 3×3 旋转矩阵提取四元数。非正交或 det ≠ +1 时返回空。
     [[nodiscard]] static std::optional<QuaternionT> FromRotationMatrix(
-        MatrixT<Scalar, 3> rotation, Core::Tolerance tolerance = {}) noexcept {
+        MatrixT<Scalar, 3> rotation, Core::ToleranceT<Scalar> tolerance = {}) noexcept {
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 3; ++j) {
                 if (!Core::IsFinite(static_cast<double>(rotation.Data[i][j]))) {
@@ -126,15 +126,15 @@ struct QuaternionT {
         const MatrixT<Scalar, 3> product = rotation * transposed;
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 3; ++j) {
-                const double expected = i == j ? 1.0 : 0.0;
-                if (!tolerance.Equal(static_cast<double>(product.Data[i][j]), expected)) {
+                const Scalar expected = i == j ? Scalar{1} : Scalar{0};
+                if (!tolerance.Equal(product.Data[i][j], expected)) {
                     return std::nullopt;
                 }
             }
         }
 
         const Scalar determinant = rotation.Determinant();
-        if (!tolerance.Equal(static_cast<double>(determinant), 1.0)) {
+        if (!tolerance.Equal(determinant, Scalar{1})) {
             return std::nullopt;
         }
 

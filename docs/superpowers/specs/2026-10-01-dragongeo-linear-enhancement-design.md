@@ -23,7 +23,7 @@
 - 不改 `Box` / `Interval` / `OrientedBox` 已有 `Contains`、`Intersects`、`Merged`、`Intersection` 的精确比较语义（仍不用 `Tolerance`）。
 - 不给 `OrientedBox` 加最近点或距离（本阶段；若以后需要另开设计）。
 - 不在 Linear 里加 Prim 语义（线段、平面、射线等）。
-- 不加全局 epsilon；容差仍走 `Core::Tolerance` 显式参数。
+- 不加全局 epsilon；容差仍走 `Core::ToleranceT<Scalar>` 显式参数（见 `2026-10-01-dragongeo-tolerance-template-design.md`）。
 - 不实现 `TransformNormal` 的二维版（二维法线是标量，Prim 的 `Plane` 用 `Flipped` 即可）。
 
 ---

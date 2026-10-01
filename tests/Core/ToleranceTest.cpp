@@ -83,3 +83,15 @@ TEST_CASE("non-finite values are neither zero nor approximately equal",
     CHECK_FALSE(tolerance.Equal(notANumber, notANumber));
     CHECK_FALSE(tolerance.IsZero(notANumber));
 }
+
+TEST_CASE("Tolerancef defaults match float-scale thresholds", "[core][tolerance]") {
+    using DragonGeo::Core::Tolerancef;
+
+    const Tolerancef defaults{};
+    CHECK(defaults.Abs == 1e-6f);
+    CHECK(defaults.Rel == 1e-5f);
+    CHECK(defaults.Resolve(1.0f) == 1e-6f + 1e-5f);
+
+    CHECK(defaults.Equal(1.0f, 1.0f + 1e-6f));
+    CHECK_FALSE(defaults.Equal(1.0f, 1.0f + 1e-4f));
+}

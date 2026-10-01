@@ -28,7 +28,7 @@ namespace DragonGeo::Linear {
 /// `Coordinate` 是强不变量类型 `Coordinate2T`（私有构造 + 校验过的工厂）。
 /// `HalfExtent` 的非负是弱不变量，`expanded` 是把它修回来的公开路径。
 ///
-/// 所有容差都由调用者显式传入，默认值来自 `Core::Tolerance`，函数体内不硬编码
+/// 所有容差都由调用者显式传入，默认值为 `Core::ToleranceT<Scalar>{}`，函数体内不硬编码
 /// 阈值。默认容差按 double 定标；float 实例化请显式传入与该精度相称的容差。
 template <typename Scalar>
 struct OrientedBox2T {
@@ -74,7 +74,7 @@ struct OrientedBox2T {
     /// 几何意义上的对应物（那一边的结果由标架决定）—— 见 `ToAxisAligned`
     /// 与 `expanded` 的非有限半轴一节。
     [[nodiscard]] constexpr bool Contains(Point2T<Scalar> point,
-                                          Core::Tolerance tolerance = {}) const noexcept {
+                                          Core::ToleranceT<Scalar> tolerance = {}) const noexcept {
         const Point2T<Scalar> local = Coordinate.ToLocal(point);
         return Core::AbsoluteValue(local.X) <= HalfExtent.X + tolerance.Resolve(HalfExtent.X)
             && Core::AbsoluteValue(local.Y) <= HalfExtent.Y + tolerance.Resolve(HalfExtent.Y);

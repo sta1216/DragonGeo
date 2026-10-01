@@ -166,7 +166,7 @@ template <typename Scalar>
 
 template <typename Scalar>
 [[nodiscard]] std::optional<UnitVector3T<Scalar>> Vector3T<Scalar>::Normalized(
-    Core::Tolerance tolerance) const noexcept {
+    Core::ToleranceT<Scalar> tolerance) const noexcept {
     const Scalar length = this->Length();
     // 非有限长度同样返回 nullopt。容差判断对 ±inf 与 NaN 一律返回 false
     // （`IsZero` 刻意不把溢出量静默归类为零），若就此放行，本函数会交出一个
@@ -174,7 +174,7 @@ template <typename Scalar>
     // 会一路污染 dot / cross 与每一个容差比较 —— 那些比较对 NaN 都返回 false，
     // 下游几何代码会静默走「否」分支。NaN 输入比无穷更常见：任何上游的
     // 0/0 或 inf - inf 都会落到这里。
-    if (!Core::IsFinite(length) || tolerance.IsZero(static_cast<double>(length))) {
+    if (!Core::IsFinite(length) || tolerance.IsZero(length)) {
         return std::nullopt;
     }
     return UnitVector3T<Scalar>::FromNormalizedUnchecked(*this / length);
